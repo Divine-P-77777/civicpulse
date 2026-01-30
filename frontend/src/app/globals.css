@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply text-gray-900 bg-white;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply border border-primary-600 text-primary-600 hover:bg-primary-50 px-4 py-2 rounded-lg font-medium transition-colors;
+  }
+  
+  .risk-indicator {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .risk-low {
+    @apply bg-green-100 text-green-800;
+  }
+  
+  .risk-medium {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  
+  .risk-high {
+    @apply bg-red-100 text-red-800;
+  }
+
+  /* Gemini Live Style Animations */
+  .gradient-orb {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899, #06b6d4);
+    background-size: 400% 400%;
+    animation: gradientShift 4s ease infinite;
+  }
+
+  .gradient-orb-active {
+    background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6, #22d3ee, #34d399);
+    background-size: 600% 600%;
+    animation: gradientShift 2s ease infinite, breathe 3s ease-in-out infinite;
+  }
+
+  .voice-ripple {
+    animation: ripple 2.5s ease-out infinite;
+  }
+
+  .voice-ripple:nth-child(2) {
+    animation-delay: 0.8s;
+  }
+
+  .voice-ripple:nth-child(3) {
+    animation-delay: 1.6s;
+  }
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 100% 50%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  75% {
+    background-position: 50% 100%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Chat interface animations */
+.message-slide-in {
+  animation: slideInUp 0.3s ease-out;
+}
+
+.typing-indicator {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.document-card-hover {
+  transition: all 0.2s ease;
+}
+
+.document-card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.chat-input-focus {
+  transition: all 0.2s ease;
+}
+
+.chat-input-focus:focus {
+  transform: scale(1.01);
+}
+
+/* ChatGPT-style message bubbles */
+.chat-message {
+  max-width: 85%;
+}
+
+.chat-message-user {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.chat-message-assistant {
+  background: white;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.chat-header-gradient {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+}
+
+.document-picker-dropdown {
+  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .gradient-orb {
+    width: 10rem;
+    height: 10rem;
+  }
+  
+  .chat-message {
+    max-width: 85%;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .gradient-orb {
+    width: 12rem;
+    height: 12rem;
+  }
+}

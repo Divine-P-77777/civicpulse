@@ -1,0 +1,52 @@
+{
+  "name": "civicpulse-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@reduxjs/toolkit": "^2.0.1",
+    "react-redux": "^9.0.4",
+    "redux-persist": "^6.0.0",
+    "i18next": "^23.7.16",
+    "react-i18next": "^13.5.0",
+    "i18next-browser-languagedetector": "^7.2.0",
+    "@supabase/supabase-js": "^2.38.5",
+    "@supabase/auth-ui-react": "^0.4.6",
+    "@supabase/auth-ui-shared": "^0.1.8",
+    "socket.io-client": "^4.7.4",
+    "framer-motion": "^10.16.16",
+    "lucide-react": "^0.303.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.6",
+    "@types/react": "^18.2.46",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.16.0",
+    "@typescript-eslint/parser": "^6.16.0",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "14.0.4",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10",
+    "jest": "^29.7.0",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "^6.1.6",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}

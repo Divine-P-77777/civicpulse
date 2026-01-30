@@ -1,0 +1,124 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Run linting
+      run: |
+        cd frontend
+        npm run lint
+    
+    - name: Run type checking
+      run: |
+        cd frontend
+        npm run type-check
+    
+    - name: Run tests
+      run: |
+        cd frontend
+        npm run test
+    
+    - name: Build application
+      run: |
+        cd frontend
+        npm run build
+
+  test-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tesseract-ocr poppler-utils
+    
+    - name: Install Python dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+    
+    - name: Run linting
+      run: |
+        cd backend
+        flake8 .
+    
+    - name: Run type checking
+      run: |
+        cd backend
+        mypy .
+    
+    - name: Run tests
+      run: |
+        cd backend
+        pytest
+
+  build-and-deploy:
+    needs: [test-frontend, test-backend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    - name: Build and push frontend image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: civicpulse-frontend
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -f Dockerfile.frontend -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+    
+    - name: Build and push backend image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: civicpulse-backend
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -f Dockerfile.backend -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+    
+    - name: Deploy to EC2
+      run: |
+        # TODO: Add deployment script for EC2
+        echo "Deployment to EC2 will be implemented in later tasks"

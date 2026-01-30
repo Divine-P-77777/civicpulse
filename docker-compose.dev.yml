@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../Dockerfile.frontend
+      target: deps
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - civicpulse-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    networks:
+      - civicpulse-network
+
+networks:
+  civicpulse-network:
+    driver: bridge

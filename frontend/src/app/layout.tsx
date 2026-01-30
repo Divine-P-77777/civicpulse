@@ -1,0 +1,28 @@
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Providers } from '@/lib/providers';
+
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata: Metadata = {
+  title: 'CivicPulse - AI Legal Rights Assistant',
+  description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
+  keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis'],
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>
+        <Providers>
+          <div id="root">{children}</div>
+        </Providers>
+      </body>
+    </html>
+  );
+}

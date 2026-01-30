@@ -1,0 +1,156 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAppSelector, useAppDispatch } from '@/hooks/redux';
+import { toggleSidebar, setCurrentMode } from '@/store/slices/uiSlice';
+import { clearAuth } from '@/store/slices/authSlice';
+import { 
+  Menu, 
+  X, 
+  Home, 
+  MessageCircle, 
+  Mic, 
+  FileText, 
+  Settings, 
+  LogOut,
+  User
+} from 'lucide-react';
+
+export default function Navigation() {
+  const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const { sidebarOpen } = useAppSelector((state) => state.ui);
+  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+
+  const navigation = [
+    { name: 'Home', href: '/', icon: Home },
+    { name: 'Live Mode', href: '/live', icon: Mic },
+    { name: 'Chat Mode', href: '/chat', icon: MessageCircle },
+    { name: 'Documents', href: '/documents', icon: FileText },
+  ];
+
+  const handleLogout = () => {
+    dispatch(clearAuth());
+  };
+
+  return (
+    <>
+      {/* Mobile menu button */}
+      <div className="lg:hidden fixed top-4 left-4 z-50">
+        <button
+          onClick={() => dispatch(toggleSidebar())}
+          className="bg-white p-2 rounded-lg shadow-lg"
+        >
+          {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
+      {/* Sidebar */}
+      <div className={`
+        fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0 lg:static lg:inset-0
+      `}>
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center justify-center h-16 px-4 border-b">
+            <Link href="/" className="text-2xl font-bold text-primary-600">
+              CivicPulse
+            </Link>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 px-4 py-6 space-y-2">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`
+                    flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
+                    ${isActive 
+                      ? 'bg-primary-100 text-primary-700' 
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }
+                  `}
+                  onClick={() => {
+                    dispatch(toggleSidebar());
+                    if (item.href === '/live') dispatch(setCurrentMode('live'));
+                    else if (item.href === '/chat') dispatch(setCurrentMode('chat'));
+                    else dispatch(setCurrentMode('home'));
+                  }}
+                >
+                  <Icon size={20} className="mr-3" />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* User section */}
+          <div className="border-t px-4 py-4">
+            {isAuthenticated && user ? (
+              <div className="space-y-2">
+                <div className="flex items-center px-4 py-2">
+                  <User size={20} className="mr-3 text-gray-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {user.full_name || user.email}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+                
+                <Link
+                  href="/settings"
+                  className="flex items-center px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  <Settings size={20} className="mr-3" />
+                  Settings
+                </Link>
+                
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  <LogOut size={20} className="mr-3" />
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Link
+                  href="/auth/login"
+                  className="block w-full px-4 py-2 text-sm text-center text-white bg-primary-600 hover:bg-primary-700 rounded-lg"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/auth/register"
+                  className="block w-full px-4 py-2 text-sm text-center text-primary-600 border border-primary-600 hover:bg-primary-50 rounded-lg"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 z-30 bg-black bg-opacity-50 lg:hidden"
+          onClick={() => dispatch(toggleSidebar())}
+        />
+      )}
+    </>
+  );
+}
