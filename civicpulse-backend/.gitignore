@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.csv
+*.pem
+*.json
+!package.json
+!tsconfig.json
