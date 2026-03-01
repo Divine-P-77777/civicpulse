@@ -4,36 +4,42 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-host = os.getenv("OPENSEARCH_ENDPOINT", "").replace("https://", "").replace(":443", "")
-username = os.getenv("OPENSEARCH_USER", "admin")
-password = os.getenv("OPENSEARCH_PASSWORD", "")
+class VectorService:
+    def __init__(self):
+        self.host = os.getenv("OPENSEARCH_ENDPOINT", "").replace("https://", "").replace(":443", "")
+        self.username = os.getenv("OPENSEARCH_USER", "admin")
+        self.password = os.getenv("OPENSEARCH_PASSWORD", "")
+        
+        self.client = OpenSearch(
+            hosts=[{"host": self.host, "port": 443}],
+            http_auth=(self.username, self.password),
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection
+        )
+        self.index_name = "civicpulse"
 
-client = OpenSearch(
-    hosts=[{"host": host, "port": 443}],
-    http_auth=(username, password),
-    use_ssl=True,
-    verify_certs=True,
-    connection_class=RequestsHttpConnection
-)
+    def store_vector(self, doc_id: str, vector: list, metadata: dict):
+        body = {
+            "vector": vector,
+            "metadata": metadata
+        }
+        return self.client.index(index=self.index_name, id=doc_id, body=body)
 
-def store_vector(doc_id: str, vector: list, metadata: dict):
-    body = {
-        "vector": vector,
-        "metadata": metadata
-    }
-    client.index(index="civicpulse", id=doc_id, body=body)
-
-def similarity_search(query_vector: list):
-    search_query = {
-        "size": 5,
-        "query": {
-            "knn": {
-                "vector": {
-                    "vector": query_vector,
-                    "k": 5
+    def similarity_search(self, query_vector: list, k: int = 5):
+        search_query = {
+            "size": k,
+            "query": {
+                "knn": {
+                    "vector": {
+                        "vector": query_vector,
+                        "k": k
+                    }
                 }
             }
         }
-    }
-    response = client.search(index="civicpulse", body=search_query)
-    return [hit["_source"] for hit in response["hits"]["hits"]]
+        response = self.client.search(index=self.index_name, body=search_query)
+        return [hit["_source"]["metadata"] for hit in response["hits"]["hits"]]
+
+# Singleton instance
+vector_service = VectorService()

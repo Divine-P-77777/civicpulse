@@ -1,19 +1,19 @@
-from fastapi import APIRouter, UploadFile, Form
-from pydantic import BaseModel
-import json
+from fastapi import APIRouter, UploadFile, Form, Depends
 from app.services.s3_service import upload_to_s3
-from app.services.textract_service import extract_text_from_s3
-from app.services.embedding_service import chunk_text, generate_embedding
-from app.services.vector_service import store_vector
-import uuid
+from app.ingestion.pdf_ingest import ingest_pdf_from_s3
+from app.core.auth import get_admin_user
+import json
 
-router = APIRouter()
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 @router.post("/ingest-law")
-async def ingest_law(file: UploadFile, metadata: str = Form(...)):
+async def ingest_law(
+    file: UploadFile, 
+    metadata: str = Form(...),
+    admin: dict = Depends(get_admin_user)
+):
     """
-    Admin-only endpoint.
-    metadata format example: {"type": "law", "region": "Assam"}
+    Admin-only endpoint. Secures with Auth0 and Whitelist.
     """
     try:
         meta_dict = json.loads(metadata)
@@ -21,22 +21,14 @@ async def ingest_law(file: UploadFile, metadata: str = Form(...)):
         meta_dict = {"type": "law"}
         
     # 1. Upload to S3
-    file_url = upload_to_s3(file)
+    bucket = "civicpulse-documents-bucket"
+    file_key = upload_to_s3(file)
     
-    # Simple placeholder for Textract completion logic (async flow omitted for brevity)
-    simulated_text = "Simulated text from Textract for " + file.filename
-    
-    # 2. Chunking
-    chunks = chunk_text(simulated_text)
-    
-    # 3. Embed and store
-    for i, chunk in enumerate(chunks):
-        embedding = generate_embedding(chunk)
-        chunk_meta = meta_dict.copy()
-        chunk_meta["chunk_index"] = i
-        chunk_meta["source"] = file_url
+    # 2. Run ingestion pipeline
+    chunks_processed = ingest_pdf_from_s3(bucket, file_key, meta_dict)
         
-        doc_id = str(uuid.uuid4())
-        store_vector(doc_id, embedding, chunk_meta)
-        
-    return {"message": "Law ingested successfully", "chunks_processed": len(chunks)}
+    return {
+        "message": "Law ingested successfully", 
+        "chunks_processed": chunks_processed,
+        "admin_email": admin.get("email")
+    }
