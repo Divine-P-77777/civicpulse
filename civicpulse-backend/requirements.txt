@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+boto3
+langchain
+opensearch-py
+pydantic
+python-multipart
+tiktoken
+unstructured
+requests
+beautifulsoup4

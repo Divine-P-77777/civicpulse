@@ -1,1 +1,0 @@
-"""CivicPulse Backend Application."""
