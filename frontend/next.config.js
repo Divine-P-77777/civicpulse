@@ -1,24 +1,43 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
+
   images: {
-    domains: ['res.cloudinary.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+    ],
   },
+
+  // Turbopack is the default in Next.js 16. Declaring an empty config silences
+  // the "webpack config but no turbopack config" warning. The fs:false fallback
+  // below is only used when Next.js falls back to webpack (e.g. older tooling).
+  turbopack: {},
+
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   },
+
   async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+    // If no API URL is configured just skip rewrites – don't throw,
+    // so that static/Vercel builds without a backend still succeed.
+    if (!apiUrl || apiUrl.includes('localhost')) {
+      return [];
+    }
+
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/:path*`,
+        destination: `${apiUrl}/api/:path*`,
       },
     ];
   },
+
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,

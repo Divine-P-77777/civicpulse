@@ -22,7 +22,7 @@ const initialState: DocumentsState = {
 // Async thunks
 export const uploadDocument = createAsyncThunk(
   'documents/upload',
-  async (file: File, { dispatch }) => {
+  async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     

@@ -18,7 +18,7 @@ import {
   Clock, 
   Loader2,
   Search,
-  Filter
+  
 } from 'lucide-react';
 
 export default function DocumentsPage() {

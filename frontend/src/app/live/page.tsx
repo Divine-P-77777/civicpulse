@@ -5,26 +5,22 @@ import Layout from '@/components/Layout';
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { useSupabaseRealtime } from '@/hooks/useSupabaseRealtime';
+
 import { 
   setVoiceActive, 
   setCameraActive, 
   setRecording, 
   addMessage,
   setConnectionStatus,
-  setError,
-  setAudioLevel 
+  setError
 } from '@/store/slices/liveSlice';
 import { 
   Mic, 
-  MicOff, 
   Camera, 
   CameraOff, 
-  Send, 
   Loader2,
   AlertCircle,
-  Volume2,
-  Phone,
-  PhoneOff
+  Volume2
 } from 'lucide-react';
 
 export default function LiveMode() {
@@ -33,20 +29,18 @@ export default function LiveMode() {
     isVoiceActive, 
     isCameraActive, 
     isRecording, 
-    messages, 
     connectionStatus, 
     error,
-    audioLevel 
   } = useAppSelector((state) => state.live);
 
-  const { speak, cancel: cancelSpeech, isSpeaking } = useSpeechSynthesis({
+  const { speak, isSpeaking } = useSpeechSynthesis({
     preferFemaleVoice: true,
     rate: 0.9,
     pitch: 1.1,
     volume: 0.8
   });
 
-  const [textInput, setTextInput] = useState('');
+  
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasGreeted, setHasGreeted] = useState(false);
   const [sessionId] = useState(`live-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
@@ -61,7 +55,6 @@ export default function LiveMode() {
     isConnected,
     connectionStatus: realtimeStatus,
     sendVoiceMessage,
-    sendCameraCapture,
     createSession,
     endSession
   } = useSupabaseRealtime({
@@ -91,7 +84,7 @@ export default function LiveMode() {
   useEffect(() => {
     if (!hasGreeted) {
       setTimeout(() => {
-        speak("Hello! I'm your AI legal assistant. I'm here to help you understand legal documents and your civic rights. How can I assist you today?");
+        speak("Hello! I&apos;m your AI legal assistant. I&apos;m here to help you understand legal documents and your civic rights. How can I assist you today?");
         setHasGreeted(true);
       }, 1000);
     }
@@ -208,35 +201,7 @@ const toggleVoice = async () => {
     }
   };
 
-  const captureImage = async () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      const ctx = canvas.getContext('2d');
-      
-      if (ctx) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        
-        canvas.toBlob(async (blob) => {
-          if (blob && isConnected) {
-            const reader = new FileReader();
-            reader.onload = async () => {
-              const base64Data = (reader.result as string).split(',')[1];
-              try {
-                await sendCameraCapture(base64Data);
-              } catch (error) {
-                console.error('Failed to send camera capture:', error);
-                dispatch(setError('Failed to send camera capture'));
-              }
-            };
-            reader.readAsDataURL(blob);
-          }
-        });
-      }
-    }
-  };
+  
 
   const startRecording = () => {
     if (mediaRecorderRef.current && !isRecording) {
@@ -252,32 +217,7 @@ const toggleVoice = async () => {
     }
   };
 
-  const sendTextMessage = async () => {
-    if (textInput.trim() && isConnected) {
-      // Add user message to local state
-      dispatch(addMessage({
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: textInput,
-        timestamp: new Date().toISOString(),
-      }));
-
-      // Send to backend via Supabase (this will trigger AI processing)
-      try {
-        // This would typically be handled by a backend function that processes the message
-        // and generates an AI response which gets inserted into ai_responses table
-        console.log('Sending text message:', textInput);
-        // Backend will handle the AI processing and insert response
-      } catch (error) {
-        console.error('Failed to send text message:', error);
-        dispatch(setError('Failed to send message'));
-      }
-
-      setTextInput('');
-    }
-
-    
-  };
+  
 
   const handleMicClick = async () => {
   if (isRecording) {

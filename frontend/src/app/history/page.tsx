@@ -1,10 +1,5 @@
 'use client';
 
-import Layout from '@/components/Layout';
-import Link from 'next/link';
-import { useAppDispatch } from '@/hooks/redux';
-import { setCurrentMode } from '@/store/slices/uiSlice';
-
 const page = () => {
   return (
     <div>

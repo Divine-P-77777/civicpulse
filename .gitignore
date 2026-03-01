@@ -106,3 +106,4 @@ temp/
 
 # Supabase
 .supabase/
+.vercel

@@ -36,6 +36,8 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}) {
         speechSynthesis.removeEventListener('voiceschanged', loadVoices);
       };
     }
+
+    return undefined;
   }, []);
 
   const getPreferredVoice = useCallback(() => {

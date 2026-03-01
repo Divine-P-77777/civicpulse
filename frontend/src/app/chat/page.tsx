@@ -132,12 +132,7 @@ export default function ChatMode() {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+    // textarea uses inline onKeyDown handler; removed unused handleKeyPress
 
   const selectDocument = (doc: Document) => {
     dispatch(setActiveDocument(doc));
@@ -235,7 +230,7 @@ export default function ChatMode() {
                       How can I help you today?
                     </h2>
                     <p className="text-gray-600 mb-8">
-                      I'm your AI legal assistant. Upload a document to analyze it, or ask me any legal questions.
+                      I&apos;m your AI legal assistant. Upload a document to analyze it, or ask me any legal questions.
                     </p>
                     
                     {/* Quick Actions */}
@@ -299,7 +294,7 @@ export default function ChatMode() {
                           Analyzing Document...
                         </h2>
                         <p className="text-gray-600">
-                          I'm reading through your document and identifying key clauses and potential risks.
+                          I&apos;m reading through your document and identifying key clauses and potential risks.
                         </p>
                       </>
                     )}
