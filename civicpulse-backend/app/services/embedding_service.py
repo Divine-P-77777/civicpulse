@@ -1,5 +1,5 @@
 import json
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.config import bedrock_client
 
 def chunk_text(text: str):

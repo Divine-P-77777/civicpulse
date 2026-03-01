@@ -1,10 +1,12 @@
 import boto3
+import os
 import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = boto3.client("bedrock-runtime", region_name="ap-south-1")
+bedrock_region = os.getenv("BEDROCK_REGION", "ap-south-1")
+client = boto3.client("bedrock-runtime", region_name=bedrock_region)
 
 try:
     response = client.invoke_model(

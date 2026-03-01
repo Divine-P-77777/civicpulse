@@ -1,10 +1,11 @@
+import os
 import json
-from app.config import bedrock_client
+from openai import OpenAI
 from app.services.embedding_service import generate_embedding
 from app.services.vector_service import similarity_search
 from app.services.dynamodb_service import store_analysis_result
 
-import os
+client = OpenAI()
 
 def analyze_document(query: str):
     query_embedding = generate_embedding(query)
@@ -14,24 +15,22 @@ def analyze_document(query: str):
     with open(prompt_path, "r") as f:
         prompt_template = f.read()
 
+    # Format context as a string
+    context_str = "\n".join([c.get("text", "") for c in context_chunks])
+
     final_prompt = prompt_template.format(
-        context=json.dumps(context_chunks),
+        context=context_str,
         query=query
     )
 
-    response = bedrock_client.invoke_model(
-        modelId="anthropic.claude-3-sonnet-20240229-v1:0",
-        body=json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1000,
-            "messages": [{"role": "user", "content": final_prompt}]
-        })
+    response = client.chat.completions.create(
+        model="openai.gpt-oss-120b",
+        messages=[{"role": "user", "content": final_prompt}]
     )
     
-    response_body = json.loads(response.get("body").read())
-    result_text = response_body["content"][0]["text"]
+    result_text = response.choices[0].message.content
     
-    # Store results in DynamoDB for dashboard rendering
+    # Store results in DynamoDB (surrounded by try-except in service)
     store_analysis_result(query, result_text)
     
     return result_text
