@@ -1,0 +1,41 @@
+Here is a brief, comprehensive breakdown of how your CivicPulse Backend Architecture is structured and how data flows through it:
+
+1. Core Framework & Routing
+The backend is built on FastAPI (app/main.py), which exposes three main groups of API endpoints:
+
+/api/admin/*: Secured routes meant for administrators to upload and ingest new legal documents.
+/api/analyze/*: The core AI endpoints for users to ask questions and get text or streaming audio responses.
+/api/upload/*: (Not fully detailed, but generally handles standard user uploads if applicable).
+2. The Ingestion Pipeline (Admin Flow)
+When an admin uploads a new legal document (PDF) through the frontend:
+
+Security Check: admin.py verifies the user via Auth0 and checks them against an admin whitelist.
+Storage: The PDF is uploaded to an AWS S3 bucket (civicpulse-documents-bucket).
+OCR Extraction: The backend triggers AWS Textract (textract_service.py), which asynchronously scans the PDF and extracts all the text line-by-line.
+Processing: pdf_ingest.py (which orchestrates this) splits the extracted text into manageable "chunks".
+Vectorization & Indexing: Each text chunk is converted into mathematical embeddings (using embedding_service.py) and stored in an OpenSearch Vector Database (vector_service.py) along with metadata (like region or document type).
+3. The RAG Pipeline (User Query Flow)
+RAG (Retrieval-Augmented Generation) is how the AI answers user questions accurately based on the ingested laws:
+
+User Query: A user submits a legal question to the /api/analyze endpoint.
+Context Retrieval: rag_pipeline.py converts the user's question into an embedding and queries OpenSearch (vector_service.similarity_search()) to fetch the top 5 most relevant legal text chunks we ingested earlier.
+Summarization: To keep the AI focused, summarize_service.py condenses those retrieved legal chunks into a cleaner context.
+LLM Generation: The system builds a prompt combining the user's question, the summarized legal context, and a central system prompt (system_prompt.txt). It then queries the LLM (currently set to an OpenAI standard model via the RAG_MODEL env var).
+Caching: The generated response is stored in DynamoDB (dynamodb_service.py) to keep a history or cache of analysis results.
+4. Advanced Features (Live Voice)
+If the user hits the /api/voice endpoint:
+
+It runs the exact same RAG pipeline to get the text analysis.
+It then passes that text to the ElevenLabs Service (elevenlabs_service.py), which generates a realistic audio stream of the answer on the fly.
+The backend streams this audio directly back to the frontend (StreamingResponse(audio_stream, media_type="audio/mpeg")).
+Summary of Tech Stack
+API: FastAPI (Python)
+Document Storage: AWS S3
+OCR/Text Extraction: AWS Textract
+Vector Database: OpenSearch
+LLM/Embeddings: OpenAI (or compatible service)
+Voice Generation: ElevenLabs
+Result Caching: AWS DynamoDB
+Auth: Auth0 (via app.core.auth)
+Everything is highly decoupled into neat services/ and routes/, making it a very scalable, modern RAG architecture!
+
