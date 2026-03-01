@@ -1,24 +1,12 @@
-import { auth0 } from '@/lib/auth0';
-import { redirect } from 'next/navigation';
 import React from 'react';
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-    const session = await auth0.getSession();
-    if (!session) {
-        redirect('/auth/login?returnTo=/admin');
-    }
-
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
     return (
-        <div className="min-h-screen bg-gray-900 text-white">
-            <nav className="border-b border-gray-800 p-4">
-                <div className="container mx-auto flex justify-between items-center">
-                    <h1 className="text-xl font-bold text-blue-400">CivicPulse Admin</h1>
-                    <div className="flex items-center gap-4">
-                        <a href="/auth/logout" className="text-sm text-gray-400 hover:text-white transition">Logout</a>
-                    </div>
-                </div>
+        <div style={{ minHeight: '100vh', backgroundColor: '#111827', color: 'white' }}>
+            <nav style={{ borderBottom: '1px solid #374151', padding: '1rem' }}>
+                <h1 style={{ color: '#60a5fa', fontSize: '1.25rem', fontWeight: 'bold' }}>CivicPulse Admin</h1>
             </nav>
-            <main className="container mx-auto p-8">
+            <main style={{ padding: '2rem' }}>
                 {children}
             </main>
         </div>
