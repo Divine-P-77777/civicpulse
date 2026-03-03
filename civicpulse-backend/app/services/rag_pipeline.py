@@ -18,7 +18,7 @@ class RagPipeline:
         with open(prompt_path, "r") as f:
             self.prompt_template = f.read()
 
-    def analyze_document(self, query: str, stream: bool = False):
+    def analyze_document(self, query: str, chat_history: str = "No previous context.", stream: bool = False):
         """
         Orchestrates the RAG flow:
         1. Context retrieval
@@ -36,6 +36,7 @@ class RagPipeline:
         # 3. Prompt Construction
         final_prompt = self.prompt_template.format(
             context=context_summary,
+            chat_history=chat_history,
             query=query
         )
 
