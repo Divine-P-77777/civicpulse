@@ -3,7 +3,9 @@
 import { useUser, useAuth, UserButton, SignInButton } from '@clerk/nextjs';
 import React, { useState, useEffect, useCallback } from 'react';
 
-const ADMIN_EMAILS = ['admin@civicpulse.org', 'dynamicphillic77777@gmail.com'];
+const ADMIN_EMAILS_STR = process.env.NEXT_PUBLIC_ADMIN_EMAILS || '';
+const ADMIN_EMAILS = ADMIN_EMAILS_STR.split(',').map(email => email.trim()).filter(email => email !== '');
+
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 type Tab = 'ingestion' | 'vectors' | 'dynamodb' | 's3';
