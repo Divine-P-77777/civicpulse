@@ -6,6 +6,7 @@ from app.services.chat_service import (
     list_sessions, delete_session, update_session_title
 )
 from app.services.rag_pipeline import rag_pipeline
+from app.services.summarize_service import summarize_service
 from pydantic import BaseModel
 from typing import Optional
 import json
@@ -80,10 +81,14 @@ async def send_message(body: MessageRequest, current_user: dict = Depends(get_cu
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # Fetch last 5 messages for context (excluding the message we just added)
+    history_to_summarize = session.get("messages", [])[-10:] # Last 5 exchanges (max 10 messages)
+    chat_context_summary = summarize_service.summarize_chat_history(history_to_summarize)
+
     user_msg = add_message(user_id, body.session_id, role="user", content=body.message)
 
     try:
-        ai_response = rag_pipeline.analyze_document(body.message, stream=False)
+        ai_response = rag_pipeline.analyze_document(body.message, chat_history=chat_context_summary, stream=False)
     except Exception as e:
         ai_response = f"I'm sorry, I encountered an error: {str(e)}"
 
@@ -105,13 +110,17 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # Fetch last 5 messages for context
+    history_to_summarize = session.get("messages", [])[-10:] # Last 5 exchanges
+    chat_context_summary = summarize_service.summarize_chat_history(history_to_summarize)
+
     # Store user message immediately
     add_message(user_id, body.session_id, role="user", content=body.message)
 
     def event_generator():
         collected = []
         try:
-            for chunk in rag_pipeline.analyze_document(body.message, stream=True):
+            for chunk in rag_pipeline.analyze_document(body.message, chat_history=chat_context_summary, stream=True):
                 collected.append(chunk)
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
         except Exception as e:

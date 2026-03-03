@@ -18,7 +18,7 @@ def upload_to_s3(file: UploadFile) -> str:
         ExtraArgs={"ContentType": file.content_type}
     )
     
-    return f"s3://{S3_BUCKET}/{s3_key}"
+    return s3_key
 
 # --- READ ---
 def list_files(prefix: str = "uploads/"):
