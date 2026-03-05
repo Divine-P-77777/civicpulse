@@ -83,7 +83,7 @@ class RagPipeline:
 
         return f"[Earlier conversation summary]\n{older_summary}\n\n[Recent messages]\n{recent_text}"
 
-    def analyze_document(self, query: str, chat_history: list = None, stream: bool = False):
+    def analyze_document(self, query: str, chat_history: list = None, language: str = "en", stream: bool = False):
         """
         Orchestrates the RAG flow with conversation memory:
         1. Build conversation context from chat history
@@ -113,6 +113,14 @@ class RagPipeline:
         
         # System message with the legal advocate prompt
         messages.append({"role": "system", "content": final_prompt})
+        
+        # Language instruction
+        if language and language != "en":
+            lang_name = {"hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}.get(language, language)
+            messages.append({
+                "role": "system",
+                "content": f"IMPORTANT: Respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}."
+            })
         
         # Add conversation context if available
         if conversation_context:

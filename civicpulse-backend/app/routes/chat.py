@@ -26,6 +26,7 @@ class NewSessionRequest(BaseModel):
 class MessageRequest(BaseModel):
     session_id: str
     message: str
+    language: Optional[str] = "en"  # "en" or "hi"
 
 class UpdateTitleRequest(BaseModel):
     title: str
@@ -92,6 +93,7 @@ async def send_message(body: MessageRequest, current_user: dict = Depends(get_cu
         ai_response = rag_pipeline.analyze_document(
             body.message,
             chat_history=session.get("messages", []),
+            language=body.language,
             stream=False
         )
     except Exception as e:
@@ -125,7 +127,7 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
     def event_generator():
         collected = []
         try:
-            for chunk in rag_pipeline.analyze_document(body.message, chat_history=chat_history, stream=True):
+            for chunk in rag_pipeline.analyze_document(body.message, chat_history=chat_history, language=body.language, stream=True):
                 collected.append(chunk)
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
         except Exception as e:

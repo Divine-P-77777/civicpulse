@@ -50,13 +50,13 @@ export default function ChatSidebar({
                     ✚ New Conversation
                 </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            <div className="flex-1 overflow-y-auto p-2 space-y-1" data-lenis-prevent="true">
                 {sessions.map(s => (
                     <div key={s.SessionId}
                         onClick={() => onLoadSession(s.SessionId)}
                         className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-sm transition-all ${activeSessionId === s.SessionId
-                                ? 'bg-[#2A6CF0]/10 text-[#2A6CF0] font-medium'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            ? 'bg-[#2A6CF0]/10 text-[#2A6CF0] font-medium'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                             }`}>
                         <div className="flex items-center gap-2 truncate flex-1">
                             <span className="text-xs">💬</span>

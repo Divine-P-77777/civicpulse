@@ -12,6 +12,8 @@ export const metadata: Metadata = {
   keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis'],
 };
 
+import LenisProvider from '@/components/LenisProvider';
+
 export default function RootLayout({
   children,
 }: {
@@ -22,7 +24,9 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <ClerkProvider>
           <Providers>
-            <div id="root">{children}</div>
+            <LenisProvider>
+              <div id="root">{children}</div>
+            </LenisProvider>
           </Providers>
         </ClerkProvider>
       </body>

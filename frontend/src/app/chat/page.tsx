@@ -11,6 +11,7 @@ import type { ChatInputHandle } from './components/ChatInput';
 import OnboardingModal from './components/OnboardingModal';
 import WelcomeScreen from './components/WelcomeScreen';
 import ShareModal from './components/ShareModal';
+import MobileHistoryModal from './components/MobileHistoryModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
@@ -53,6 +54,8 @@ export default function ChatPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'hi'>('en');
 
   // Layout
   const [showSidebar, setShowSidebar] = useState(true);
@@ -199,7 +202,7 @@ export default function ChatPage() {
       const response = await fetch(`${API_BASE}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ session_id: sessionId, message: userMessage }),
+        body: JSON.stringify({ session_id: sessionId, message: userMessage, language }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -306,10 +309,12 @@ export default function ChatPage() {
 
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <ChatHeader showSidebar={showSidebar} onToggleSidebar={() => setShowSidebar(!showSidebar)}
-          hasActiveSession={!!activeSessionId} onShareClick={() => setShowShareModal(true)} />
+          hasActiveSession={!!activeSessionId} onShareClick={() => setShowShareModal(true)}
+          onHistoryClick={() => setShowHistoryModal(true)}
+          language={language} onLanguageChange={setLanguage} />
 
         {/* Scrollable Messages — flex-1 + min-h-0 prevents overflow */}
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-6">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-6" data-lenis-prevent="true">
           <div className="max-w-3xl mx-auto space-y-5">
             {messages.length === 0 && !isStreaming && <WelcomeScreen onSetInput={setInput} />}
 
@@ -364,6 +369,16 @@ export default function ChatPage() {
           apiBase={API_BASE}
           authFetch={authFetch}
           onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {showHistoryModal && (
+        <MobileHistoryModal
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onLoadSession={loadSession}
+          onDeleteSession={deleteSession}
+          onClose={() => setShowHistoryModal(false)}
         />
       )}
     </div>

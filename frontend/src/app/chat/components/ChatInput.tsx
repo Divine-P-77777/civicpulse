@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface ChatInputProps {
     value: string;
@@ -21,6 +22,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     const fileRef = useRef<HTMLInputElement>(null);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+    const router = useRouter();
 
     // Expose setPendingFile to parent via ref
     useImperativeHandle(ref, () => ({
@@ -101,7 +103,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                 )}
 
                 {/* Input Bar */}
-                <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+                <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] w-full max-w-full overflow-hidden">
                     <button onClick={() => fileRef.current?.click()}
                         disabled={isUploading || isStreaming}
                         className="shrink-0 p-2 text-gray-400 hover:text-[#2A6CF0] hover:bg-[#2A6CF0]/5 rounded-xl transition-all disabled:opacity-40"
@@ -121,19 +123,30 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                         placeholder="Ask about your legal rights..."
                         rows={1}
                         disabled={isStreaming}
-                        className="flex-1 bg-transparent text-gray-900 text-sm placeholder-gray-400 outline-none resize-none max-h-36 min-h-[36px] py-1.5 leading-relaxed"
+                        className="flex-1 w-full min-w-0 bg-transparent text-gray-900 text-sm placeholder-gray-400 outline-none border-none resize-none max-h-36 min-h-[36px] py-1.5 leading-relaxed break-words focus:border-none"
                     />
 
                     <button onClick={handleSend} disabled={(!value.trim() && !pendingFile) || isStreaming}
                         className={`shrink-0 p-2 rounded-xl transition-all ${(value.trim() || pendingFile) && !isStreaming
-                                ? 'bg-[#2A6CF0] text-white shadow-[0_2px_8px_rgba(42,108,240,0.3)] hover:bg-[#2259D6]'
-                                : 'bg-gray-100 text-gray-400'
+                            ? 'bg-[#2A6CF0] text-white shadow-[0_2px_8px_rgba(42,108,240,0.3)] hover:bg-[#2259D6]'
+                            : 'bg-gray-100 text-gray-400'
                             }`}>
                         {isStreaming ? (
                             <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeDasharray="30 70" /></svg>
                         ) : (
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" /></svg>
                         )}
+                    </button>
+
+                    {/* Live Mode Microphone Button */}
+                    <button onClick={() => router.push('/live')} disabled={isStreaming}
+                        className="shrink-0 p-2 text-gray-400 hover:text-[#4CB782] hover:bg-[#4CB782]/10 rounded-xl transition-all disabled:opacity-40 ml-1"
+                        title="Start Live Voice Mode">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <line x1="12" x2="12" y1="19" y2="22" />
+                        </svg>
                     </button>
                 </div>
                 <p className="text-center text-xs text-gray-400 mt-2 hidden md:block">CivicPulse AI provides general guidance. Always consult a qualified lawyer for specific legal advice.</p>
