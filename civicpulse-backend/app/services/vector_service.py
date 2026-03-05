@@ -15,7 +15,8 @@ class VectorService:
             http_auth=(self.username, self.password),
             use_ssl=True,
             verify_certs=True,
-            connection_class=RequestsHttpConnection
+            connection_class=RequestsHttpConnection,
+            timeout=30
         )
         self.index_name = "civicpulse"
 

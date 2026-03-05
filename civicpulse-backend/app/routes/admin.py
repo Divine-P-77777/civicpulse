@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPException
-from app.services.s3_service import upload_to_s3, list_files, get_presigned_url, delete_file
+from app.services.s3_service import upload_to_s3, list_files, get_presigned_url, delete_file, S3_BUCKET
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import (
     list_results, get_result, update_result, delete_result
@@ -33,7 +33,7 @@ async def ingest_law(
     except json.JSONDecodeError:
         meta_dict = {"type": "law"}
         
-    bucket = "civicpulse-documents-bucket"
+    bucket = S3_BUCKET
     file_key = upload_to_s3(file)
     chunks_processed = ingest_pdf_from_s3(bucket, file_key, meta_dict)
         

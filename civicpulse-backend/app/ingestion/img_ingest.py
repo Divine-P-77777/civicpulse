@@ -5,7 +5,7 @@ from app.services.embedding_service import chunk_text, generate_embedding
 from app.services.vector_service import store_vector
 
 def ingest_image_from_s3(bucket: str, key: str, metadata: dict = None):
-    """
+    """  
     Orchestrates the ingestion pipeline for an image stored in S3.
     1. Start Textract Job
     2. Poll for Completion

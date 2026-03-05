@@ -52,16 +52,18 @@ def create_session(user_id: str, title: str = "New Chat"):
     })
     return {"session_id": session_id, "created_at": now}
 
-def add_message(user_id: str, session_id: str, role: str, content: str):
-    """Append a message to an existing session."""
+def add_message(user_id: str, session_id: str, role: str, content: str, attachment: dict = None):
+    """Append a message to an existing session. Optionally include an attachment."""
     table = _get_table()
     now = datetime.now(timezone.utc).isoformat()
     
     message = {
-        "role": role,        # "user" or "assistant"
+        "role": role,
         "content": content,
         "timestamp": now
     }
+    if attachment:
+        message["attachment"] = attachment
     
     table.update_item(
         Key={"UserId": user_id, "SessionId": session_id},
@@ -104,6 +106,38 @@ def delete_session(user_id: str, session_id: str):
     table = _get_table()
     table.delete_item(Key={"UserId": user_id, "SessionId": session_id})
     return {"deleted": True}
+
+def share_session(user_id: str, session_id: str):
+    """Mark a session as shared and return it."""
+    table = _get_table()
+    now = datetime.now(timezone.utc).isoformat()
+    share_id = str(uuid.uuid4())[:8]
+    table.update_item(
+        Key={"UserId": user_id, "SessionId": session_id},
+        UpdateExpression="SET ShareId = :sid, SharedAt = :now",
+        ExpressionAttributeValues={":sid": share_id, ":now": now}
+    )
+    return share_id
+
+def get_shared_session(share_id: str):
+    """Find a shared session by its short share ID (scan — rare operation)."""
+    table = _get_table()
+    response = table.scan(
+        FilterExpression="ShareId = :sid",
+        ExpressionAttributeValues={":sid": share_id},
+        ProjectionExpression="SessionId, Title, Messages, CreatedAt, ShareId"
+    )
+    items = response.get("Items", [])
+    if not items:
+        return None
+    item = items[0]
+    return {
+        "session_id": item["SessionId"],
+        "title": item.get("Title", "Shared Chat"),
+        "messages": item.get("Messages", []),
+        "created_at": item.get("CreatedAt"),
+        "share_id": item.get("ShareId")
+    }
 
 def update_session_title(user_id: str, session_id: str, title: str):
     """Update the title of a chat session."""
