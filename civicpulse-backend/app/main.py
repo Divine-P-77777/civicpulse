@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.routes import upload, analyze, admin
+from app.routes import upload, analyze, admin, live
 from app.routes import chat
 from app.services.chat_service import ensure_table_exists
 import traceback
@@ -15,17 +15,14 @@ app = FastAPI(
 # ─── CORS Middleware ───
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://civicpulse-one.vercel.app",
-    ],
+    allow_origins=["*"], # Allow all origins including specific local network IPs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ─── Register Routers ───
+app.include_router(live.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(analyze.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")

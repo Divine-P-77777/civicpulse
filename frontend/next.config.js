@@ -24,9 +24,8 @@ const nextConfig = {
   async rewrites() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
-    // If no API URL is configured just skip rewrites – don't throw,
-    // so that static/Vercel builds without a backend still succeed.
-    if (!apiUrl || apiUrl.includes('localhost')) {
+    // If no API URL is configured just skip rewrites
+    if (!apiUrl) {
       return [];
     }
 

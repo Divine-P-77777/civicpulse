@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 interface LiveModeProps {
     onClose: () => void;
@@ -8,15 +8,176 @@ interface LiveModeProps {
 }
 
 export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
-    const [status, setStatus] = useState<'listening' | 'speaking' | 'processing'>('listening');
+    const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('idle');
+    const [transcript, setTranscript] = useState<string>('Connecting to Live Voice...');
 
-    // Simulated state changes for visual effect in this initial version
+    // WebSockets & Audio Refs
+    const wsRef = useRef<WebSocket | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioQueueRef = useRef<string[]>([]);
+    const isPlayingRef = useRef<boolean>(false);
+    const audioElementRef = useRef<HTMLAudioElement | null>(null);
+    const sessionIdRef = useRef<string>('');
+
     useEffect(() => {
-        const interval = setInterval(() => {
-            setStatus(prev => prev === 'listening' ? 'processing' : prev === 'processing' ? 'speaking' : 'listening');
-        }, 4000);
-        return () => clearInterval(interval);
+        // Initialize Audio Element for playback
+        audioElementRef.current = new Audio();
+        audioElementRef.current.onended = playNextAudioChunk;
+
+        // Generate a random session ID for this live call
+        sessionIdRef.current = Math.random().toString(36).substring(2, 10);
+
+        // Connect WebSocket through Next.js API Proxy
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Connect to the same host/port the frontend is running on (Next.js server)
+        // Next.js will proxy /api/* requests to the backend, preserving valid Host/Origin headers
+        const wsUrl = `${protocol}//${window.location.host}/api/live/ws/${sessionIdRef.current}`;
+
+        console.log("Connecting to WebSocket:", wsUrl);
+        wsRef.current = new WebSocket(wsUrl);
+
+        wsRef.current.onopen = () => {
+            console.log("WebSocket connected.");
+            // Send language config (defaulting to en for now)
+            wsRef.current?.send(JSON.stringify({ type: 'config', language: 'en' }));
+            startRecording();
+        };
+
+        wsRef.current.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'user_transcript') {
+                    setTranscript(`You: "${message.text}"`);
+                    setStatus('processing');
+                } else if (message.type === 'audio_stream') {
+                    setStatus('speaking');
+                    audioQueueRef.current.push(message.data);
+                    playNextAudioChunk();
+                } else if (message.type === 'ai_transcript') {
+                    setTranscript(`AI: "${message.text}"`);
+                } else if (message.type === 'error') {
+                    setStatus('error');
+                    setTranscript(`Error: ${message.message}`);
+                }
+            } catch (err) {
+                console.error("Failed to parse WS message", err);
+            }
+        };
+
+        wsRef.current.onclose = () => {
+            console.log("WebSocket disconnected.");
+            stopRecording();
+            setStatus('idle');
+            setTranscript('Call ended.');
+        };
+
+        wsRef.current.onerror = (error) => {
+            console.error("WebSocket Error:", error);
+            setStatus('error');
+            setTranscript('Connection error occurred.');
+        };
+
+        return () => {
+            stopRecording();
+            if (wsRef.current) wsRef.current.close();
+            if (audioElementRef.current) {
+                audioElementRef.current.pause();
+                audioElementRef.current = null;
+            }
+        };
     }, []);
+
+    const playNextAudioChunk = () => {
+        if (isPlayingRef.current || audioQueueRef.current.length === 0 || !audioElementRef.current) {
+            // If the queue is empty and we just finished playing, we go back to listening
+            if (audioQueueRef.current.length === 0 && isPlayingRef.current) {
+                isPlayingRef.current = false;
+                setStatus('listening');
+            }
+            return;
+        }
+
+        isPlayingRef.current = true;
+        const base64Audio = audioQueueRef.current.shift();
+
+        // Convert base64 to Blob URL for playback
+        const byteCharacters = atob(base64Audio!);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+
+        audioElementRef.current.src = url;
+        audioElementRef.current.play().catch(e => console.error("Audio play error", e));
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorderRef.current = mediaRecorder;
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(event.data);
+                    reader.onloadend = () => {
+                        const base64data = (reader.result as string).split(',')[1];
+                        wsRef.current?.send(JSON.stringify({
+                            type: 'audio_chunk',
+                            data: base64data
+                        }));
+                    };
+                }
+            };
+
+            // Send chunks every 250ms
+            mediaRecorder.start(250);
+            setStatus('listening');
+            setTranscript('Listening... Speak now.');
+        } catch (err) {
+            console.error("Microphone access denied or failed", err);
+            setStatus('error');
+            setTranscript('Microphone access denied.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        }
+    };
+
+    // Manual interrupt/silence control for the user to signal they are done speaking
+    const handleSilenceToggle = () => {
+        if (status === 'speaking') {
+            // Interrupt the AI
+            if (audioElementRef.current) {
+                audioElementRef.current.pause();
+                audioElementRef.current.currentTime = 0;
+            }
+            audioQueueRef.current = [];
+            isPlayingRef.current = false;
+
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
+            }
+            setStatus('listening');
+            setTranscript('Interrupted. Listening...');
+
+        } else if (status === 'listening') {
+            // Signal end of speech to backend so Whisper can immediately process
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'end_of_speech' }));
+                setStatus('processing');
+                setTranscript('Processing your speech...');
+            }
+        }
+    };
 
     return (
         <div className="relative w-full h-full min-h-screen flex flex-col items-center justify-between animate-fade-in">
@@ -26,12 +187,11 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                     <span className="text-white text-3xl">⚖️</span>
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">CivicPulse Live</h2>
-                <p className="text-sm font-medium text-gray-400 uppercase tracking-widest animate-pulse">
-                    {status === 'listening' ? 'Listening...' : status === 'processing' ? 'Thinking...' : 'Speaking...'}
+                <p className={`text-sm font-medium uppercase tracking-widest ${status === 'error' ? 'text-red-400' : 'text-gray-400 animate-pulse'}`}>
+                    {status === 'idle' ? 'Connecting...' : status === 'listening' ? 'Listening...' : status === 'processing' ? 'Thinking...' : status === 'speaking' ? 'Speaking...' : 'Error'}
                 </p>
-                <div className="mt-8 text-xl text-gray-600 font-light leading-relaxed px-4 opacity-80 h-32 flex items-center justify-center">
-                    {/* Placeholder for real-time transcript */}
-                    {status === 'listening' ? 'Tell me about your legal issue...' : 'Analyzing local laws and regulations...'}
+                <div className="mt-8 text-xl text-gray-600 font-light leading-relaxed px-4 opacity-80 h-32 flex items-center justify-center break-words overflow-hidden">
+                    {transcript}
                 </div>
             </div>
 
@@ -43,11 +203,17 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                     Light theme: Soft blues and greens from the CivicPulse palette.
                 */}
                 <div className="absolute bottom-0 w-full h-96 flex items-center justify-center overflow-hidden mix-blend-multiply opacity-60">
-                    <div className={`absolute w-[40vw] max-w-sm h-48 bg-[#2A6CF0] rounded-full blur-[80px] opacity-70 transition-all duration-1000 origin-center ${status === 'listening' ? 'scale-110 translate-y-4 animate-float' : status === 'speaking' ? 'scale-125 translate-y-0 animate-pulse' : 'scale-90 translate-y-10'
+                    <div className={`absolute w-[40vw] max-w-sm h-48 bg-[#2A6CF0] rounded-full blur-[80px] opacity-70 transition-all duration-1000 origin-center ${status === 'listening' ? 'scale-110 translate-y-4 animate-float' :
+                        status === 'speaking' ? 'scale-125 translate-y-0 animate-pulse' :
+                            'scale-90 translate-y-10'
                         }`} style={{ animationDuration: '4s' }} />
-                    <div className={`absolute w-[30vw] max-w-xs h-40 bg-[#4CB782] rounded-full blur-[70px] opacity-60 transition-all duration-1000 translate-x-32 origin-center ${status === 'listening' ? 'scale-100 translate-y-8 animate-float-delayed' : status === 'speaking' ? 'scale-110 -translate-y-4 animate-pulse' : 'scale-80 translate-y-12'
+                    <div className={`absolute w-[30vw] max-w-xs h-40 bg-[#4CB782] rounded-full blur-[70px] opacity-60 transition-all duration-1000 translate-x-32 origin-center ${status === 'listening' ? 'scale-100 translate-y-8 animate-float-delayed' :
+                        status === 'speaking' ? 'scale-110 -translate-y-4 animate-pulse' :
+                            'scale-80 translate-y-12'
                         }`} style={{ animationDuration: '3s' }} />
-                    <div className={`absolute w-[35vw] max-w-xs h-44 bg-purple-400 rounded-full blur-[80px] opacity-40 transition-all duration-1000 -translate-x-32 origin-center ${status === 'listening' ? 'scale-100 translate-y-8 animate-float' : status === 'speaking' ? 'scale-120 -translate-y-2 animate-pulse' : 'scale-80 translate-y-12'
+                    <div className={`absolute w-[35vw] max-w-xs h-44 bg-purple-400 rounded-full blur-[80px] opacity-40 transition-all duration-1000 -translate-x-32 origin-center ${status === 'listening' ? 'scale-100 translate-y-8 animate-float' :
+                        status === 'speaking' ? 'scale-120 -translate-y-2 animate-pulse' :
+                            'scale-80 translate-y-12'
                         }`} style={{ animationDuration: '5s' }} />
                 </div>
             </div>
