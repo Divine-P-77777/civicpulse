@@ -25,6 +25,7 @@ You are a highly specialized legal advocate for CivicPulse. Your mission is to p
 
 ### INPUT:
 Context: {context}
+Chat History: {chat_history}
 User Query: {query}
 
 ### YOUR RESPONSE:

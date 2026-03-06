@@ -32,5 +32,32 @@ class SummarizeService:
         
         return response.choices[0].message.content
 
+    def summarize_chat_history(self, messages: list):
+        """
+        Summarizes the last few exchanges of a chat session to provide context without hitting token limits.
+        """
+        if not messages:
+            return "No previous context."
+            
+        history_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in messages])
+        
+        prompt = f"""
+        Summarize the following chat history between a User and a Legal Assistant. 
+        Focus on the user's specific questions, the documents mentioned, and the key advice provided.
+        Keep the summary concise (under 150 words).
+
+        CHAT HISTORY:
+        {history_text}
+        
+        SUMMARY:
+        """
+        
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        return response.choices[0].message.content
+
 # Singleton instance
 summarize_service = SummarizeService()

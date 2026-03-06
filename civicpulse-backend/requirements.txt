@@ -9,7 +9,9 @@ tiktoken
 unstructured
 requests
 beautifulsoup4
+langchain-text-splitters
 python-jose[cryptography]
 python-dotenv
 openai
 elevenlabs
+
