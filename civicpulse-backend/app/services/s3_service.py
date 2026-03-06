@@ -20,6 +20,22 @@ def upload_to_s3(file: UploadFile) -> str:
     
     return s3_key
 
+def upload_bytes_to_s3(content: bytes, filename: str, content_type: str = "application/octet-stream") -> str:
+    """Uploads raw bytes to S3 and returns the key."""
+    import io
+    file_id = str(uuid.uuid4())
+    file_extension = filename.split(".")[-1] if "." in filename else "bin"
+    s3_key = f"uploads/{file_id}.{file_extension}"
+    
+    s3_client.upload_fileobj(
+        io.BytesIO(content),
+        S3_BUCKET,
+        s3_key,
+        ExtraArgs={"ContentType": content_type}
+    )
+    
+    return s3_key
+
 # --- READ ---
 def list_files(prefix: str = "uploads/"):
     """List all files in the S3 bucket under a given prefix."""

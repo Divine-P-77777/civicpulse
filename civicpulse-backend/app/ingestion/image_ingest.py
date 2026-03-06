@@ -6,16 +6,20 @@ from app.services.vector_service import vector_service
 from app.services.embedding_service import generate_embedding
 from app.services.s3_service import s3_client
 
-async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}):
+from app.core.socket_manager import socket_manager
+
+async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}, sid: str = None):
     """
     Downloads image from S3, uses Gemini Vision to extract text/entities,
     and then generates vector embeddings to store in OpenSearch.
     """
+    if sid: await socket_manager.emit_progress(10, "Downloading image from S3...", sid)
     # 1. Download from S3 temporarily
     local_path = os.path.join(tempfile.gettempdir(), os.path.basename(file_key))
     s3_client.download_file(bucket, file_key, local_path)
 
     try:
+        if sid: await socket_manager.emit_progress(30, "Extracting text using Vision...", sid)
         # 2. Extract with Gemini
         client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
         
@@ -28,9 +32,12 @@ async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}):
             ]
         )
         extracted_text = response.text
+        if sid: await socket_manager.emit_progress(80, "Generating embeddings...", sid)
         
         # 3. Generate Embedding using Bedrock (Titan)
         vector = generate_embedding(extracted_text[:8000])
+
+        if sid: await socket_manager.emit_progress(95, "Storing in vector database...", sid)
 
         # 4. Store in OpenSearch
         doc_id = str(uuid.uuid4())
@@ -42,6 +49,7 @@ async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}):
         }
         
         vector_service.store_vector(doc_id, vector, doc_meta)
+        if sid: await socket_manager.emit_progress(100, "✅ Image ingested successfully!", sid)
         return 1  # 1 chunk processed
         
     finally:

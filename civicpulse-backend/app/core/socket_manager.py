@@ -5,7 +5,7 @@ class SocketManager:
     def __init__(self):
         self.sio = socketio.AsyncServer(
             async_mode='asgi',
-            cors_allowed_origins="*",
+            cors_allowed_origins=[], # Disable internal CORS headers to avoid duplication with FastAPI
             logger=True,
             engineio_logger=True
         )
@@ -40,6 +40,14 @@ class SocketManager:
             session_id = data.get("sessionId")
             if session_id:
                 await self.sio.emit("camera_received", data, room=session_id, skip_sid=sid)
+
+    async def emit_progress(self, progress: int, message: str, sid: Optional[str] = None):
+        """Emits ingestion progress to a specific socket ID."""
+        if sid:
+            await self.sio.emit("ingestion_progress", {
+                "progress": progress,
+                "message": message
+            }, to=sid)
 
 # Singleton instance
 socket_manager = SocketManager()

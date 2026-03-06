@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 
 interface IngestionTabProps {
     isDarkMode: boolean;
@@ -15,6 +16,29 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
     const [textInput, setTextInput] = useState('');
     const [progress, setProgress] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
+
+    const socketRef = useRef<Socket | null>(null);
+
+    useEffect(() => {
+        // Connect to Socket.IO for ingestion progress
+        const socket = io(API_BASE);
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            console.log('Ingestion socket connected:', socket.id);
+        });
+
+        socket.on('ingestion_progress', (data: { progress: number; message: string }) => {
+            setProgress(data.progress);
+            if (data.message) {
+                setStatus({ type: 'info', message: data.message });
+            }
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [API_BASE]);
 
     const handleDragOver = React.useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -64,8 +88,8 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
         }
 
         setIsUploading(true);
-        setStatus(null);
-        setProgress(15);
+        setStatus({ type: 'info', message: 'Preparing ingestion...' });
+        setProgress(5);
 
         try {
             const formData = new FormData();
@@ -78,25 +102,29 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                 formData.append('file', file);
             }
 
-            setProgress(45);
+            const headers: any = {};
+            if (socketRef.current?.id) {
+                headers['X-Socket-ID'] = socketRef.current.id;
+            }
 
             const res = await authFetch(`${API_BASE}/api/admin/ingest`, {
                 method: 'POST',
+                headers,
                 body: formData,
             });
-
-            setProgress(85);
 
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
 
+            // Note: Progress is now mainly driven by socket events
+            // But we ensure it hits 100 on success if not already there
             setProgress(100);
             setStatus({ type: 'success', message: data.message || `Successfully processed ${data.chunks_processed || 1} chunks!` });
 
             // Clean up
             setFile(null);
             setTextInput('');
-            setTimeout(() => setProgress(0), 3000);
+            setTimeout(() => setProgress(0), 5000);
         } catch (err: any) {
             setProgress(0);
             setStatus({ type: 'error', message: err.message || 'Upload failed' });
