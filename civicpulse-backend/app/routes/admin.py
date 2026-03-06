@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPException, File
+from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPException, File, Header
 from app.services.s3_service import upload_to_s3, list_files, get_presigned_url, delete_file, S3_BUCKET
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import (
@@ -27,7 +27,8 @@ async def ingest_document(
     file: Optional[UploadFile] = File(None),
     content: Optional[str] = Form(None),
     metadata: str = Form("{}"),
-    admin: dict = Depends(get_admin_user)
+    admin: dict = Depends(get_admin_user),
+    x_socket_id: Optional[str] = Header(None)
 ):
     """Admin-only endpoint. Unified ingestion for PDF, Image, and Web/Text."""
     try:
@@ -42,18 +43,38 @@ async def ingest_document(
         if type == "pdf":
             if not file: raise HTTPException(400, "File required for PDF ingestion")
             file_key = upload_to_s3(file)
-            chunks_processed = ingest_pdf_from_s3(bucket, file_key, meta_dict)
+            chunks_processed = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
             
         elif type == "image":
             if not file: raise HTTPException(400, "File required for Image ingestion")
-            from app.ingestion.image_ingest import ingest_image
+            from app.ingestion.image_ingest import ingest_image_from_s3
             file_key = upload_to_s3(file)
-            chunks_processed = await ingest_image(bucket, file_key, meta_dict)
+            chunks_processed = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id)
             
         elif type == "web":
             if not content: raise HTTPException(400, "Content/URL required for Web ingestion")
-            from app.ingestion.web_ingest import ingest_web
-            chunks_processed = await ingest_web(content, meta_dict)
+            
+            # Smart Routing: Check if the "web" content is actually a PDF URL
+            is_pdf_url = content.startswith("http") and (
+                content.lower().split("?")[0].endswith(".pdf")
+            )
+
+            if is_pdf_url:
+                import requests
+                from app.services.s3_service import upload_bytes_to_s3
+                
+                print(f"Detected PDF URL: {content}. Routing to PDF pipeline.")
+                resp = requests.get(content, timeout=30)
+                if resp.status_code == 200:
+                    filename = content.split("/")[-1].split("?")[0]
+                    file_key = upload_bytes_to_s3(resp.content, filename, "application/pdf")
+                    chunks_processed = await ingest_pdf_from_s3(S3_BUCKET, file_key, meta_dict, x_socket_id)
+                    type = "pdf (url)" # For the return message
+                else:
+                    raise HTTPException(400, f"Failed to download PDF from URL: {content}")
+            else:
+                from app.ingestion.web_ingest import ingest_web
+                chunks_processed = await ingest_web(content, meta_dict, x_socket_id)
             
         else:
             raise HTTPException(400, f"Unsupported ingestion type: {type}")
