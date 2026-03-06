@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import { useAuth, useClerk } from '@clerk/nextjs';
 
 interface LiveModeProps {
     onClose: () => void;
@@ -8,6 +9,8 @@ interface LiveModeProps {
 }
 
 export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
+    const { getToken } = useAuth();
+    const clerk = useClerk();
     const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('idle');
     const [transcript, setTranscript] = useState<string>('Connecting to Live Voice...');
     const [isCameraActive, setIsCameraActive] = useState(false);
@@ -17,6 +20,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioQueueRef = useRef<string[]>([]);
     const isPlayingRef = useRef<boolean>(false);
+    const isListeningRef = useRef<boolean>(false); // Tracks if we should actually capture audio
     const audioElementRef = useRef<HTMLAudioElement | null>(null);
     const sessionIdRef = useRef<string>('');
 
@@ -26,6 +30,95 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     const streamRef = useRef<MediaStream | null>(null);
     const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Reconnection state
+    const reconnectAttemptsRef = useRef<number>(0);
+    const maxReconnectAttempts = 3;
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const connectWebSocket = async () => {
+        try {
+            const token = await getToken();
+            if (!token) {
+                setStatus('error');
+                setTranscript('Authentication required.');
+                clerk.openSignIn(); // Trigger the Clerk Sign In Modal
+                onClose(); // Auto-close Live Mode while they sign in
+                return;
+            }
+
+            // Use NEXT_PUBLIC_BACKEND_URL for direct backend connection
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+            const wsBaseUrl = backendUrl.replace(/^http/, 'ws');
+            const wsUrl = `${wsBaseUrl}/api/live/ws/${sessionIdRef.current}?token=${token}`;
+
+            console.log("Connecting to WebSocket:", wsUrl.split('?token=')[0]);
+            setTranscript('Connecting to Live Voice...');
+            setStatus('idle');
+
+            const ws = new WebSocket(wsUrl);
+            wsRef.current = ws;
+
+            ws.onopen = () => {
+                console.log("WebSocket connected.");
+                reconnectAttemptsRef.current = 0; // Reset on successful connection
+                ws.send(JSON.stringify({ type: 'config', language: 'en' }));
+                startRecording();
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    if (message.type === 'user_transcript') {
+                        setTranscript(`You: "${message.text}"`);
+                        setStatus('processing');
+                    } else if (message.type === 'audio_stream') {
+                        setStatus('speaking');
+                        audioQueueRef.current.push(message.data);
+                        playNextAudioChunk();
+                    } else if (message.type === 'ai_transcript') {
+                        setTranscript(`AI: "${message.text}"`);
+                    } else if (message.type === 'error') {
+                        setStatus('error');
+                        setTranscript(`Error: ${message.message}`);
+                    }
+                } catch (err) {
+                    console.error("Failed to parse WS message", err);
+                }
+            };
+
+            ws.onclose = (event) => {
+                console.log("WebSocket disconnected.", event.code, event.reason);
+                stopRecording();
+                stopCamera();
+
+                // Auto-reconnect with exponential backoff (only if not a clean close)
+                if (event.code !== 1000 && reconnectAttemptsRef.current < maxReconnectAttempts) {
+                    reconnectAttemptsRef.current++;
+                    const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 8000);
+                    setTranscript(`Connection lost. Reconnecting in ${delay / 1000}s... (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+                    setStatus('idle');
+                    reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+                } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+                    setStatus('error');
+                    setTranscript('Could not connect to Live Voice. Please check your backend server and try again.');
+                } else {
+                    setStatus('idle');
+                    setTranscript('Call ended.');
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error("WebSocket Error:", error);
+                // onclose will fire after onerror, so we handle reconnection there
+            };
+
+        } catch (err) {
+            console.error("Failed to connect to WebSocket", err);
+            setStatus('error');
+            setTranscript('Failed to establish connection. Please check authentication.');
+        }
+    };
+
     useEffect(() => {
         // Initialize Audio Element for playback
         audioElementRef.current = new Audio();
@@ -34,65 +127,18 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         // Generate a random session ID for this live call
         sessionIdRef.current = Math.random().toString(36).substring(2, 10);
 
-        // Connect WebSocket directly to backend API URL
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws');
-        const wsUrl = `${wsBaseUrl}/api/live/ws/${sessionIdRef.current}`;
-
-        console.log("Connecting to WebSocket:", wsUrl);
-        wsRef.current = new WebSocket(wsUrl);
-
-        wsRef.current.onopen = () => {
-            console.log("WebSocket connected.");
-            wsRef.current?.send(JSON.stringify({ type: 'config', language: 'en' }));
-            startRecording();
-
-            // Greet the user via voice after a short delay
-            setTimeout(() => {
-                // We'll let the backend trigger the greeting if needed, 
-                // but for now the client just starts listening.
-            }, 1000);
-        };
-
-        wsRef.current.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                if (message.type === 'user_transcript') {
-                    setTranscript(`You: "${message.text}"`);
-                    setStatus('processing');
-                } else if (message.type === 'audio_stream') {
-                    setStatus('speaking');
-                    audioQueueRef.current.push(message.data);
-                    playNextAudioChunk();
-                } else if (message.type === 'ai_transcript') {
-                    setTranscript(`AI: "${message.text}"`);
-                } else if (message.type === 'error') {
-                    setStatus('error');
-                    setTranscript(`Error: ${message.message}`);
-                }
-            } catch (err) {
-                console.error("Failed to parse WS message", err);
-            }
-        };
-
-        wsRef.current.onclose = () => {
-            console.log("WebSocket disconnected.");
-            stopRecording();
-            stopCamera();
-            setStatus('idle');
-            setTranscript('Call ended.');
-        };
-
-        wsRef.current.onerror = (error) => {
-            console.error("WebSocket Error:", error);
-            setStatus('error');
-            setTranscript('Connection error occurred.');
-        };
+        // Connect
+        connectWebSocket();
 
         return () => {
+            // Prevent reconnection on unmount
+            reconnectAttemptsRef.current = maxReconnectAttempts;
+            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             stopRecording();
             stopCamera();
-            if (wsRef.current) wsRef.current.close();
+            if (wsRef.current) {
+                wsRef.current.close(1000, 'Component unmounted'); // Clean close
+            }
             if (audioElementRef.current) {
                 audioElementRef.current.pause();
                 audioElementRef.current = null;
@@ -194,6 +240,11 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         audioElementRef.current.play().catch(e => console.error("Audio play error", e));
     };
 
+    // Sync listening ref with status so closures have the latest state safely
+    useEffect(() => {
+        isListeningRef.current = (status === 'listening');
+    }, [status]);
+
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -201,11 +252,14 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             mediaRecorderRef.current = mediaRecorder;
 
             mediaRecorder.ondataavailable = (event) => {
+                if (!isListeningRef.current) return; // Drop chunks if bot is processing/speaking
+
                 if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
                     const reader = new FileReader();
                     reader.readAsDataURL(event.data);
                     reader.onloadend = () => {
                         const base64data = (reader.result as string).split(',')[1];
+                        console.log(`[ws-debug] Sending audio chunk (${base64data.length} chars)`);
                         wsRef.current?.send(JSON.stringify({
                             type: 'audio_chunk',
                             data: base64data
@@ -316,28 +370,27 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
                 </button>
 
+                {/* Main Send / Interrupt Button */}
                 <button
-                    onClick={toggleCamera}
-                    className={`w-14 h-14 shadow-lg rounded-full flex items-center justify-center transition-all ${isCameraActive ? 'bg-[#2A6CF0] text-white' : 'bg-white border border-gray-200 text-gray-500 hover:text-[#2A6CF0]'
-                        } hover:scale-110 active:scale-95`}
-                    title={isCameraActive ? "Stop Camera" : "Start Camera"}
+                    onClick={handleSilenceToggle}
+                    className={`w-20 h-20 shadow-[0_8px_32px_rgba(42,108,240,0.4)] rounded-full flex items-center justify-center transition-all ${status === 'listening' ? 'bg-[#E45454] text-white animate-pulse shadow-[0_8px_32px_rgba(228,84,84,0.4)]' : 'bg-[#2A6CF0] text-white'
+                        } hover:scale-105 active:scale-95`}
+                    title={status === 'listening' ? "Tap to send speech" : "Interrupt AI"}
                 >
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                    </svg>
+                    {status === 'listening' ? (
+                        <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect></svg>
+                    ) : (
+                        <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                    )}
                 </button>
 
                 <button
                     onClick={onClose}
-                    className="w-20 h-20 bg-[#E45454] shadow-[0_8px_32px_rgba(228,84,84,0.4)] rounded-full flex items-center justify-center text-white hover:bg-red-600 hover:scale-105 active:scale-95 transition-all"
+                    className="w-14 h-14 bg-white border border-gray-200 shadow-lg rounded-full flex items-center justify-center text-gray-500 hover:text-[#E45454] hover:scale-110 active:scale-95 transition-all"
                     title="End Live Mode"
                 >
-                    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M10.59 13.41c.41.39.41 1.03 0 1.41-.39.39-1.03.39-1.41 0-1.56-1.56-1.56-4.09 0-5.66.39-.39 1.03-.39 1.41 0 .39.39.39 1.03 0 1.41-.78.78-.78 2.05 0 2.83z" />
-                        <path d="M13.41 13.41c-.39.39-.39 1.03 0 1.41.39.39 1.03.39 1.41 0 1.56-1.56 1.56-4.09 0-5.66-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41.78.78.78 2.05 0 2.83z" />
-                        <path d="M6.34 17.66c.39.41.39 1.04 0 1.42-.39.39-1.03.39-1.42 0-3.9-3.9-3.9-10.24 0-14.14.39-.39 1.03-.39 1.42 0 .39.39.39 1.02 0 1.41-3.12 3.12-3.12 8.19 0 11.31z" />
-                        <path d="M17.66 17.66c-.39.41-.39 1.04 0 1.42.39.39 1.03.39 1.42 0 3.9-3.9 3.9-10.24 0-14.14-.39-.39-1.03-.39-1.42 0-.39.39-.39 1.02 0 1.41 3.12 3.12 3.12 8.19 0 11.31z" />
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 6 6 18" /><path d="m6 6 12 12" />
                     </svg>
                 </button>
             </div>

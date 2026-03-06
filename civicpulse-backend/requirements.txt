@@ -14,5 +14,4 @@ python-jose[cryptography]
 python-dotenv
 openai
 elevenlabs
-python-socketio[asyncio]
 google-genai

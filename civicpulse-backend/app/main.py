@@ -28,9 +28,10 @@ app.include_router(analyze.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 
-# ─── Socket.IO ───
-from app.core.socket_manager import socket_app
-app.mount("/", socket_app)
+
+# Note: Live Mode uses native FastAPI WebSocket (/api/live/ws/)
+# Chat streaming uses native SSE (StreamingResponse)
+# No Socket.IO needed — removes a heavy dependency and avoids route conflicts
 
 # ─── Startup Event ───
 @app.on_event("startup")

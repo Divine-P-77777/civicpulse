@@ -1,9 +1,11 @@
 import json
 import os
 import base64
+import asyncio
 import logging
+import tempfile
+import traceback
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from openai import AsyncOpenAI
 from app.services.elevenlabs_service import elevenlabs_service
 from app.services.rag_pipeline import rag_pipeline
 
@@ -11,135 +13,257 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/live", tags=["live"])
 
-# In-memory dictionary to store active WebSocket connections per session
-# Key: session_id, Value: WebSocket
-active_connections = {}
+class ConnectionManager:
+    def __init__(self):
+        # Store active connections per session_id
+        self.active_connections: dict[str, WebSocket] = {}
+
+    async def connect(self, websocket: WebSocket, session_id: str):
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
+        logger.info(f"Session {session_id}: WebSocket connected.")
+
+    def disconnect(self, session_id: str):
+        if session_id in self.active_connections:
+            self.active_connections.pop(session_id, None)
+            logger.info(f"Session {session_id}: Cleaned up and removed.")
+
+    async def send_json(self, session_id: str, data: dict) -> bool:
+        """Send JSON to a specific session's WebSocket safely."""
+        websocket = self.active_connections.get(session_id)
+        if not websocket:
+            return False
+        try:
+            await websocket.send_json(data)
+            return True
+        except Exception as e:
+            logger.warning(f"Session {session_id}: Failed to send message: {e}")
+            self.disconnect(session_id)
+            return False
+
+manager = ConnectionManager()
+
+GREETING_TEXT = (
+    "Hello! I'm CivicPulse, your AI legal rights assistant. "
+    "How can I help you today? You can ask me anything about your legal rights, "
+    "government schemes, or civic issues."
+)
+
+
+async def send_greeting(session_id: str):
+    """Send an AI greeting with TTS audio when the user first connects."""
+    try:
+        # 1. Send the greeting text transcript
+        await manager.send_json(session_id, {
+            "type": "ai_transcript",
+            "text": GREETING_TEXT
+        })
+
+        # 2. Generate TTS audio and stream it
+        logger.info(f"Session {session_id}: Generating greeting TTS...")
+        audio_generator = elevenlabs_service.generate_speech(GREETING_TEXT)
+
+        for audio_chunk in audio_generator:
+            chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
+            if not await manager.send_json(session_id, {
+                "type": "audio_stream",
+                "data": chunk_b64
+            }):
+                return  # Connection died
+
+        logger.info(f"Session {session_id}: Greeting sent successfully.")
+    except Exception as e:
+        logger.error(f"Session {session_id}: Greeting failed: {e}")
+        await manager.send_json(session_id, {
+            "type": "ai_transcript",
+            "text": GREETING_TEXT
+        })
+
+
+async def process_voice_turn(
+    session_id: str, 
+    audio_buffer: bytearray,
+    language: str
+):
+    """Process a complete voice turn: transcribe → RAG → TTS → stream back."""
+    temp_audio_path = None
+    try:
+        # 1. Save audio buffer to temp file for Whisper
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
+            temp_audio.write(audio_buffer)
+            temp_audio_path = temp_audio.name
+
+        # 2. Transcribe with Whisper
+        logger.info(f"Session {session_id}: Transcribing audio ({len(audio_buffer)} bytes)...")
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI()
+
+        with open(temp_audio_path, "rb") as f:
+            transcript_resp = await client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f,
+                response_format="text"
+            )
+        transcript_text = transcript_resp.strip()
+        logger.info(f"Session {session_id}: Transcript: '{transcript_text}'")
+
+        if not transcript_text:
+            return  # Silence or unintelligible noise
+
+        # 3. Send transcript back to UI instantly
+        await manager.send_json(session_id, {
+            "type": "user_transcript",
+            "text": transcript_text
+        })
+
+        # 4. Process with RAG Pipeline (Streaming)
+        logger.info(f"Session {session_id}: Running RAG pipeline (streaming to TTS)...")
+        llm_stream = rag_pipeline.analyze_document(
+            query=transcript_text,
+            user_id="live_user",
+            session_id=session_id,
+            language=language,
+            stream=True
+        )
+
+        # Buffer to capture the full transcript for the UI while streaming to ElevenLabs
+        full_response_chunks = []
+        
+        def text_iterator():
+            for chunk in llm_stream:
+                full_response_chunks.append(chunk)
+                yield chunk
+
+        # 5. Generate Speech with ElevenLabs using Text Stream
+        logger.info(f"Session {session_id}: Generating TTS streaming...")
+        audio_generator = elevenlabs_service.generate_speech_stream(text_iterator())
+
+        # 6. Stream TTS audio chunks back to the client instantly
+        for audio_chunk in audio_generator:
+            chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
+            if session_id not in manager.active_connections:
+                break
+            await manager.send_json(session_id, {
+                "type": "audio_stream",
+                "data": chunk_b64
+            })
+
+        # 7. Send final AI transcript (after streaming ends)
+        final_text = "".join(full_response_chunks)
+        logger.info(f"Session {session_id}: RAG response length: {len(final_text)}")
+        await manager.send_json(session_id, {
+            "type": "ai_transcript",
+            "text": final_text
+        })
+
+    except Exception as e:
+        logger.error(f"Session {session_id}: Voice turn error: {e}")
+        traceback.print_exc()
+        await manager.send_json(session_id, {
+            "type": "error",
+            "message": f"Processing error: {str(e)}"
+        })
+    finally:
+        if temp_audio_path and os.path.exists(temp_audio_path):
+            try:
+                os.remove(temp_audio_path)
+            except OSError:
+                pass
+
 
 @router.websocket("/ws/{session_id}")
 async def live_voice_websocket(websocket: WebSocket, session_id: str):
     """
     WebSocket endpoint for full-duplex Live Voice Mode.
-    Receives base64-encoded audio chunks. Transcribes, processes with RAG, and streams AI TTS audio back.
+    Receives base64-encoded audio chunks, transcribes, processes with RAG,
+    and streams AI TTS audio back. Auth is required.
     """
-    await websocket.accept()
-    active_connections[session_id] = websocket
-    
-    # Initialize Async OpenAI client for whisper
-    client = AsyncOpenAI()
-    
-    # Simple state for accumulating audio
-    audio_buffer = bytearray()
-    language = "en" # Default, can be overridden by first message
-    
+    # 1. Extract token from query params
+    token = websocket.query_params.get("token")
+    if not token:
+        logger.warning(f"Session {session_id}: Rejected connection missing token.")
+        await websocket.close(code=1008, reason="Missing authentication token")
+        return
+        
     try:
+        from app.core.auth import verify_jwt
+        user_data = verify_jwt(token)
+        user_id = user_data.get("sub")
+        logger.info(f"Session {session_id}: Authenticated user {user_id}")
+    except Exception as e:
+        logger.warning(f"Session {session_id}: Rejected connection with invalid token: {e}")
+        await websocket.close(code=1008, reason="Invalid authentication token")
+        return
+
+    # 2. Accept connection
+    await manager.connect(websocket, session_id)
+    audio_buffer = bytearray()
+    language = "en"
+
+    try:
+        # Send greeting on connect
+        await send_greeting(session_id)
+
+        # Main message loop
         while True:
-            data = await websocket.receive_text()
-            message = json.loads(data)
-            
+            try:
+                data = await websocket.receive_text()
+            except WebSocketDisconnect:
+                logger.info(f"Session {session_id}: Client disconnected normally.")
+                manager.disconnect(session_id)
+                break
+
+            try:
+                message = json.loads(data)
+            except json.JSONDecodeError:
+                logger.warning(f"Session {session_id}: Invalid JSON received.")
+                continue
+
             msg_type = message.get("type")
-            
+
             if msg_type == "config":
-                # Client sets language preference
                 language = message.get("language", "en")
-                logger.info(f"WebSocket session {session_id} configured for language: {language}")
-                
+                logger.info(f"Session {session_id}: Language set to '{language}'.")
+
             elif msg_type == "camera_capture":
-                # Client streams base64 image frames
-                frame_b64 = message.get("data")
-                if frame_b64:
-                    # For now, we just log we received it. 
-                    # In the future, we could pass this to a vision model.
-                    # logger.info(f"Received camera frame from session {session_id}")
-                    pass
-                    
+                # Future: pass to a vision model
+                pass
+
             elif msg_type == "audio_chunk":
-                # Client streams base64 audio (webm/pcm)
                 chunk_b64 = message.get("data")
                 if chunk_b64:
-                    chunk_bytes = base64.b64decode(chunk_b64)
-                    audio_buffer.extend(chunk_bytes)
-                    
+                    try:
+                        chunk_bytes = base64.b64decode(chunk_b64)
+                        audio_buffer.extend(chunk_bytes)
+                        # Add debug log
+                        if len(audio_buffer) % 50000 < 5000: # Log roughly every ~50KB to avoid spam
+                            logger.info(f"Session {session_id}: Buffer grew to {len(audio_buffer)} bytes")
+                    except Exception as e:
+                        logger.warning(f"Session {session_id}: Bad audio chunk: {e}")
+
             elif msg_type == "end_of_speech":
-                # Client paused speaking. We process the buffer.
                 if not audio_buffer:
                     continue
-                    
-                # 1. Transcribe with Whisper
-                # We need to save the buffer to a temporary file to give to Whisper
-                import tempfile
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
-                    temp_audio.write(audio_buffer)
-                    temp_audio_path = temp_audio.name
-                
-                # Reset buffer immediately for next phrase
-                audio_buffer = bytearray()
-                
-                try:
-                    logger.info("Transcribing audio...")
-                    with open(temp_audio_path, "rb") as f:
-                        transcript_resp = await client.audio.transcriptions.create(
-                            model="whisper-1",
-                            file=f,
-                            response_format="text"
-                        )
-                    transcript_text = transcript_resp.strip()
-                    logger.info(f"User transcript: {transcript_text}")
-                    
-                    if not transcript_text:
-                        continue # Silence or noise
-                        
-                    # 2. Send transcript back to UI instantly
-                    await websocket.send_json({
-                        "type": "user_transcript",
-                        "text": transcript_text
-                    })
-                    
-                    # 3. Process with RAG Pipeline
-                    logger.info("Processing RAG pipeline...")
-                    llm_response = rag_pipeline.analyze_document(
-                        query=transcript_text,
-                        user_id="live_user",
-                        session_id=session_id,
-                        language=language,
-                        stream=False
-                    )
-                    
-                    # 4. Generate Speech with ElevenLabs
-                    logger.info("Generating ElevenLabs speech...")
-                    audio_generator = elevenlabs_service.generate_speech(llm_response)
-                    
-                    # 5. Stream TTS audio chunks back to the client
-                    for audio_chunk in audio_generator:
-                        chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
-                        # Check if connection is still alive before sending
-                        if session_id in active_connections:
-                            await websocket.send_json({
-                                "type": "audio_stream",
-                                "data": chunk_b64
-                            })
-                            
-                    # 6. Send final AI transcript
-                    if session_id in active_connections:
-                        await websocket.send_json({
-                            "type": "ai_transcript",
-                            "text": llm_response
-                        })
-                        
-                except Exception as e:
-                    logger.error(f"Error processing voice turn: {e}")
-                    await websocket.send_json({"type": "error", "message": str(e)})
-                    
-                finally:
-                    # Clean up temp file
-                    if os.path.exists(temp_audio_path):
-                        os.remove(temp_audio_path)
-            
+                # Copy and clear the buffer
+                buffer_copy = bytearray(audio_buffer)
+                audio_buffer.clear()
+                # Process the voice turn
+                await process_voice_turn(session_id, buffer_copy, language)
+
             elif msg_type == "interrupt":
-                # User started speaking over the AI.
-                audio_buffer = bytearray()
-                logger.info(f"Session {session_id} interrupted.")
-                
+                audio_buffer.clear()
+                logger.info(f"Session {session_id}: Interrupted by user.")
+
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for session {session_id}")
+        logger.info(f"Session {session_id}: WebSocket disconnected (outer).")
+        manager.disconnect(session_id)
+    except Exception as e:
+        logger.error(f"Session {session_id}: Unexpected error: {e}")
+        traceback.print_exc()
+        await manager.send_json(session_id, {
+            "type": "error",
+            "message": "An unexpected server error occurred."
+        })
+        manager.disconnect(session_id)
     finally:
-        active_connections.pop(session_id, None)
+        manager.disconnect(session_id)
