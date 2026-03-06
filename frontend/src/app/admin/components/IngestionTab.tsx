@@ -7,6 +7,7 @@ interface IngestionTabProps {
     API_BASE: string;
 }
 
+
 export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: IngestionTabProps) {
     const [file, setFile] = useState<File | null>(null);
     const [metadata, setMetadata] = useState('{"type": "law", "region": "Assam"}');
@@ -107,6 +108,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                 headers['X-Socket-ID'] = socketRef.current.id;
             }
 
+            // This now returns 202 instantly to avoid HTTP timeouts on large 400+ page PDFs
             const res = await authFetch(`${API_BASE}/api/admin/ingest`, {
                 method: 'POST',
                 headers,
@@ -116,22 +118,27 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
 
-            // Note: Progress is now mainly driven by socket events
-            // But we ensure it hits 100 on success if not already there
-            setProgress(100);
-            setStatus({ type: 'success', message: data.message || `Successfully processed ${data.chunks_processed || 1} chunks!` });
+            // Just display the "started" message. The Socket.IO listener above handles completion.
+            setStatus({ type: 'info', message: data.message || "Ingestion started in background..." });
 
-            // Clean up
-            setFile(null);
-            setTextInput('');
-            setTimeout(() => setProgress(0), 5000);
+            // Do NOT set isUploading=false here. Wait for socket to hit 100%.
+
         } catch (err: any) {
             setProgress(0);
+            setIsUploading(false); // Only abort on immediate HTTP failure
             setStatus({ type: 'error', message: err.message || 'Upload failed' });
-        } finally {
-            setIsUploading(false);
         }
     };
+
+    // Auto-cleanup on successful completion from socket
+    useEffect(() => {
+        if (progress >= 100 && isUploading) {
+            setFile(null);
+            setTextInput('');
+            setIsUploading(false);
+            setTimeout(() => setProgress(0), 5000);
+        }
+    }, [progress, isUploading]);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

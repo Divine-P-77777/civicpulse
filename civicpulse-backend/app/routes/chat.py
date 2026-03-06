@@ -258,6 +258,7 @@ async def upload_document(
         meta_dict = {"type": "user_upload"}
     
     meta_dict["uploaded_by"] = user_id
+    meta_dict["source_type"] = "private"
     meta_dict["source_filename"] = file.filename
 
     # Upload to S3

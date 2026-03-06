@@ -29,18 +29,54 @@ class VectorService:
         return self.client.index(index=self.index_name, id=doc_id, body=body)
 
     # --- READ ---
-    def similarity_search(self, query_vector: list, k: int = 5):
+    def similarity_search(self, query_vector: list, k: int = 5, user_id: str = None):
         search_query = {
             "size": k,
             "query": {
-                "knn": {
-                    "vector": {
-                        "vector": query_vector,
-                        "k": k
+                "bool": {
+                    "must": [
+                        {
+                            "knn": {
+                                "vector": {
+                                    "vector": query_vector,
+                                    "k": k
+                                }
+                            }
+                        }
+                    ],
+                    "filter": {
+                        "bool": {
+                            "should": [
+                                {"term": {"metadata.source_type.keyword": "global"}}
+                            ]
+                        }
                     }
                 }
             }
         }
+        
+        # If user_id is provided, also allow docs where source_type is "private" and uploaded_by == user_id
+        if user_id:
+            search_query["query"]["bool"]["filter"]["bool"]["should"].append({
+                "bool": {
+                    "must": [
+                        {"term": {"metadata.source_type.keyword": "private"}},
+                        {"term": {"metadata.uploaded_by.keyword": user_id}}
+                    ]
+                }
+            })
+            
+        # Add fallback: allow older docs that lack source_type (treated as global for backwards compatibility)
+        search_query["query"]["bool"]["filter"]["bool"]["should"].append({
+            "bool": {
+                "must_not": {
+                    "exists": {
+                        "field": "metadata.source_type"
+                    }
+                }
+            }
+        })
+            
         response = self.client.search(index=self.index_name, body=search_query)
         return [hit["_source"]["metadata"] for hit in response["hits"]["hits"]]
 

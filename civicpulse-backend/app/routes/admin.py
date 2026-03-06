@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPException, File, Header
+from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPException, File, Header, BackgroundTasks
 from app.services.s3_service import upload_to_s3, list_files, get_presigned_url, delete_file, S3_BUCKET
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import (
@@ -9,7 +9,10 @@ from app.core.auth import get_admin_user
 from pydantic import BaseModel
 from typing import Optional
 import json
+import logging
+import asyncio
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # ─── Pydantic Models ───
@@ -18,11 +21,41 @@ class UpdateResultRequest(BaseModel):
     updates: dict
 
 # ═══════════════════════════════════════════════
-# INGESTION (existing)
+# INGESTION
 # ═══════════════════════════════════════════════
 
-@router.post("/ingest")
+async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional[str], content: Optional[str], meta_dict: dict, x_socket_id: Optional[str]):
+    """Background task orchestrator for running the long document ingestion processes."""
+    try:
+        chunks_processed = 0
+        if ingest_type == "pdf":
+            chunks_processed = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
+        elif ingest_type == "image":
+            from app.ingestion.image_ingest import ingest_image_from_s3
+            chunks_processed = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id)
+        elif ingest_type == "web":
+            from app.ingestion.web_ingest import ingest_web
+            chunks_processed = await ingest_web(content, meta_dict, x_socket_id)
+        elif ingest_type == "pdf (url)":
+            chunks_processed = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
+            
+        logger.info(f"✅ Background Ingestion complete: {file_key or content} → {chunks_processed} chunks.")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        if x_socket_id:
+            from app.core.socket_manager import socket_manager
+            # Run the async emit in a background fashion safely (since we are inside an async def kicked off via BackgroundTasks)
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(socket_manager.emit_progress(100, f"Error: {str(e)}", x_socket_id))
+            except:
+                pass
+
+
+@router.post("/ingest", status_code=202)
 async def ingest_document(
+    background_tasks: BackgroundTasks,
     type: str = Form("pdf"),
     file: Optional[UploadFile] = File(None),
     content: Optional[str] = Form(None),
@@ -30,26 +63,28 @@ async def ingest_document(
     admin: dict = Depends(get_admin_user),
     x_socket_id: Optional[str] = Header(None)
 ):
-    """Admin-only endpoint. Unified ingestion for PDF, Image, and Web/Text."""
+    """Admin-only endpoint. Unified background ingestion for PDF, Image, and Web/Text."""
     try:
         meta_dict = json.loads(metadata)
     except json.JSONDecodeError:
         meta_dict = {"type": type}
         
-    chunks_processed = 0
     bucket = S3_BUCKET
+    file_key = None
     
     try:
         if type == "pdf":
             if not file: raise HTTPException(400, "File required for PDF ingestion")
+            meta_dict["source_type"] = "global"
+            # Upload immediately (fast) before returning 202
             file_key = upload_to_s3(file)
-            chunks_processed = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
+            background_tasks.add_task(_run_admin_ingestion, "pdf", bucket, file_key, None, meta_dict, x_socket_id)
             
         elif type == "image":
             if not file: raise HTTPException(400, "File required for Image ingestion")
-            from app.ingestion.image_ingest import ingest_image_from_s3
+            meta_dict["source_type"] = "global"
             file_key = upload_to_s3(file)
-            chunks_processed = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id)
+            background_tasks.add_task(_run_admin_ingestion, "image", bucket, file_key, None, meta_dict, x_socket_id)
             
         elif type == "web":
             if not content: raise HTTPException(400, "Content/URL required for Web ingestion")
@@ -64,25 +99,26 @@ async def ingest_document(
                 from app.services.s3_service import upload_bytes_to_s3
                 
                 print(f"Detected PDF URL: {content}. Routing to PDF pipeline.")
-                resp = requests.get(content, timeout=30)
+                resp = requests.get(content, timeout=30) # Fetch the PDF synchronously to avoid bad URL errors later
                 if resp.status_code == 200:
                     filename = content.split("/")[-1].split("?")[0]
                     file_key = upload_bytes_to_s3(resp.content, filename, "application/pdf")
-                    chunks_processed = await ingest_pdf_from_s3(S3_BUCKET, file_key, meta_dict, x_socket_id)
-                    type = "pdf (url)" # For the return message
+                    meta_dict["source_type"] = "global"
+                    background_tasks.add_task(_run_admin_ingestion, "pdf (url)", bucket, file_key, None, meta_dict, x_socket_id)
+                    type = "pdf (url)"
                 else:
                     raise HTTPException(400, f"Failed to download PDF from URL: {content}")
             else:
-                from app.ingestion.web_ingest import ingest_web
-                chunks_processed = await ingest_web(content, meta_dict, x_socket_id)
+                meta_dict["source_type"] = "global"
+                background_tasks.add_task(_run_admin_ingestion, "web", bucket, None, content, meta_dict, x_socket_id)
             
         else:
             raise HTTPException(400, f"Unsupported ingestion type: {type}")
             
         return {
-            "message": f"{type.upper()} ingested successfully", 
-            "chunks_processed": chunks_processed,
-            "admin_email": admin.get("email")
+            "message": f"{type.upper()} ingestion started in background", 
+            "admin_email": admin.get("email"),
+            "status": "processing"
         }
     except Exception as e:
         import traceback
