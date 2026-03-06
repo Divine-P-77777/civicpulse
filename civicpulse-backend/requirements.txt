@@ -15,5 +15,4 @@ python-dotenv
 openai
 elevenlabs
 python-socketio[asyncio]
-google-generativeai
-
+google-genai
