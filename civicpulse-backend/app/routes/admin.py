@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPException
+from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPException, File
 from app.services.s3_service import upload_to_s3, list_files, get_presigned_url, delete_file, S3_BUCKET
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import (
@@ -21,26 +21,52 @@ class UpdateResultRequest(BaseModel):
 # INGESTION (existing)
 # ═══════════════════════════════════════════════
 
-@router.post("/ingest-law")
-async def ingest_law(
-    file: UploadFile, 
-    metadata: str = Form(...),
+@router.post("/ingest")
+async def ingest_document(
+    type: str = Form("pdf"),
+    file: Optional[UploadFile] = File(None),
+    content: Optional[str] = Form(None),
+    metadata: str = Form("{}"),
     admin: dict = Depends(get_admin_user)
 ):
-    """Admin-only endpoint. Upload and ingest a legal PDF."""
+    """Admin-only endpoint. Unified ingestion for PDF, Image, and Web/Text."""
     try:
         meta_dict = json.loads(metadata)
     except json.JSONDecodeError:
-        meta_dict = {"type": "law"}
+        meta_dict = {"type": type}
         
-    file_key = upload_to_s3(file)
-    chunks_processed = ingest_pdf_from_s3(S3_BUCKET, file_key, meta_dict)
-        
-    return {
-        "message": "Law ingested successfully", 
-        "chunks_processed": chunks_processed,
-        "admin_email": admin.get("email")
-    }
+    chunks_processed = 0
+    bucket = S3_BUCKET
+    
+    try:
+        if type == "pdf":
+            if not file: raise HTTPException(400, "File required for PDF ingestion")
+            file_key = upload_to_s3(file)
+            chunks_processed = ingest_pdf_from_s3(bucket, file_key, meta_dict)
+            
+        elif type == "image":
+            if not file: raise HTTPException(400, "File required for Image ingestion")
+            from app.ingestion.image_ingest import ingest_image
+            file_key = upload_to_s3(file)
+            chunks_processed = await ingest_image(bucket, file_key, meta_dict)
+            
+        elif type == "web":
+            if not content: raise HTTPException(400, "Content/URL required for Web ingestion")
+            from app.ingestion.web_ingest import ingest_web
+            chunks_processed = await ingest_web(content, meta_dict)
+            
+        else:
+            raise HTTPException(400, f"Unsupported ingestion type: {type}")
+            
+        return {
+            "message": f"{type.upper()} ingested successfully", 
+            "chunks_processed": chunks_processed,
+            "admin_email": admin.get("email")
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ═══════════════════════════════════════════════
 # VECTOR CRUD (OpenSearch)

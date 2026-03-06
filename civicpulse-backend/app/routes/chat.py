@@ -1,15 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, Form, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from app.core.auth import get_current_user
 from app.services.chat_service import (
     create_session, add_message, get_session,
-    list_sessions, delete_session, update_session_title
+    list_sessions, delete_session, update_session_title,
+    share_session, get_shared_session
 )
 from app.services.rag_pipeline import rag_pipeline
 from app.services.summarize_service import summarize_service
 from pydantic import BaseModel
 from typing import Optional
 import json
+import os
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -21,6 +27,7 @@ class NewSessionRequest(BaseModel):
 class MessageRequest(BaseModel):
     session_id: str
     message: str
+    language: Optional[str] = "en"  # "en" or "hi"
 
 class UpdateTitleRequest(BaseModel):
     title: str
@@ -88,7 +95,16 @@ async def send_message(body: MessageRequest, current_user: dict = Depends(get_cu
     user_msg = add_message(user_id, body.session_id, role="user", content=body.message)
 
     try:
+<<<<<<< HEAD
+        ai_response = rag_pipeline.analyze_document(
+            body.message,
+            chat_history=session.get("messages", []),
+            language=body.language,
+            stream=False
+        )
+=======
         ai_response = rag_pipeline.analyze_document(body.message, chat_history=chat_context_summary, stream=False)
+>>>>>>> origin/main
     except Exception as e:
         ai_response = f"I'm sorry, I encountered an error: {str(e)}"
 
@@ -116,11 +132,19 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
 
     # Store user message immediately
     add_message(user_id, body.session_id, role="user", content=body.message)
+    chat_history = session.get("messages", [])
+
+    # Auto-generate title if this is the first message in the session
+    is_first_message = session.get("title", "New Chat") == "New Chat" and len(chat_history) == 0
 
     def event_generator():
         collected = []
         try:
+<<<<<<< HEAD
+            for chunk in rag_pipeline.analyze_document(body.message, chat_history=chat_history, language=body.language, stream=True):
+=======
             for chunk in rag_pipeline.analyze_document(body.message, chat_history=chat_context_summary, stream=True):
+>>>>>>> origin/main
                 collected.append(chunk)
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
         except Exception as e:
@@ -131,6 +155,118 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
         # Store full bot response after stream ends
         full_text = "".join(collected)
         add_message(user_id, body.session_id, role="assistant", content=full_text)
+
+        # Auto-generate title from first user message
+        if is_first_message:
+            try:
+                from openai import OpenAI
+                title_client = OpenAI()
+                title_resp = title_client.chat.completions.create(
+                    model=os.getenv("RAG_MODEL", "openai.gpt-oss-120b"),
+                    messages=[{
+                        "role": "user",
+                        "content": f"Generate a short chat title (max 6 words, no quotes) for this user query: \"{body.message[:200]}\""
+                    }],
+                    max_tokens=20
+                )
+                auto_title = (title_resp.choices[0].message.content or "").strip().strip('"\'')[:50]
+                if not auto_title:
+                    auto_title = body.message[:40].strip()
+                update_session_title(user_id, body.session_id, auto_title)
+                yield f"data: {json.dumps({'title': auto_title})}\n\n"
+            except Exception as e:
+                logger.warning(f"Auto-title generation failed: {e}")
+
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+# ═══════════════════════════════════════════════
+# SHARE CHAT
+# ═══════════════════════════════════════════════
+
+@router.post("/session/{session_id}/share")
+async def share_chat(session_id: str = Path(...), current_user: dict = Depends(get_current_user)):
+    """Generate a share link for a chat session."""
+    user_id = current_user.get("sub")
+    session = get_session(user_id, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    share_id = share_session(user_id, session_id)
+    return {"share_id": share_id}
+
+@router.get("/shared/{share_id}")
+async def view_shared_chat(share_id: str = Path(...)):
+    """Public endpoint — view a shared chat (no auth required)."""
+    session = get_shared_session(share_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Shared chat not found")
+    return session
+
+# ═══════════════════════════════════════════════
+# DOCUMENT UPLOAD (User-facing ingestion)
+# ═══════════════════════════════════════════════
+
+from app.services.s3_service import upload_to_s3, S3_BUCKET
+from app.ingestion.pdf_ingest import ingest_pdf_from_s3
+from app.ingestion.img_ingest import ingest_image_from_s3
+
+def _run_ingestion(bucket: str, file_key: str, metadata: dict, user_id: str):
+    """Background task: picks the right ingestor based on file extension."""
+    try:
+        ext = file_key.rsplit(".", 1)[-1].lower() if "." in file_key else ""
+        if ext == "pdf":
+            chunks = ingest_pdf_from_s3(bucket, file_key, metadata)
+        elif ext in ("jpg", "jpeg", "png", "webp", "tiff"):
+            chunks = ingest_image_from_s3(bucket, file_key, metadata)
+        else:
+            logger.warning(f"Unknown file type for {file_key}, defaulting to PDF ingestor")
+            chunks = ingest_pdf_from_s3(bucket, file_key, metadata)
+        logger.info(f"✅ User {user_id} ingestion complete: {file_key} → {chunks} chunks")
+    except Exception as e:
+        logger.error(f"❌ Ingestion failed for {file_key}: {e}")
+
+@router.post("/upload")
+async def upload_document(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = ...,
+    metadata: str = Form('{"type": "user_upload"}'),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    User-facing document upload.
+    Uploads the file to S3, then kicks off the ingestion pipeline
+    (Textract → chunk → embed → OpenSearch) as a background task
+    so the user isn't blocked waiting for large documents.
+    """
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    # Validate file type
+    allowed_types = [
+        "application/pdf",
+        "image/jpeg", "image/png", "image/jpg", "image/webp"
+    ]
+    if file.content_type and file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}. Use PDF or image.")
+
+    try:
+        meta_dict = json.loads(metadata)
+    except json.JSONDecodeError:
+        meta_dict = {"type": "user_upload"}
+    
+    meta_dict["uploaded_by"] = user_id
+    meta_dict["source_filename"] = file.filename
+
+    # Upload to S3
+    file_key = upload_to_s3(file)
+
+    # Start ingestion in the background — user gets immediate response
+    background_tasks.add_task(_run_ingestion, S3_BUCKET, file_key, meta_dict, user_id)
+
+    return {
+        "message": f"File '{file.filename}' uploaded successfully. Ingestion is processing in the background.",
+        "file_key": file_key,
+        "status": "processing"
+    }

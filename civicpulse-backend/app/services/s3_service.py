@@ -3,7 +3,7 @@ import os
 from fastapi import UploadFile
 from app.config import s3_client
 
-S3_BUCKET = os.getenv("S3_BUCKET", "civicpulse-documents")
+S3_BUCKET = os.getenv("S3_BUCKET", "civicpulse-documents-bucket")
 
 # --- CREATE ---
 def upload_to_s3(file: UploadFile) -> str:
