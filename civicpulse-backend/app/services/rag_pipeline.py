@@ -83,7 +83,7 @@ class RagPipeline:
 
         return f"[Earlier conversation summary]\n{older_summary}\n\n[Recent messages]\n{recent_text}"
 
-    def analyze_document(self, query: str, chat_history: list = None, language: str = "en", stream: bool = False):
+    def analyze_document(self, query: str, user_id: str = None, session_id: str = None, chat_history: list = None, language: str = "en", stream: bool = False):
         """
         Orchestrates the RAG flow with conversation memory:
         1. Build conversation context from chat history
@@ -133,20 +133,20 @@ class RagPipeline:
         messages.append({"role": "user", "content": query})
 
         if stream:
-            return self._stream_response(messages, query)
+            return self._stream_response(messages, query, user_id, session_id)
         else:
-            return self._execute_response(messages, query)
+            return self._execute_response(messages, query, user_id, session_id)
 
-    def _execute_response(self, messages: list, query: str):
+    def _execute_response(self, messages: list, query: str, user_id: str = None, session_id: str = None):
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages
         )
         result_text = response.choices[0].message.content
-        store_analysis_result(query, result_text)
+        store_analysis_result(query, result_text, user_id, session_id)
         return result_text
 
-    def _stream_response(self, messages: list, query: str):
+    def _stream_response(self, messages: list, query: str, user_id: str = None, session_id: str = None):
         """Generator for streaming responses."""
         response = self.client.chat.completions.create(
             model=self.model,
@@ -163,7 +163,7 @@ class RagPipeline:
         
         # Store full result after stream completes
         full_text = "".join(collected_chunks)
-        store_analysis_result(query, full_text)
+        store_analysis_result(query, full_text, user_id, session_id)
 
 # Singleton instance
 rag_pipeline = RagPipeline()

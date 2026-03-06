@@ -28,6 +28,10 @@ app.include_router(analyze.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 
+# ─── Socket.IO ───
+from app.core.socket_manager import socket_app
+app.mount("/", socket_app)
+
 # ─── Startup Event ───
 @app.on_event("startup")
 async def startup():
