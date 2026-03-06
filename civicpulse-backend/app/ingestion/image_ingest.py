@@ -4,16 +4,16 @@ import requests
 import uuid
 import tempfile
 from app.services.vector_service import vector_service
-from app.services.s3_service import S3_CLIENT
+from app.services.s3_service import s3_client
 
-async def ingest_image(bucket: str, file_key: str, metadata: dict = {}):
+async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}):
     """
     Downloads image from S3, uses Gemini Vision to extract text/entities,
     and then generates vector embeddings to store in OpenSearch.
     """
     # 1. Download from S3 temporarily
     local_path = os.path.join(tempfile.gettempdir(), os.path.basename(file_key))
-    S3_CLIENT.download_file(bucket, file_key, local_path)
+    s3_client.download_file(bucket, file_key, local_path)
 
     try:
         # 2. Extract with Gemini
