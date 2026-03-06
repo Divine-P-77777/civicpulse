@@ -95,16 +95,14 @@ async def send_message(body: MessageRequest, current_user: dict = Depends(get_cu
     user_msg = add_message(user_id, body.session_id, role="user", content=body.message)
 
     try:
-<<<<<<< HEAD
         ai_response = rag_pipeline.analyze_document(
-            body.message,
+            query=body.message,
+            user_id=user_id,
+            session_id=body.session_id,
             chat_history=session.get("messages", []),
             language=body.language,
             stream=False
         )
-=======
-        ai_response = rag_pipeline.analyze_document(body.message, chat_history=chat_context_summary, stream=False)
->>>>>>> origin/main
     except Exception as e:
         ai_response = f"I'm sorry, I encountered an error: {str(e)}"
 
@@ -140,11 +138,14 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
     def event_generator():
         collected = []
         try:
-<<<<<<< HEAD
-            for chunk in rag_pipeline.analyze_document(body.message, chat_history=chat_history, language=body.language, stream=True):
-=======
-            for chunk in rag_pipeline.analyze_document(body.message, chat_history=chat_context_summary, stream=True):
->>>>>>> origin/main
+            for chunk in rag_pipeline.analyze_document(
+                query=body.message,
+                user_id=user_id,
+                session_id=body.session_id,
+                chat_history=chat_history,
+                language=body.language,
+                stream=True
+            ):
                 collected.append(chunk)
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
         except Exception as e:
@@ -209,7 +210,7 @@ async def view_shared_chat(share_id: str = Path(...)):
 
 from app.services.s3_service import upload_to_s3, S3_BUCKET
 from app.ingestion.pdf_ingest import ingest_pdf_from_s3
-from app.ingestion.img_ingest import ingest_image_from_s3
+from app.ingestion.image_ingest import ingest_image_from_s3
 
 def _run_ingestion(bucket: str, file_key: str, metadata: dict, user_id: str):
     """Background task: picks the right ingestor based on file extension."""

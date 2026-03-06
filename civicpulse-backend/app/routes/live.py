@@ -43,6 +43,15 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
                 language = message.get("language", "en")
                 logger.info(f"WebSocket session {session_id} configured for language: {language}")
                 
+            elif msg_type == "camera_capture":
+                # Client streams base64 image frames
+                frame_b64 = message.get("data")
+                if frame_b64:
+                    # For now, we just log we received it. 
+                    # In the future, we could pass this to a vision model.
+                    # logger.info(f"Received camera frame from session {session_id}")
+                    pass
+                    
             elif msg_type == "audio_chunk":
                 # Client streams base64 audio (webm/pcm)
                 chunk_b64 = message.get("data")

@@ -11,7 +11,7 @@ def _get_table():
     return dynamodb.Table(TABLE_NAME)
 
 # --- CREATE ---
-def store_analysis_result(query: str, summary: str):
+def store_analysis_result(query: str, summary: str, user_id: str = None, session_id: str = None):
     try:
         table = _get_table()
         doc_id = str(uuid.uuid4())
@@ -19,6 +19,8 @@ def store_analysis_result(query: str, summary: str):
         table.put_item(
             Item={
                 'doc_id': doc_id,
+                'user_id': user_id or "anonymous",
+                'session_id': session_id or "default",
                 'Query': query,
                 'Summary': summary,
                 'RiskScore': "High",
