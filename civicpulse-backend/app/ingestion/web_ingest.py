@@ -3,6 +3,7 @@ import requests
 import uuid
 from bs4 import BeautifulSoup
 from app.services.vector_service import vector_service
+from app.services.embedding_service import generate_embedding
 
 async def ingest_web(content: str, metadata: dict = {}):
     """
@@ -27,18 +28,8 @@ async def ingest_web(content: str, metadata: dict = {}):
     if not extracted_text.strip():
         raise Exception("No text content found to ingest.")
 
-    # 1. Generate Embeddings 
-    headers = {"Authorization": f"Bearer {os.getenv('HUGGINGFACE_API_KEY')}"}
-    payload = {"inputs": extracted_text[:8000]} # Truncate for embedding model limits roughly
-    
-    # Retry logic for embeddings
-    for _ in range(3):
-        res = requests.post(os.getenv("EMBEDDING_API_URL"), headers=headers, json=payload)
-        if res.status_code == 200:
-            vector = res.json()[0]
-            break
-    else:
-        raise Exception("Failed to generate embedding for web content.")
+    # 1. Generate Embedding using Bedrock (Titan)
+    vector = generate_embedding(extracted_text[:8000])
 
     # 2. Store in OpenSearch
     doc_id = str(uuid.uuid4())
@@ -50,4 +41,5 @@ async def ingest_web(content: str, metadata: dict = {}):
     }
     
     vector_service.store_vector(doc_id, vector, doc_meta)
-    return 1 # 1 chunk processed
+    return 1  # 1 chunk processed
+
