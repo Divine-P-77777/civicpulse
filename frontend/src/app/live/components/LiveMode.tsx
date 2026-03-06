@@ -17,7 +17,8 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
     // WebSockets & Audio Refs
     const wsRef = useRef<WebSocket | null>(null);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recognitionRef = useRef<any>(null);
+    const accumulatedTextRef = useRef<string>('');
     const audioQueueRef = useRef<string[]>([]);
     const isPlayingRef = useRef<boolean>(false);
     const isListeningRef = useRef<boolean>(false); // Tracks if we should actually capture audio
@@ -127,8 +128,10 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         // Generate a random session ID for this live call
         sessionIdRef.current = Math.random().toString(36).substring(2, 10);
 
-        // Connect
-        connectWebSocket();
+        // Do NOT connect immediately to avoid Audio Autoplay blocking.
+        // The user must trigger the connection via click.
+        setStatus('idle');
+        setTranscript('Ready. Tap the button to connect.');
 
         return () => {
             // Prevent reconnection on unmount
@@ -237,7 +240,13 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         const url = URL.createObjectURL(blob);
 
         audioElementRef.current.src = url;
-        audioElementRef.current.play().catch(e => console.error("Audio play error", e));
+        audioElementRef.current.play().catch(e => {
+            console.error("Audio play error", e);
+            setTimeout(() => {
+                isPlayingRef.current = false;
+                playNextAudioChunk();
+            }, 100);
+        });
     };
 
     // Sync listening ref with status so closures have the latest state safely
@@ -245,32 +254,75 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         isListeningRef.current = (status === 'listening');
     }, [status]);
 
-    const startRecording = async () => {
+    const startRecording = () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            mediaRecorderRef.current = mediaRecorder;
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                setStatus('error');
+                setTranscript('Your browser does not support the Web Speech API. Please use Chrome or Edge.');
+                return;
+            }
 
-            mediaRecorder.ondataavailable = (event) => {
-                if (!isListeningRef.current) return; // Drop chunks if bot is processing/speaking
+            if (!recognitionRef.current) {
+                const recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
 
-                if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(event.data);
-                    reader.onloadend = () => {
-                        const base64data = (reader.result as string).split(',')[1];
-                        console.log(`[ws-debug] Sending audio chunk (${base64data.length} chars)`);
-                        wsRef.current?.send(JSON.stringify({
-                            type: 'audio_chunk',
-                            data: base64data
-                        }));
-                    };
-                }
-            };
+                recognition.onstart = () => {
+                    setStatus('listening');
+                    setTranscript('Listening... Speak now.');
+                };
 
-            mediaRecorder.start(250);
-            setStatus('listening');
-            setTranscript('Listening... Speak now.');
+                recognition.onresult = (event: any) => {
+                    if (!isListeningRef.current) return;
+
+                    let interimTranscript = '';
+                    let finalTranscriptForTurn = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscriptForTurn += event.results[i][0].transcript;
+                        } else {
+                            interimTranscript += event.results[i][0].transcript;
+                        }
+                    }
+
+                    if (finalTranscriptForTurn) {
+                        accumulatedTextRef.current += ' ' + finalTranscriptForTurn;
+                        const textToSend = accumulatedTextRef.current.trim();
+                        setTranscript(`You: "${textToSend}"`);
+
+                        // Auto-send on final pause!
+                        if (wsRef.current?.readyState === WebSocket.OPEN && textToSend) {
+                            console.log(`[ws-debug] Sending user text: ${textToSend}`);
+                            wsRef.current.send(JSON.stringify({ type: 'user_text', text: textToSend }));
+                            setStatus('processing');
+                            setTranscript('Processing your speech...');
+                            accumulatedTextRef.current = '';
+                        }
+                    } else if (interimTranscript) {
+                        const currentSessionText = (accumulatedTextRef.current + ' ' + interimTranscript).trim();
+                        setTranscript(`You: "${currentSessionText}"`);
+                    }
+                };
+
+                recognition.onerror = (event: any) => {
+                    console.error("Speech recognition error", event.error);
+                };
+
+                recognition.onend = () => {
+                    // Try to restart if we are still supposed to be listening
+                    if (isListeningRef.current && status === 'listening') {
+                        try { recognition.start(); } catch (e) { }
+                    }
+                };
+
+                recognitionRef.current = recognition;
+            }
+
+            try { recognitionRef.current.start(); } catch (e) { }
+
         } catch (err) {
             console.error("Microphone access denied or failed", err);
             setStatus('error');
@@ -279,13 +331,18 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     };
 
     const stopRecording = () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch (e) { }
         }
     };
 
     const handleSilenceToggle = () => {
+        // First click: connect to WebSocket and unlock audio
+        if (!wsRef.current) {
+            connectWebSocket();
+            return;
+        }
+
         if (status === 'speaking') {
             if (audioElementRef.current) {
                 audioElementRef.current.pause();
@@ -301,10 +358,12 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             setTranscript('Interrupted. Listening...');
 
         } else if (status === 'listening') {
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ type: 'end_of_speech' }));
+            const textToSend = accumulatedTextRef.current.trim();
+            if (wsRef.current?.readyState === WebSocket.OPEN && textToSend) {
+                wsRef.current.send(JSON.stringify({ type: 'user_text', text: textToSend }));
                 setStatus('processing');
                 setTranscript('Processing your speech...');
+                accumulatedTextRef.current = '';
             }
         }
     };
@@ -421,3 +480,4 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         </div>
     );
 }
+

@@ -61,9 +61,9 @@ async def send_greeting(session_id: str):
 
         # 2. Generate TTS audio and stream it
         logger.info(f"Session {session_id}: Generating greeting TTS...")
-        audio_generator = elevenlabs_service.generate_speech(GREETING_TEXT)
+        audio_generator = elevenlabs_service.generate_speech_stream([GREETING_TEXT])
 
-        for audio_chunk in audio_generator:
+        async for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
             if not await manager.send_json(session_id, {
                 "type": "audio_stream",
@@ -82,41 +82,18 @@ async def send_greeting(session_id: str):
 
 async def process_voice_turn(
     session_id: str, 
-    audio_buffer: bytearray,
+    transcript_text: str,
     language: str
 ):
-    """Process a complete voice turn: transcribe → RAG → TTS → stream back."""
-    temp_audio_path = None
+    """Process a complete voice turn: RAG → TTS → stream back (bypassing STT)."""
     try:
-        # 1. Save audio buffer to temp file for Whisper
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
-            temp_audio.write(audio_buffer)
-            temp_audio_path = temp_audio.name
-
-        # 2. Transcribe with Whisper
-        logger.info(f"Session {session_id}: Transcribing audio ({len(audio_buffer)} bytes)...")
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI()
-
-        with open(temp_audio_path, "rb") as f:
-            transcript_resp = await client.audio.transcriptions.create(
-                model="whisper-1",
-                file=f,
-                response_format="text"
-            )
-        transcript_text = transcript_resp.strip()
-        logger.info(f"Session {session_id}: Transcript: '{transcript_text}'")
+        transcript_text = transcript_text.strip()
+        logger.info(f"Session {session_id}: Transcript received: '{transcript_text}'")
 
         if not transcript_text:
-            return  # Silence or unintelligible noise
+            return  # Silence or blank
 
-        # 3. Send transcript back to UI instantly
-        await manager.send_json(session_id, {
-            "type": "user_transcript",
-            "text": transcript_text
-        })
-
-        # 4. Process with RAG Pipeline (Streaming)
+        # 1. Process with RAG Pipeline (Streaming)
         logger.info(f"Session {session_id}: Running RAG pipeline (streaming to TTS)...")
         llm_stream = rag_pipeline.analyze_document(
             query=transcript_text,
@@ -126,7 +103,7 @@ async def process_voice_turn(
             stream=True
         )
 
-        # Buffer to capture the full transcript for the UI while streaming to ElevenLabs
+        # Buffer to capture the full transcript for the UI while streaming to TTS
         full_response_chunks = []
         
         def text_iterator():
@@ -134,12 +111,12 @@ async def process_voice_turn(
                 full_response_chunks.append(chunk)
                 yield chunk
 
-        # 5. Generate Speech with ElevenLabs using Text Stream
+        # 2. Generate Speech with TTS Service using Text Stream
         logger.info(f"Session {session_id}: Generating TTS streaming...")
         audio_generator = elevenlabs_service.generate_speech_stream(text_iterator())
 
-        # 6. Stream TTS audio chunks back to the client instantly
-        for audio_chunk in audio_generator:
+        # 3. Stream TTS audio chunks back to the client instantly
+        async for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
             if session_id not in manager.active_connections:
                 break
@@ -148,7 +125,7 @@ async def process_voice_turn(
                 "data": chunk_b64
             })
 
-        # 7. Send final AI transcript (after streaming ends)
+        # 4. Send final AI transcript (after streaming ends)
         final_text = "".join(full_response_chunks)
         logger.info(f"Session {session_id}: RAG response length: {len(final_text)}")
         await manager.send_json(session_id, {
@@ -158,24 +135,18 @@ async def process_voice_turn(
 
     except Exception as e:
         logger.error(f"Session {session_id}: Voice turn error: {e}")
-        traceback.print_exc()
+        traceback.print_exc() # Print full stack trace to terminal
         await manager.send_json(session_id, {
             "type": "error",
             "message": f"Processing error: {str(e)}"
         })
-    finally:
-        if temp_audio_path and os.path.exists(temp_audio_path):
-            try:
-                os.remove(temp_audio_path)
-            except OSError:
-                pass
 
 
 @router.websocket("/ws/{session_id}")
 async def live_voice_websocket(websocket: WebSocket, session_id: str):
     """
     WebSocket endpoint for full-duplex Live Voice Mode.
-    Receives base64-encoded audio chunks, transcribes, processes with RAG,
+    Receives raw user text transcripts (from frontend STT), processes with RAG,
     and streams AI TTS audio back. Auth is required.
     """
     # 1. Extract token from query params
@@ -197,7 +168,6 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
 
     # 2. Accept connection
     await manager.connect(websocket, session_id)
-    audio_buffer = bytearray()
     language = "en"
 
     try:
@@ -229,29 +199,12 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
                 # Future: pass to a vision model
                 pass
 
-            elif msg_type == "audio_chunk":
-                chunk_b64 = message.get("data")
-                if chunk_b64:
-                    try:
-                        chunk_bytes = base64.b64decode(chunk_b64)
-                        audio_buffer.extend(chunk_bytes)
-                        # Add debug log
-                        if len(audio_buffer) % 50000 < 5000: # Log roughly every ~50KB to avoid spam
-                            logger.info(f"Session {session_id}: Buffer grew to {len(audio_buffer)} bytes")
-                    except Exception as e:
-                        logger.warning(f"Session {session_id}: Bad audio chunk: {e}")
-
-            elif msg_type == "end_of_speech":
-                if not audio_buffer:
-                    continue
-                # Copy and clear the buffer
-                buffer_copy = bytearray(audio_buffer)
-                audio_buffer.clear()
-                # Process the voice turn
-                await process_voice_turn(session_id, buffer_copy, language)
+            elif msg_type == "user_text":
+                text = message.get("text", "")
+                if text:
+                    await process_voice_turn(session_id, text, language)
 
             elif msg_type == "interrupt":
-                audio_buffer.clear()
                 logger.info(f"Session {session_id}: Interrupted by user.")
 
     except WebSocketDisconnect:

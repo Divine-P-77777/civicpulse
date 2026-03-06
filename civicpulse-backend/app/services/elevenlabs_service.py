@@ -1,52 +1,90 @@
 import os
-from elevenlabs.client import ElevenLabs
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
 
-class ElevenLabsService:
+# Circuit breaker to prevent repeated failed calls to ElevenLabs if limit/voice is broken
+_elevenlabs_unhealthy = False
+
+class TTSService:
     def __init__(self):
         self.api_key = os.getenv("ELEVENLABS_API_KEY")
-        self.client = ElevenLabs(api_key=self.api_key)
-        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM") # Default "Rachel"
-    
-    def generate_speech(self, text: str):
-        """Generates audio bytes stream from a full string of text."""
-        return self.client.text_to_speech.convert(
-            text=text,
-            voice_id=self.voice_id,
-            model_id="eleven_multilingual_v2",
-            output_format="mp3_44100_128",
-            optimize_streaming_latency=2 # Scale 0-4
-        )
+        
+        try:
+            from elevenlabs.client import ElevenLabs
+            self.client = ElevenLabs(api_key=self.api_key) if self.api_key else None
+        except ImportError:
+            self.client = None
 
-    def generate_speech_stream(self, text_iterator):
-        """
-        Accepts an LLM text chunk iterator and groups them into logical sentences.
-        Then generates and yields audio for each sentence in a continuous stream.
-        This provides a simulated ultra-low latency 'input stream' that works perfectly 
-        with the v2 SDK synchronous convert method.
-        """
+        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL") # Default "Sarah"
+    
+    async def generate_edge_tts(self, text: str):
+        import edge_tts
+        # Pick Hindi voice if text contains Devnagari, else English Ava
+        is_hindi = any(0x0900 <= ord(c) <= 0x097F for c in text)
+        edge_voice = "hi-IN-SwaraNeural" if is_hindi else "en-US-AvaNeural"
+        
+        communicate = edge_tts.Communicate(text, edge_voice)
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                yield chunk["data"]
+
+    async def generate_speech_stream(self, text_iterator):
+        global _elevenlabs_unhealthy
         import re
         buffer = ""
         # Simple sentence split heuristic
         sentence_endings = re.compile(r'(?<=[.!?])\s+')
-        
+
+        async def process_sentence(sentence):
+            global _elevenlabs_unhealthy
+            if not sentence: return
+            
+            if self.client and not _elevenlabs_unhealthy:
+                try:
+                    # Run ElevenLabs blocking call in a background thread to prevent blocking WebSocket
+                    def _call_elevenlabs():
+                        print(f"[ElevenLabs Debug] Calling text_to_speech.convert for: {sentence}")
+                        generator = self.client.text_to_speech.convert(
+                            text=sentence,
+                            voice_id=self.voice_id,
+                            model_id="eleven_multilingual_v2",
+                            output_format="mp3_44100_128",
+                            optimize_streaming_latency=2
+                        )
+                        return b"".join(list(generator)) # consume fully in thread
+                        
+                    audio_data = await asyncio.to_thread(_call_elevenlabs)
+                    if audio_data:
+                        yield audio_data
+                    return # Success, no fallback needed
+                except Exception as e:
+                    print(f"ElevenLabs TTS Warning: {e}")
+                    print("Marking ElevenLabs as unhealthy. Switching to Edge TTS fallback permanently.")
+                    _elevenlabs_unhealthy = True
+                    
+            # Fallback to Edge TTS
+            edge_audio = b""
+            async for chunk in self.generate_edge_tts(sentence):
+                edge_audio += chunk
+            if edge_audio:
+                yield edge_audio
+
         for chunk in text_iterator:
             buffer += chunk
             if sentence_endings.search(buffer) or "\n" in buffer:
-                # We hit a sentence boundary, flush it to audio immediately
                 sentence = buffer.strip()
                 if sentence:
-                    for audio_chunk in self.generate_speech(sentence):
+                    async for audio_chunk in process_sentence(sentence):
                         yield audio_chunk
                 buffer = ""
                 
         # Flush whatever remains
         sentence = buffer.strip()
         if sentence:
-            for audio_chunk in self.generate_speech(sentence):
+            async for audio_chunk in process_sentence(sentence):
                 yield audio_chunk
 
 # Singleton instance
-elevenlabs_service = ElevenLabsService()
+elevenlabs_service = TTSService()

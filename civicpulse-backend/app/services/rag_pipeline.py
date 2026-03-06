@@ -97,7 +97,7 @@ class RagPipeline:
 
         # 2. Document retrieval (RAG)
         query_embedding = generate_embedding(query)
-        context_metadata = vector_service.similarity_search(query_embedding)
+        context_metadata = vector_service.similarity_search(query_embedding, user_id=user_id)
         
         # 3. Summarize retrieved documents
         context_summary = summarize_service.summarize_context(context_metadata, query)
@@ -105,7 +105,8 @@ class RagPipeline:
         # 4. Prompt construction — includes both conversation history and RAG context
         final_prompt = self.prompt_template.format(
             context=context_summary,
-            query=query
+            query=query,
+            chat_history=conversation_context
         )
 
         # Build messages array with proper roles
