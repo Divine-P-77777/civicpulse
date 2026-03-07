@@ -1,6 +1,12 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
 from app.routes import upload, analyze, admin, live
 from app.routes import chat
 from app.services.chat_service import ensure_table_exists

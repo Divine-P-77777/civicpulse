@@ -79,6 +79,31 @@ async def send_greeting(session_id: str):
             "text": GREETING_TEXT
         })
 
+async def send_ai_voice_message(session_id: str, text: str):
+    """Send an arbitrary AI message with TTS audio to a specific session."""
+    try:
+        # 1. Send the text transcript
+        await manager.send_json(session_id, {
+            "type": "ai_transcript",
+            "text": text
+        })
+
+        # 2. Generate TTS audio and stream it
+        logger.info(f"Session {session_id}: Generating custom TTS: {text[:50]}...")
+        audio_generator = elevenlabs_service.generate_speech(text)
+
+        for audio_chunk in audio_generator:
+            chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
+            if not await manager.send_json(session_id, {
+                "type": "audio_stream",
+                "data": chunk_b64
+            }):
+                return  # Connection died
+
+        logger.info(f"Session {session_id}: Custom voice message sent successfully.")
+    except Exception as e:
+        logger.error(f"Session {session_id}: Custom voice message failed: {e}")
+
 
 async def process_voice_turn(
     session_id: str, 

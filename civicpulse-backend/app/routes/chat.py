@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, Form, BackgroundTasks, Header
 from fastapi.responses import StreamingResponse
 from app.core.auth import get_current_user
 from app.services.chat_service import (
@@ -212,17 +212,20 @@ from app.services.s3_service import upload_to_s3, S3_BUCKET
 from app.ingestion.pdf_ingest import ingest_pdf_from_s3
 from app.ingestion.image_ingest import ingest_image_from_s3
 
-def _run_ingestion(bucket: str, file_key: str, metadata: dict, user_id: str):
+async def _run_ingestion(bucket: str, file_key: str, metadata: dict, user_id: str, live_sid: str = None):
     """Background task: picks the right ingestor based on file extension."""
     try:
         ext = file_key.rsplit(".", 1)[-1].lower() if "." in file_key else ""
         if ext == "pdf":
-            chunks = ingest_pdf_from_s3(bucket, file_key, metadata)
+            from app.ingestion.pdf_ingest import ingest_pdf_from_s3
+            chunks = await ingest_pdf_from_s3(bucket, file_key, metadata)
         elif ext in ("jpg", "jpeg", "png", "webp", "tiff"):
-            chunks = ingest_image_from_s3(bucket, file_key, metadata)
+            from app.ingestion.image_ingest import ingest_image_from_s3
+            chunks = await ingest_image_from_s3(bucket, file_key, metadata, live_sid=live_sid)
         else:
+            from app.ingestion.pdf_ingest import ingest_pdf_from_s3
             logger.warning(f"Unknown file type for {file_key}, defaulting to PDF ingestor")
-            chunks = ingest_pdf_from_s3(bucket, file_key, metadata)
+            chunks = await ingest_pdf_from_s3(bucket, file_key, metadata)
         logger.info(f"✅ User {user_id} ingestion complete: {file_key} → {chunks} chunks")
     except Exception as e:
         logger.error(f"❌ Ingestion failed for {file_key}: {e}")
@@ -233,6 +236,7 @@ async def upload_document(
     file: UploadFile = ...,
     metadata: str = Form('{"type": "user_upload"}'),
     current_user: dict = Depends(get_current_user),
+    x_live_session_id: Optional[str] = Header(None)
 ):
     """
     User-facing document upload.
@@ -265,7 +269,7 @@ async def upload_document(
     file_key = upload_to_s3(file)
 
     # Start ingestion in the background — user gets immediate response
-    background_tasks.add_task(_run_ingestion, S3_BUCKET, file_key, meta_dict, user_id)
+    background_tasks.add_task(_run_ingestion, S3_BUCKET, file_key, meta_dict, user_id, x_live_session_id)
 
     return {
         "message": f"File '{file.filename}' uploaded successfully. Ingestion is processing in the background.",
