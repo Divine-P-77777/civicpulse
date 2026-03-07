@@ -13,8 +13,7 @@ export default function LivePage() {
   };
 
   const handleUploadClick = () => {
-    // We will wire this up later to trigger document upload
-    alert("Document upload dialog will open here.");
+    // Handled internally by LiveMode
   };
 
   return (

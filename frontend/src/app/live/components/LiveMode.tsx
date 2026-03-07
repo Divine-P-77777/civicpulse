@@ -1,8 +1,8 @@
-'use client';
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth, useClerk } from '@clerk/nextjs';
 import PhotoReview from './PhotoReview';
+import { useAppDispatch, useAppSelector } from '@/hooks/redux';
+import { setLanguage } from '@/store/slices/uiSlice';
 
 interface LiveModeProps {
     onClose: () => void;
@@ -12,6 +12,9 @@ interface LiveModeProps {
 export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     const { getToken } = useAuth();
     const clerk = useClerk();
+    const dispatch = useAppDispatch();
+    const language = useAppSelector((state) => state.ui.language);
+
     const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking' | 'error' | 'uploading'>('idle');
     const [transcript, setTranscript] = useState<string>('Connecting to Live Voice...');
     const [isCameraActive, setIsCameraActive] = useState(false);
@@ -67,7 +70,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             ws.onopen = () => {
                 console.log("WebSocket connected.");
                 reconnectAttemptsRef.current = 0;
-                ws.send(JSON.stringify({ type: 'config', language: 'en' }));
+                ws.send(JSON.stringify({ type: 'config', language }));
                 startRecording();
             };
 
@@ -160,6 +163,14 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         };
     }, []);
 
+    // Effect to update language config on the fly
+    useEffect(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            console.log("Updating language config:", language);
+            wsRef.current.send(JSON.stringify({ type: 'config', language }));
+        }
+    }, [language]);
+
     // Synchronization Effect to fix "Black Screen" issue
     // Ensures that whenever the video element is mounted (in any mode), it gets the active stream
     useEffect(() => {
@@ -248,7 +259,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         const blob = await res.blob();
         const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
         setCameraMode('off');
-        uploadPhoto(file);
+        uploadFile(file, true);
     };
 
     const handleRetry = () => {
@@ -260,30 +271,48 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         stopCamera();
     };
 
-    const uploadPhoto = async (file: File) => {
+    const uploadFile = async (file: File, isPhoto: boolean = false) => {
         try {
             const token = await getToken();
             if (!token) return;
+
             setStatus('uploading');
             setUploadProgress(0);
-            setTranscript('Uploading photo...');
+
+            const isHindi = language === 'hi';
+            const uploadMsg = isHindi ? 'फ़ाइल अपलोड हो रही है...' : 'Uploading file...';
+            const processingMsg = isHindi ? 'फ़ाइल अपलोड हो गई! प्रोसेसिंग हो रही है...' : 'File uploaded! Processing...';
+            const errorMsg = isHindi ? 'फ़ाइल अपलोड करने में विफल।' : 'Failed to upload file.';
+
+            setTranscript(isPhoto ? (isHindi ? 'फ़ोटो अपलोड हो रही है...' : 'Uploading photo...') : uploadMsg);
+
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('type', 'image');
-            formData.append('metadata', JSON.stringify({ type: 'live_photo', session_id: sessionIdRef.current }));
+            formData.append('type', file.type.startsWith('image/') ? 'image' : 'pdf');
+            formData.append('metadata', JSON.stringify({
+                type: isPhoto ? 'live_photo' : 'live_upload',
+                session_id: sessionIdRef.current
+            }));
+
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat/upload`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'X-Live-Session-ID': sessionIdRef.current },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'X-Live-Session-ID': sessionIdRef.current
+                },
                 body: formData
             });
+
             if (!response.ok) throw new Error('Upload failed');
-            setTranscript('Photo uploaded! Processing...');
+            setTranscript(processingMsg);
         } catch (err) {
-            console.error('Photo upload error', err);
+            console.error('File upload error', err);
             setStatus('error');
-            setTranscript('Failed to upload photo.');
+            const isHindi = language === 'hi';
+            setTranscript(isHindi ? 'फ़ाइल अपलोड करने में विफल।' : 'Failed to upload file.');
         }
     };
+
 
     const toggleCamera = async () => {
         if (!isCameraActive) {
@@ -369,6 +398,28 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         }
     };
 
+    const handleFileUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validation
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            setStatus('error');
+            const isHindi = language === 'hi';
+            setTranscript(isHindi ? 'अमान्य फ़ाइल प्रकार। कृपया PDF या इमेज अपलोड करें।' : 'Invalid file type. Please upload PDF or image.');
+            return;
+        }
+
+        uploadFile(file, false);
+        // Clear input
+        e.target.value = '';
+    };
+
     const handleSilenceToggle = () => {
         // First click: connect to WebSocket and unlock audio
         if (!wsRef.current) {
@@ -440,9 +491,36 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
             {/* Header / Info */}
             <div className={`pt-20 px-8 w-full max-w-lg text-center z-10 transition-opacity duration-500 ${cameraMode !== 'off' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                <div className="w-16 h-16 bg-gradient-to-br from-[#2A6CF0] to-[#4CB782] rounded-3xl flex items-center justify-center shadow-lg mx-auto mb-6 transform hover:scale-105 transition-transform">
+                <div className="w-16 h-16 bg-gradient-to-br from-[#2A6CF0] to-[#4CB782] rounded-3xl flex items-center justify-center shadow-lg mx-auto mb-6 transform hover:scale-105 transition-transform relative group">
                     <span className="text-white text-3xl">⚖️</span>
+
+                    {/* Floating Language Toggle */}
+                    <div className="absolute -top-2 -right-12 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+                        <button
+                            onClick={() => dispatch(setLanguage('en'))}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${language === 'en' ? 'bg-[#2A6CF0] text-white border-[#2A6CF0]' : 'bg-white text-gray-400 border-gray-200'}`}
+                        >EN</button>
+                        <button
+                            onClick={() => dispatch(setLanguage('hi'))}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${language === 'hi' ? 'bg-[#4CB782] text-white border-[#4CB782]' : 'bg-white text-gray-400 border-gray-200'}`}
+                        >हि</button>
+                    </div>
                 </div>
+
+                {/* Visible Language Toggle below icon purely for mobile/visibility */}
+                <div className="flex justify-center gap-2 mb-4">
+                    <div className="bg-gray-100 p-1 rounded-xl flex gap-1">
+                        <button
+                            onClick={() => dispatch(setLanguage('en'))}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${language === 'en' ? 'bg-white text-[#2A6CF0] shadow-sm' : 'text-gray-400'}`}
+                        >EN</button>
+                        <button
+                            onClick={() => dispatch(setLanguage('hi'))}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${language === 'hi' ? 'bg-white text-[#4CB782] shadow-sm' : 'text-gray-400'}`}
+                        >हि</button>
+                    </div>
+                </div>
+
                 <h2 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">CivicPulse Live</h2>
                 <div className="flex flex-col items-center">
                     <p className={`text-sm font-medium uppercase tracking-widest ${status === 'error' ? 'text-red-400' : 'text-gray-400 animate-pulse'}`}>
@@ -462,7 +540,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                         </div>
                     )}
                 </div>
-                <div className="mt-8 text-xl text-gray-600 font-light leading-relaxed px-4 opacity-80 h-32 flex items-center justify-center break-words overflow-hidden">
+                <div className={`mt-8 text-lg md:text-xl text-gray-600 leading-relaxed px-4 opacity-80 min-h-[8rem] max-h-40 flex items-center justify-center break-words overflow-y-auto custom-scrollbar ${language === 'hi' ? 'font-medium' : 'font-light'}`}>
                     {transcript}
                 </div>
             </div>
@@ -503,11 +581,15 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                     /* Standard Live Mode Controls - Only show when NOT in camera/review modes */
                     <div className="flex items-center justify-center gap-4 px-6 w-full">
                         <button
-                            onClick={onUploadClick}
+                            onClick={handleFileUploadClick}
                             className="w-12 h-12 bg-white border border-gray-200 shadow-lg rounded-full flex items-center justify-center text-gray-500 hover:text-[#2A6CF0] hover:scale-110 active:scale-95 transition-all"
                             title="Upload Document"
                         >
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
                         </button>
 
                         <button
@@ -550,6 +632,15 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             {/* Hidden canvas for snapping */}
             <canvas ref={canvasRef} className="hidden" />
 
+            {/* Hidden file input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="application/pdf,image/*"
+                className="hidden"
+            />
+
             <style jsx>{`
                 @keyframes float {
                     0%, 100% { transform: translateY(0) scale(1.1); }
@@ -567,6 +658,16 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                 }
                 .animate-fade-in {
                     animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #e5e7eb;
+                    border-radius: 10px;
                 }
                 @keyframes fadeIn {
                     from { opacity: 0; transform: scale(0.98); }

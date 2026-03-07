@@ -1,4 +1,6 @@
-from google import genai
+from app.services.textract_service import extract_text_from_s3, get_text_from_job
+from app.core.ocr_gatekeeper import should_use_local_ocr
+from app.services.ocr_service import extract_text_local
 import os
 import uuid
 import tempfile
@@ -10,7 +12,7 @@ from app.core.socket_manager import socket_manager
 
 async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}, sid: str = None, live_sid: str = None):
     """
-    Downloads image from S3, uses Gemini Vision to extract text/entities,
+    Downloads image from S3, uses Textract or Local OCR to extract text,
     and then generates vector embeddings to store in OpenSearch.
     """
     async def emit_status(progress: int, msg: str):
@@ -27,31 +29,22 @@ async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}, 
     s3_client.download_file(bucket, file_key, local_path)
 
     try:
-        await emit_status(30, "Extracting text using Vision...")
-        # 2. Extract with Gemini
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        use_local = should_use_local_ocr()
+        ocr_engine = "Local (Pytesseract)" if use_local else "Textract"
+        pages_processed = 1 # Always 1 for an image
         
-        if not api_key:
-            error_msg = "❌ Missing GEMINI_API_KEY in .env file. Extraction skipped."
-            print(error_msg)
-            await emit_status(50, error_msg)
-            # Fallback: if vision fails, we just don't have text, but we don't crash the whole pipeline
-            extracted_text = "Image uploaded (Vision extraction skipped due to missing API key)"
+        if use_local:
+            await emit_status(30, "Extracting text locally (Local OCR)...")
+            full_text, _ = extract_text_local(local_path)
         else:
-            client = genai.Client(api_key=api_key)
-            sample_file = client.files.upload(file=local_path, config={"display_name": os.path.basename(file_key)})
-            response = client.models.generate_content(
-                model='gemini-1.5-pro-latest',
-                contents=[
-                    sample_file, 
-                    "Extract all text, concepts, and key information from this image."
-                ]
-            )
-            extracted_text = response.text
-        await emit_status(80, "Generating embeddings...")
-        
+            await emit_status(30, "Analyzing with AWS Textract...")
+            job_id = extract_text_from_s3(bucket, file_key)
+            await emit_status(50, "Waiting for Textract results...")
+            full_text = get_text_from_job(job_id)
+
         # 3. Generate Embedding using Bedrock (Titan)
-        vector = generate_embedding(extracted_text[:8000])
+        await emit_status(80, f"Generating embeddings ({ocr_engine})...")
+        vector = generate_embedding(full_text[:8000])
 
         await emit_status(95, "Storing in vector database...")
 
@@ -61,7 +54,7 @@ async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}, 
             **metadata,
             "source": f"s3://{bucket}/{file_key}",
             "type": "image",
-            "content": extracted_text
+            "content": full_text
         }
         
         vector_service.store_vector(doc_id, vector, doc_meta)
@@ -74,7 +67,11 @@ async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}, 
             import asyncio
             asyncio.create_task(send_ai_voice_message(live_sid, "Okay, I've processed the image. What would you like to ask about it?"))
             
-        return 1  # 1 chunk processed
+        return {
+            "chunks": 1,
+            "pages": pages_processed,
+            "engine": ocr_engine
+        }
         
     finally:
         if os.path.exists(local_path):

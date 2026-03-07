@@ -16,3 +16,6 @@ openai
 elevenlabs
 google-genai
 edge-tts
+pytesseract
+pdfplumber
+pdf2image

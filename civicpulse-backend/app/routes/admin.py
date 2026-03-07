@@ -27,19 +27,34 @@ class UpdateResultRequest(BaseModel):
 async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional[str], content: Optional[str], meta_dict: dict, x_socket_id: Optional[str], x_live_sid: Optional[str] = None):
     """Background task orchestrator for running the long document ingestion processes."""
     try:
-        chunks_processed = 0
+        result_meta = {"chunks": 0, "pages": 1, "engine": "Textract"}
+        
         if ingest_type == "pdf":
-            chunks_processed = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
+            result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
         elif ingest_type == "image":
             from app.ingestion.image_ingest import ingest_image_from_s3
-            chunks_processed = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id, live_sid=x_live_sid)
+            result_meta = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id, live_sid=x_live_sid)
         elif ingest_type == "web":
             from app.ingestion.web_ingest import ingest_web
-            chunks_processed = await ingest_web(content, meta_dict, x_socket_id)
+            chunks = await ingest_web(content, meta_dict, x_socket_id)
+            result_meta = {"chunks": chunks, "pages": 0, "engine": "Scraper"}
         elif ingest_type == "pdf (url)":
-            chunks_processed = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
+            result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
             
-        logger.info(f"✅ Background Ingestion complete: {file_key or content} → {chunks_processed} chunks.")
+        chunks_processed = result_meta.get("chunks", 0)
+        pages_processed = result_meta.get("pages", 1)
+        ocr_engine = result_meta.get("engine", "Textract")
+
+        # Log completion to DynamoDB with usage stats
+        from app.services.dynamodb_service import store_analysis_result
+        store_analysis_result(
+            query=f"Ingestion: {file_key or content}",
+            summary=f"Processed {chunks_processed} chunks from {pages_processed} pages using {ocr_engine}.",
+            pages_processed=pages_processed,
+            ocr_engine=ocr_engine
+        )
+
+        logger.info(f"✅ Background Ingestion complete: {file_key or content} → {chunks_processed} chunks ({ocr_engine}).")
     except Exception as e:
         import traceback
         traceback.print_exc()
