@@ -21,9 +21,8 @@ class TTSService:
     
     async def generate_edge_tts(self, text: str):
         import edge_tts
-        # Pick Hindi voice if text contains Devnagari, else English Ava
-        is_hindi = any(0x0900 <= ord(c) <= 0x097F for c in text)
-        edge_voice = "hi-IN-SwaraNeural" if is_hindi else "en-US-AvaNeural"
+        # Fallback to English Ava
+        edge_voice = "en-US-AvaNeural"
         
         communicate = edge_tts.Communicate(text, edge_voice)
         async for chunk in communicate.stream():

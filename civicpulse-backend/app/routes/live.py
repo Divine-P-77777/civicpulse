@@ -112,8 +112,14 @@ async def process_voice_turn(
                 yield chunk
 
         # 2. Generate Speech with TTS Service using Text Stream
-        logger.info(f"Session {session_id}: Generating TTS streaming...")
-        audio_generator = elevenlabs_service.generate_speech_stream(text_iterator())
+        logger.info(f"Session {session_id}: Generating TTS streaming for language '{language}'")
+        
+        # Route to Sarvam for Hindi, ElevenLabs for everything else
+        if language == "hi":
+            from app.services.sarvamai_service import sarvam_service
+            audio_generator = sarvam_service.generate_speech_stream(text_iterator())
+        else:
+            audio_generator = elevenlabs_service.generate_speech_stream(text_iterator())
 
         # 3. Stream TTS audio chunks back to the client instantly
         async for audio_chunk in audio_generator:
