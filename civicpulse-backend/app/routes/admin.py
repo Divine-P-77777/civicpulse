@@ -24,7 +24,7 @@ class UpdateResultRequest(BaseModel):
 # INGESTION
 # ═══════════════════════════════════════════════
 
-async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional[str], content: Optional[str], meta_dict: dict, x_socket_id: Optional[str]):
+async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional[str], content: Optional[str], meta_dict: dict, x_socket_id: Optional[str], x_live_sid: Optional[str] = None):
     """Background task orchestrator for running the long document ingestion processes."""
     try:
         chunks_processed = 0
@@ -32,7 +32,7 @@ async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional
             chunks_processed = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id)
         elif ingest_type == "image":
             from app.ingestion.image_ingest import ingest_image_from_s3
-            chunks_processed = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id)
+            chunks_processed = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id, live_sid=x_live_sid)
         elif ingest_type == "web":
             from app.ingestion.web_ingest import ingest_web
             chunks_processed = await ingest_web(content, meta_dict, x_socket_id)
@@ -61,7 +61,8 @@ async def ingest_document(
     content: Optional[str] = Form(None),
     metadata: str = Form("{}"),
     admin: dict = Depends(get_admin_user),
-    x_socket_id: Optional[str] = Header(None)
+    x_socket_id: Optional[str] = Header(None),
+    x_live_session_id: Optional[str] = Header(None)
 ):
     """Admin-only endpoint. Unified background ingestion for PDF, Image, and Web/Text."""
     try:
@@ -78,13 +79,13 @@ async def ingest_document(
             meta_dict["source_type"] = "global"
             # Upload immediately (fast) before returning 202
             file_key = upload_to_s3(file)
-            background_tasks.add_task(_run_admin_ingestion, "pdf", bucket, file_key, None, meta_dict, x_socket_id)
+            background_tasks.add_task(_run_admin_ingestion, "pdf", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id)
             
         elif type == "image":
             if not file: raise HTTPException(400, "File required for Image ingestion")
             meta_dict["source_type"] = "global"
             file_key = upload_to_s3(file)
-            background_tasks.add_task(_run_admin_ingestion, "image", bucket, file_key, None, meta_dict, x_socket_id)
+            background_tasks.add_task(_run_admin_ingestion, "image", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id)
             
         elif type == "web":
             if not content: raise HTTPException(400, "Content/URL required for Web ingestion")
@@ -104,13 +105,13 @@ async def ingest_document(
                     filename = content.split("/")[-1].split("?")[0]
                     file_key = upload_bytes_to_s3(resp.content, filename, "application/pdf")
                     meta_dict["source_type"] = "global"
-                    background_tasks.add_task(_run_admin_ingestion, "pdf (url)", bucket, file_key, None, meta_dict, x_socket_id)
+                    background_tasks.add_task(_run_admin_ingestion, "pdf (url)", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id)
                     type = "pdf (url)"
                 else:
                     raise HTTPException(400, f"Failed to download PDF from URL: {content}")
             else:
                 meta_dict["source_type"] = "global"
-                background_tasks.add_task(_run_admin_ingestion, "web", bucket, None, content, meta_dict, x_socket_id)
+                background_tasks.add_task(_run_admin_ingestion, "web", bucket, None, content, meta_dict, x_socket_id, x_live_session_id)
             
         else:
             raise HTTPException(400, f"Unsupported ingestion type: {type}")
