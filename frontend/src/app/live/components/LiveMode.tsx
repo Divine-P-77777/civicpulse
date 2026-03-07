@@ -1,8 +1,8 @@
-'use client';
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth, useClerk } from '@clerk/nextjs';
 import PhotoReview from './PhotoReview';
+import { useAppDispatch, useAppSelector } from '@/hooks/redux';
+import { setLanguage } from '@/store/slices/uiSlice';
 
 interface LiveModeProps {
     onClose: () => void;
@@ -12,6 +12,9 @@ interface LiveModeProps {
 export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     const { getToken } = useAuth();
     const clerk = useClerk();
+    const dispatch = useAppDispatch();
+    const language = useAppSelector((state) => state.ui.language);
+
     const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking' | 'error' | 'uploading'>('idle');
     const [transcript, setTranscript] = useState<string>('Connecting to Live Voice...');
     const [isCameraActive, setIsCameraActive] = useState(false);
@@ -67,7 +70,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             ws.onopen = () => {
                 console.log("WebSocket connected.");
                 reconnectAttemptsRef.current = 0;
-                ws.send(JSON.stringify({ type: 'config', language: 'en' }));
+                ws.send(JSON.stringify({ type: 'config', language }));
                 startRecording();
             };
 
@@ -159,6 +162,14 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             }
         };
     }, []);
+
+    // Effect to update language config on the fly
+    useEffect(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            console.log("Updating language config:", language);
+            wsRef.current.send(JSON.stringify({ type: 'config', language }));
+        }
+    }, [language]);
 
     // Synchronization Effect to fix "Black Screen" issue
     // Ensures that whenever the video element is mounted (in any mode), it gets the active stream
@@ -440,9 +451,36 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
             {/* Header / Info */}
             <div className={`pt-20 px-8 w-full max-w-lg text-center z-10 transition-opacity duration-500 ${cameraMode !== 'off' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                <div className="w-16 h-16 bg-gradient-to-br from-[#2A6CF0] to-[#4CB782] rounded-3xl flex items-center justify-center shadow-lg mx-auto mb-6 transform hover:scale-105 transition-transform">
+                <div className="w-16 h-16 bg-gradient-to-br from-[#2A6CF0] to-[#4CB782] rounded-3xl flex items-center justify-center shadow-lg mx-auto mb-6 transform hover:scale-105 transition-transform relative group">
                     <span className="text-white text-3xl">⚖️</span>
+
+                    {/* Floating Language Toggle */}
+                    <div className="absolute -top-2 -right-12 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+                        <button
+                            onClick={() => dispatch(setLanguage('en'))}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${language === 'en' ? 'bg-[#2A6CF0] text-white border-[#2A6CF0]' : 'bg-white text-gray-400 border-gray-200'}`}
+                        >EN</button>
+                        <button
+                            onClick={() => dispatch(setLanguage('hi'))}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${language === 'hi' ? 'bg-[#4CB782] text-white border-[#4CB782]' : 'bg-white text-gray-400 border-gray-200'}`}
+                        >हि</button>
+                    </div>
                 </div>
+
+                {/* Visible Language Toggle below icon purely for mobile/visibility */}
+                <div className="flex justify-center gap-2 mb-4">
+                    <div className="bg-gray-100 p-1 rounded-xl flex gap-1">
+                        <button
+                            onClick={() => dispatch(setLanguage('en'))}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${language === 'en' ? 'bg-white text-[#2A6CF0] shadow-sm' : 'text-gray-400'}`}
+                        >EN</button>
+                        <button
+                            onClick={() => dispatch(setLanguage('hi'))}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${language === 'hi' ? 'bg-white text-[#4CB782] shadow-sm' : 'text-gray-400'}`}
+                        >हि</button>
+                    </div>
+                </div>
+
                 <h2 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">CivicPulse Live</h2>
                 <div className="flex flex-col items-center">
                     <p className={`text-sm font-medium uppercase tracking-widest ${status === 'error' ? 'text-red-400' : 'text-gray-400 animate-pulse'}`}>
@@ -462,7 +500,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                         </div>
                     )}
                 </div>
-                <div className="mt-8 text-xl text-gray-600 font-light leading-relaxed px-4 opacity-80 h-32 flex items-center justify-center break-words overflow-hidden">
+                <div className={`mt-8 text-lg md:text-xl text-gray-600 leading-relaxed px-4 opacity-80 min-h-[8rem] max-h-40 flex items-center justify-center break-words overflow-y-auto custom-scrollbar ${language === 'hi' ? 'font-medium' : 'font-light'}`}>
                     {transcript}
                 </div>
             </div>
@@ -567,6 +605,16 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                 }
                 .animate-fade-in {
                     animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #e5e7eb;
+                    border-radius: 10px;
                 }
                 @keyframes fadeIn {
                     from { opacity: 0; transform: scale(0.98); }

@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Noto_Sans_Devanagari } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/lib/providers';
 import { ClerkProvider } from '@clerk/nextjs';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' });
 
 export const metadata: Metadata = {
   title: 'CivicPulse - AI Legal Rights Assistant',
@@ -21,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={`${inter.className} ${notoDevanagari.variable} font-sans`} suppressHydrationWarning>
         <ClerkProvider>
           <Providers>
             <LenisProvider>

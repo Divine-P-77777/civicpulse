@@ -49,19 +49,32 @@ GREETING_TEXT = (
     "government schemes, or civic issues."
 )
 
+GREETING_TEXT_HI = (
+    "नमस्ते! मैं CivicPulse हूँ, आपकी AI कानूनी अधिकार सहायक। "
+    "आज मैं आपकी कैसे मदद कर सकती हूँ? आप मुझसे अपने कानूनी अधिकारों, "
+    "सरकारी योजनाओं या नागरिक मुद्दों के बारे में कुछ भी पूछ सकते हैं।"
+)
 
-async def send_greeting(session_id: str):
+
+async def send_greeting(session_id: str, language: str = "en"):
     """Send an AI greeting with TTS audio when the user first connects."""
     try:
+        text = GREETING_TEXT_HI if language == "hi" else GREETING_TEXT
+        
         # 1. Send the greeting text transcript
         await manager.send_json(session_id, {
             "type": "ai_transcript",
-            "text": GREETING_TEXT
+            "text": text
         })
 
         # 2. Generate TTS audio and stream it
-        logger.info(f"Session {session_id}: Generating greeting TTS...")
-        audio_generator = elevenlabs_service.generate_speech_stream([GREETING_TEXT])
+        logger.info(f"Session {session_id}: Generating greeting TTS ({language})...")
+        
+        if language == "hi":
+            from app.services.sarvamai_service import sarvam_service
+            audio_generator = sarvam_service.generate_speech_stream(iter([text]))
+        else:
+            audio_generator = elevenlabs_service.generate_speech_stream(iter([text]))
 
         async for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
@@ -74,12 +87,13 @@ async def send_greeting(session_id: str):
         logger.info(f"Session {session_id}: Greeting sent successfully.")
     except Exception as e:
         logger.error(f"Session {session_id}: Greeting failed: {e}")
+        text = GREETING_TEXT_HI if language == "hi" else GREETING_TEXT
         await manager.send_json(session_id, {
             "type": "ai_transcript",
-            "text": GREETING_TEXT
+            "text": text
         })
 
-async def send_ai_voice_message(session_id: str, text: str):
+async def send_ai_voice_message(session_id: str, text: str, language: str = "en"):
     """Send an arbitrary AI message with TTS audio to a specific session."""
     try:
         # 1. Send the text transcript
@@ -89,8 +103,13 @@ async def send_ai_voice_message(session_id: str, text: str):
         })
 
         # 2. Generate TTS audio and stream it
-        logger.info(f"Session {session_id}: Generating custom TTS: {text[:50]}...")
-        audio_generator = elevenlabs_service.generate_speech(text)
+        logger.info(f"Session {session_id}: Generating custom TTS ({language}): {text[:50]}...")
+        
+        if language == "hi":
+            from app.services.sarvamai_service import sarvam_service
+            audio_generator = sarvam_service.generate_speech_stream(iter([text]))
+        else:
+            audio_generator = elevenlabs_service.generate_speech(text)
 
         for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
@@ -202,8 +221,7 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
     language = "en"
 
     try:
-        # Send greeting on connect
-        await send_greeting(session_id)
+        # Greeting will be requested explicitly by client via 'request_greeting'
 
         # Main message loop
         while True:
@@ -229,6 +247,9 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
             elif msg_type == "camera_capture":
                 # Future: pass to a vision model
                 pass
+
+            elif msg_type == "request_greeting":
+                await send_greeting(session_id, language)
 
             elif msg_type == "user_text":
                 text = message.get("text", "")
