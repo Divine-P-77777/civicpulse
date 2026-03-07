@@ -11,7 +11,7 @@ def _get_table():
     return dynamodb.Table(TABLE_NAME)
 
 # --- CREATE ---
-def store_analysis_result(query: str, summary: str, user_id: str = None, session_id: str = None):
+def store_analysis_result(query: str, summary: str, user_id: str = None, session_id: str = None, pages_processed: int = 1, ocr_engine: str = "Textract"):
     try:
         table = _get_table()
         doc_id = str(uuid.uuid4())
@@ -24,13 +24,36 @@ def store_analysis_result(query: str, summary: str, user_id: str = None, session
                 'Query': query,
                 'Summary': summary,
                 'RiskScore': "High",
-                'Timestamp': datetime.utcnow().isoformat()
+                'Timestamp': datetime.utcnow().isoformat(),
+                'pages_processed': pages_processed,
+                'ocr_engine': ocr_engine
             }
         )
         return doc_id
     except Exception as e:
         print(f"Failed to store in DynamoDB: {e}")
         return None
+
+def get_monthly_usage():
+    """Aggregates pages processed by Textract in the current month."""
+    try:
+        table = _get_table()
+        # Start of current month in ISO format
+        start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        
+        # Scan for Textract jobs this month
+        # Note: For production with high volume, consider a separate 'Usage' table or a GSI on Timestamp and ocr_engine
+        response = table.scan(
+            FilterExpression=Key('Timestamp').gte(start_of_month) & boto3.dynamodb.conditions.Attr('ocr_engine').eq('Textract'),
+            ProjectionExpression='pages_processed'
+        )
+        
+        items = response.get('Items', [])
+        total = sum(int(item.get('pages_processed', 0)) for item in items)
+        return total
+    except Exception as e:
+        print(f"Error calculating monthly usage: {e}")
+        return 0
 
 # --- READ ---
 def list_results(limit: int = 20, last_key: dict = None):
