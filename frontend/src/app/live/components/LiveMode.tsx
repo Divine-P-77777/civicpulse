@@ -259,7 +259,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         const blob = await res.blob();
         const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
         setCameraMode('off');
-        uploadPhoto(file);
+        uploadFile(file, true);
     };
 
     const handleRetry = () => {
@@ -271,30 +271,48 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         stopCamera();
     };
 
-    const uploadPhoto = async (file: File) => {
+    const uploadFile = async (file: File, isPhoto: boolean = false) => {
         try {
             const token = await getToken();
             if (!token) return;
+
             setStatus('uploading');
             setUploadProgress(0);
-            setTranscript('Uploading photo...');
+
+            const isHindi = language === 'hi';
+            const uploadMsg = isHindi ? 'फ़ाइल अपलोड हो रही है...' : 'Uploading file...';
+            const processingMsg = isHindi ? 'फ़ाइल अपलोड हो गई! प्रोसेसिंग हो रही है...' : 'File uploaded! Processing...';
+            const errorMsg = isHindi ? 'फ़ाइल अपलोड करने में विफल।' : 'Failed to upload file.';
+
+            setTranscript(isPhoto ? (isHindi ? 'फ़ोटो अपलोड हो रही है...' : 'Uploading photo...') : uploadMsg);
+
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('type', 'image');
-            formData.append('metadata', JSON.stringify({ type: 'live_photo', session_id: sessionIdRef.current }));
+            formData.append('type', file.type.startsWith('image/') ? 'image' : 'pdf');
+            formData.append('metadata', JSON.stringify({
+                type: isPhoto ? 'live_photo' : 'live_upload',
+                session_id: sessionIdRef.current
+            }));
+
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat/upload`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'X-Live-Session-ID': sessionIdRef.current },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'X-Live-Session-ID': sessionIdRef.current
+                },
                 body: formData
             });
+
             if (!response.ok) throw new Error('Upload failed');
-            setTranscript('Photo uploaded! Processing...');
+            setTranscript(processingMsg);
         } catch (err) {
-            console.error('Photo upload error', err);
+            console.error('File upload error', err);
             setStatus('error');
-            setTranscript('Failed to upload photo.');
+            const isHindi = language === 'hi';
+            setTranscript(isHindi ? 'फ़ाइल अपलोड करने में विफल।' : 'Failed to upload file.');
         }
     };
+
 
     const toggleCamera = async () => {
         if (!isCameraActive) {
@@ -378,6 +396,28 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             mediaRecorderRef.current.stop();
             mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
         }
+    };
+
+    const handleFileUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validation
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            setStatus('error');
+            const isHindi = language === 'hi';
+            setTranscript(isHindi ? 'अमान्य फ़ाइल प्रकार। कृपया PDF या इमेज अपलोड करें।' : 'Invalid file type. Please upload PDF or image.');
+            return;
+        }
+
+        uploadFile(file, false);
+        // Clear input
+        e.target.value = '';
     };
 
     const handleSilenceToggle = () => {
@@ -541,11 +581,15 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                     /* Standard Live Mode Controls - Only show when NOT in camera/review modes */
                     <div className="flex items-center justify-center gap-4 px-6 w-full">
                         <button
-                            onClick={onUploadClick}
+                            onClick={handleFileUploadClick}
                             className="w-12 h-12 bg-white border border-gray-200 shadow-lg rounded-full flex items-center justify-center text-gray-500 hover:text-[#2A6CF0] hover:scale-110 active:scale-95 transition-all"
                             title="Upload Document"
                         >
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
                         </button>
 
                         <button
@@ -587,6 +631,15 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
             {/* Hidden canvas for snapping */}
             <canvas ref={canvasRef} className="hidden" />
+
+            {/* Hidden file input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="application/pdf,image/*"
+                className="hidden"
+            />
 
             <style jsx>{`
                 @keyframes float {
