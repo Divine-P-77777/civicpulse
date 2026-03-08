@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, MessageCircle, Mic, PenTool, User } from 'lucide-react';
+import { Home, MessageCircle, Mic, PenTool, ShieldAlert } from 'lucide-react';
 import { useAppDispatch } from '@/hooks/redux';
 import { setCurrentMode } from '@/store/slices/uiSlice';
 
@@ -20,7 +20,7 @@ export default function MobileFooter() {
     { name: 'Chat', href: '/chat', icon: MessageCircle, highlight: false },
     { name: 'Live', href: '/live', icon: Mic, highlight: true }, // The big center button
     { name: 'Draft', href: '/draftcreation', icon: PenTool, highlight: false },
-    { name: 'Profile', href: '/settings', icon: User, highlight: false },
+    { name: 'Admin', href: '/admin', icon: ShieldAlert, highlight: false },
   ];
 
   return (
@@ -29,8 +29,8 @@ export default function MobileFooter() {
       <div className="h-20 lg:hidden w-full pb-safe" />
 
       {/* Actual Fixed Footer */}
-      <div className="fixed bottom-4 left-4 right-4 z-50 bg-white border border-slate-100 rounded-3xl shadow-[0_8px_30px_rgba(42,108,240,0.12)] lg:hidden pb-safe mb-safe">
-        <nav className="flex justify-around items-center h-16 px-2">
+      <div className="fixed bottom-6 left-6 right-6 z-[90] bg-white/90 backdrop-blur-md border border-slate-200/50 rounded-full shadow-[0_12px_40px_rgba(42,108,240,0.15)] lg:hidden mb-safe">
+        <nav className="flex justify-around items-center h-16 px-4">
           {navItems.map((item) => {
             const Icon = item.icon;
             
