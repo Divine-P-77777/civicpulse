@@ -14,6 +14,8 @@ export const metadata: Metadata = {
 };
 
 import LenisProvider from '@/components/LenisProvider';
+import OnboardingModal from '@/components/OnboardingModal';
+import MobileFooter from '@/components/MobileFooter';
 
 export default function RootLayout({
   children,
@@ -27,6 +29,8 @@ export default function RootLayout({
           <Providers>
             <LenisProvider>
               <div id="root">{children}</div>
+              <OnboardingModal />
+              <MobileFooter />
             </LenisProvider>
           </Providers>
         </ClerkProvider>

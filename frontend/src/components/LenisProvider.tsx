@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useRef } from 'react';
 import Lenis from 'lenis';
 
 export default function LenisProvider({ children }: { children: ReactNode }) {
-    const lenisRef = useRef<Lenis | null>(null);
+    const lenisRef = useRef<any | null>(null);
 
     useEffect(() => {
         // Initialize Lenis
