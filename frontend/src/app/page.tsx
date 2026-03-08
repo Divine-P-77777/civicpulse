@@ -256,12 +256,21 @@ export default function Home() {
         <div className="absolute inset-0 bg-white/10 pattern-grid-lg opacity-20"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           <h2 className="text-3xl font-extrabold text-white mb-6">Speak Your Language</h2>
-          <p className="text-indigo-100 max-w-2xl mx-auto text-lg mb-12">Available in English, Hindi, and several local Indian languages.</p>
+          <p className="text-indigo-100 max-w-2xl mx-auto text-lg mb-12">Available in English and Hindi, with more local Indian languages coming soon.</p>
           
           <div className="flex flex-wrap justify-center gap-4">
-            {['English', 'Hindi', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Kannada'].map((lang) => (
-              <span key={lang} className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full text-white font-semibold transition-colors cursor-default border border-white/30 shadow-sm">
+            {['English', 'Hindi'].map((lang) => (
+              <span key={lang} className="flex items-center gap-2 px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full text-white font-semibold transition-colors cursor-default border border-white/30 shadow-sm">
                 {lang}
+                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+              </span>
+            ))}
+            {['Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Kannada'].map((lang) => (
+              <span key={lang} className="flex items-center gap-2 px-6 py-3 bg-white/5 backdrop-blur-md rounded-full text-white/50 font-medium cursor-default border border-white/10">
+                {lang}
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-white/10 rounded-md text-white/70">
+                  Soon
+                </span>
               </span>
             ))}
           </div>
