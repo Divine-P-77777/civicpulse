@@ -87,7 +87,7 @@ export default function ChatPage() {
 
     if (!isLoaded) {
         return (
-            <div className="h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
+            <div className="h-[100dvh] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
                 <div className="w-10 h-10 border-3 border-[#2A6CF0] border-t-transparent rounded-full animate-spin" />
             </div>
         );
@@ -95,7 +95,7 @@ export default function ChatPage() {
 
     if (!isSignedIn) {
         return (
-            <div className="h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
+            <div className="h-[100dvh] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
                 <div className="bg-white rounded-2xl p-10 text-center max-w-md shadow-[0_8px_30px_rgba(0,0,0,0.06)] border border-gray-100">
                     <div className="w-16 h-16 bg-[#2A6CF0]/10 rounded-2xl flex items-center justify-center mx-auto mb-5"><span className="text-3xl">⚖️</span></div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to CivicPulse</h2>
@@ -114,7 +114,7 @@ export default function ChatPage() {
     const onDropPage = (e: React.DragEvent) => { e.preventDefault(); dragCounter.current = 0; setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) chatInputRef.current?.setPendingFile(f); };
 
     return (
-        <div className="h-screen flex overflow-hidden"
+        <div className="h-[100dvh] flex overflow-hidden"
             style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}
             onDragEnter={onDragEnter} onDragOver={onDragOverPage} onDragLeave={onDragLeave} onDrop={onDropPage}>
 
