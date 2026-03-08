@@ -47,7 +47,26 @@ export default function Navigation() {
 
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    router.push('/');
+    
+    // Triple click logic -> routes to /admin
+    setLogoClicks((prev) => {
+      const newCount = prev + 1;
+      if (newCount >= 3) {
+        router.push('/admin');
+        return 0; // reset
+      } else if (newCount === 1) {
+        // Only route to home on first click, but wait a bit to see if they click again
+        setTimeout(() => {
+          setLogoClicks((current) => {
+             if (current === 1) {
+                router.push('/');
+             }
+             return 0; // reset after timeout
+          });
+        }, 400); // 400ms window to click multiple times
+      }
+      return newCount;
+    });
   };
 
   const handleInstallApp = async () => {
