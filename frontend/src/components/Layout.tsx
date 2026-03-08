@@ -46,13 +46,10 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50">
       <Navigation />
       
-      <main className={`
-        flex-1 overflow-auto transition-all duration-300 ease-in-out
-        ${sidebarOpen ? 'lg:ml-0' : 'lg:ml-0'}
-      `}>
+      <main className="flex-1 overflow-auto transition-all duration-300 ease-in-out">
         {children}
       </main>
     </div>

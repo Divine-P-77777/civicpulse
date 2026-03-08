@@ -11,11 +11,14 @@ export const metadata: Metadata = {
   title: 'CivicPulse - AI Legal Rights Assistant',
   description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
   keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis'],
+  manifest: '/manifest.json',
+  themeColor: '#4f46e5',
 };
 
 import LenisProvider from '@/components/LenisProvider';
 import OnboardingModal from '@/components/OnboardingModal';
 import MobileFooter from '@/components/MobileFooter';
+import Navigation from '@/components/Navigation';
 
 export default function RootLayout({
   children,
@@ -28,6 +31,7 @@ export default function RootLayout({
         <ClerkProvider>
           <Providers>
             <LenisProvider>
+              <Navigation />
               <div id="root">{children}</div>
               <OnboardingModal />
               <MobileFooter />

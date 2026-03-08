@@ -174,7 +174,6 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
                 if not auto_title:
                     auto_title = body.message[:40].strip()
                 update_session_title(user_id, body.session_id, auto_title)
-                yield f"data: {json.dumps({'title': auto_title})}\n\n"
             except Exception as e:
                 logger.warning(f"Auto-title generation failed: {e}")
 
@@ -209,26 +208,7 @@ async def view_shared_chat(share_id: str = Path(...)):
 # ═══════════════════════════════════════════════
 
 from app.services.s3_service import upload_to_s3, S3_BUCKET
-from app.ingestion.pdf_ingest import ingest_pdf_from_s3
-from app.ingestion.image_ingest import ingest_image_from_s3
-
-async def _run_ingestion(bucket: str, file_key: str, metadata: dict, user_id: str, live_sid: str = None):
-    """Background task: picks the right ingestor based on file extension."""
-    try:
-        ext = file_key.rsplit(".", 1)[-1].lower() if "." in file_key else ""
-        if ext == "pdf":
-            from app.ingestion.pdf_ingest import ingest_pdf_from_s3
-            chunks = await ingest_pdf_from_s3(bucket, file_key, metadata)
-        elif ext in ("jpg", "jpeg", "png", "webp", "tiff"):
-            from app.ingestion.image_ingest import ingest_image_from_s3
-            chunks = await ingest_image_from_s3(bucket, file_key, metadata, live_sid=live_sid)
-        else:
-            from app.ingestion.pdf_ingest import ingest_pdf_from_s3
-            logger.warning(f"Unknown file type for {file_key}, defaulting to PDF ingestor")
-            chunks = await ingest_pdf_from_s3(bucket, file_key, metadata)
-        logger.info(f"✅ User {user_id} ingestion complete: {file_key} → {chunks} chunks")
-    except Exception as e:
-        logger.error(f"❌ Ingestion failed for {file_key}: {e}")
+from app.services.ingestion_service import run_document_ingestion
 
 @router.post("/upload")
 async def upload_document(
@@ -269,7 +249,7 @@ async def upload_document(
     file_key = upload_to_s3(file)
 
     # Start ingestion in the background — user gets immediate response
-    background_tasks.add_task(_run_ingestion, S3_BUCKET, file_key, meta_dict, user_id, x_live_session_id)
+    background_tasks.add_task(run_document_ingestion, S3_BUCKET, file_key, meta_dict, user_id, x_live_session_id)
 
     return {
         "message": f"File '{file.filename}' uploaded successfully. Ingestion is processing in the background.",
