@@ -49,12 +49,14 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     });
 
     const {
-        playNextAudioChunk, startRecording, stopRecording, interruptAudio
+        playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript
     } = useLiveAudio({
         wsReadyState: wsRef.current?.readyState,
-        sendAudioChunk: (b64) => wsRef.current?.send(JSON.stringify({ type: 'audio_chunk', data: b64 })),
+        sendUserText: (text) => wsRef.current?.send(JSON.stringify({ type: 'user_text', text })),
         requestGreeting: () => wsRef.current?.send(JSON.stringify({ type: 'request_greeting' })),
-        status, setStatus, setTranscript
+        status, setStatus, setTranscript,
+        language: language as 'en' | 'hi',
+        audioQueueRef
     });
 
     useEffect(() => {
@@ -124,11 +126,10 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             interruptAudio();
             wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
             setStatus('listening');
-            setTranscript('Interrupted. Listening...');
+            setTranscript(language === 'hi' ? 'रुकावट। सुन रहा हूँ...' : 'Interrupted. Listening...');
         } else if (status === 'listening') {
-            wsRef.current.send(JSON.stringify({ type: 'end_of_speech' }));
-            setStatus('processing');
-            setTranscript('Processing your speech...');
+            // Send accumulated speech transcript to backend
+            sendCurrentTranscript();
         }
     };
 

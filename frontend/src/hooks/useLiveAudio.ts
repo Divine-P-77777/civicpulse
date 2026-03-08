@@ -1,36 +1,45 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 
 interface UseLiveAudioParams {
   wsReadyState: number | undefined;
-  sendAudioChunk: (base64: string) => void;
+  sendUserText: (text: string) => void;
   requestGreeting: () => void;
   status: string;
   setStatus: (s: any) => void;
   setTranscript: (t: string) => void;
+  language: 'en' | 'hi';
+  audioQueueRef: React.MutableRefObject<string[]>;
 }
 
 export function useLiveAudio({
-  wsReadyState, sendAudioChunk, requestGreeting, status, setStatus, setTranscript
+  wsReadyState, sendUserText, requestGreeting, status, setStatus, setTranscript, language, audioQueueRef
 }: UseLiveAudioParams) {
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioQueueRef = useRef<string[]>([]);
   const isPlayingRef = useRef<boolean>(false);
-  const isListeningRef = useRef<boolean>(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef<boolean>(false);
+  const finalTranscriptRef = useRef<string>('');
 
   useEffect(() => {
     isListeningRef.current = (status === 'listening');
   }, [status]);
 
-  const playNextAudioChunk = () => {
+  // ─── Audio Playback ────────────────────────────────────
+  const playNextAudioChunk = useCallback(() => {
     if (isPlayingRef.current || audioQueueRef.current.length === 0 || !audioElementRef.current) {
       if (audioQueueRef.current.length === 0 && isPlayingRef.current) {
         isPlayingRef.current = false;
         setStatus('listening');
+        // Resume recognition after AI finishes speaking
+        resumeRecognition();
       }
       return;
     }
     isPlayingRef.current = true;
+
+    // Pause recognition while playing to avoid echo
+    pauseRecognition();
+
     const base64Audio = audioQueueRef.current.shift();
     if (!base64Audio) return;
 
@@ -45,11 +54,14 @@ export function useLiveAudio({
       console.error("Audio play error", e);
       setTimeout(() => { isPlayingRef.current = false; playNextAudioChunk(); }, 100);
     });
-  };
+  }, []);
 
   useEffect(() => {
     audioElementRef.current = new Audio();
-    audioElementRef.current.onended = playNextAudioChunk;
+    audioElementRef.current.onended = () => {
+      isPlayingRef.current = false;
+      playNextAudioChunk();
+    };
     return () => {
       if (audioElementRef.current) {
         audioElementRef.current.pause();
@@ -58,41 +70,127 @@ export function useLiveAudio({
     };
   }, []);
 
+  // ─── Web Speech API (STT) ─────────────────────────────
+  const pauseRecognition = () => {
+    try {
+      if (recognitionRef.current) recognitionRef.current.stop();
+    } catch (e) { /* ignore */ }
+  };
+
+  const resumeRecognition = () => {
+    try {
+      if (recognitionRef.current && isListeningRef.current) {
+        recognitionRef.current.start();
+      }
+    } catch (e) { /* may already be running */ }
+  };
+
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.ondataavailable = (event) => {
-        if (!isListeningRef.current) return;
-        if (event.data.size > 0 && wsReadyState === WebSocket.OPEN) {
-          const reader = new FileReader();
-          reader.readAsDataURL(event.data);
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            const base64data = result.split(',')[1];
-            sendAudioChunk(base64data);
-          };
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        console.error("Web Speech API not supported");
+        setStatus('error');
+        setTranscript('Speech recognition not supported in this browser. Please use Chrome.');
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = language === 'hi' ? 'hi-IN' : 'en-US';
+
+      finalTranscriptRef.current = '';
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript;
+          } else {
+            interimTranscript += result[0].transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          finalTranscriptRef.current += finalTranscript;
+          console.log("Final STT transcript:", finalTranscriptRef.current);
+        }
+
+        // Show live transcript to user
+        const display = finalTranscriptRef.current + interimTranscript;
+        if (display.trim()) {
+          setTranscript(`You: "${display.trim()}"`);
         }
       };
-      mediaRecorder.start(250);
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        if (event.error === 'no-speech') {
+          // No speech detected, restart recognition
+          try { recognition.start(); } catch (e) { /* ignore */ }
+          return;
+        }
+        if (event.error === 'aborted') return; // Normal stop
+      };
+
+      recognition.onend = () => {
+        // Auto-restart if we're still in listening mode
+        if (isListeningRef.current && !isPlayingRef.current) {
+          try { recognition.start(); } catch (e) { /* ignore */ }
+        }
+      };
+
+      recognition.start();
       setStatus('listening');
       setTranscript('Listening... Speak now.');
 
+      // Request greeting from WebSocket
       if (wsReadyState === WebSocket.OPEN) {
         requestGreeting();
       }
     } catch (err) {
-      console.error("Microphone access denied or failed", err);
+      console.error("Speech recognition failed to start", err);
       setStatus('error');
-      setTranscript('Microphone access denied.');
+      setTranscript('Microphone access denied or STT not available.');
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+    } catch (e) { /* ignore */ }
+  };
+
+  /**
+   * Called when user taps the "send" button. Collects accumulated final transcript,
+   * sends it as user_text to the backend, and resets the buffer.
+   */
+  const sendCurrentTranscript = () => {
+    const text = finalTranscriptRef.current.trim();
+    if (text) {
+      console.log("Sending user text to backend:", text);
+      sendUserText(text);
+      finalTranscriptRef.current = '';
+      setStatus('processing');
+      setTranscript(`You: "${text}"`);
+      // Pause recognition while we wait for AI response
+      pauseRecognition();
+    } else {
+      // No transcript accumulated, just resume listening
+      setTranscript('No speech detected. Try again.');
+      setTimeout(() => {
+        setStatus('listening');
+        setTranscript('Listening... Speak now.');
+      }, 1500);
     }
   };
 
@@ -105,5 +203,5 @@ export function useLiveAudio({
     isPlayingRef.current = false;
   };
 
-  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio };
+  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript };
 }

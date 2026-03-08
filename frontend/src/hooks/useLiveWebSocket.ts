@@ -29,6 +29,16 @@ export function useLiveWebSocket({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const connectWebSocket = async () => {
+    // Clean up any existing connection first
+    if (wsRef.current) {
+      try {
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close(1000, 'Reconnecting');
+        }
+      } catch (e) { /* ignore */ }
+      wsRef.current = null;
+    }
+
     try {
       const token = await getToken();
       if (!token) {
@@ -46,6 +56,9 @@ export function useLiveWebSocket({
       console.log("Connecting to WebSocket:", wsUrl.split('?token=')[0]);
       setTranscript('Connecting to Live Voice...');
       setStatus('idle');
+
+      // Reset reconnect counter for fresh connections
+      reconnectAttemptsRef.current = 0;
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;

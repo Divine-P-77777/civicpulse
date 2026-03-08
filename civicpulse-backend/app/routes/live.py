@@ -140,7 +140,7 @@ async def process_voice_turn(
         # 1. Process with RAG Pipeline (Streaming)
         logger.info(f"Session {session_id}: Running RAG pipeline (streaming to TTS)...")
         # Enforce highly conversational, brief answers for Live Mode to save tokens/TTS cost
-        prompt_injection = transcript_text + "\n\n(Keep your answer extremely concise, friendly, and conversational—max 2-3 sentences. No markdown formatting.)"
+        prompt_injection = transcript_text + "\n\n(This is a live voice conversation. Respond naturally and warmly in 2-3 sentences. No markdown formatting, no bullet points, no headers. Just speak like a caring friend. If it's an emergency, give clear immediate steps first.)"
         
         llm_stream = rag_pipeline.analyze_document(
             query=prompt_injection,
@@ -206,7 +206,10 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
     token = websocket.query_params.get("token")
     if not token:
         logger.warning(f"Session {session_id}: Rejected connection missing token.")
-        await websocket.close(code=1008, reason="Missing authentication token")
+        try:
+            await websocket.close(code=1008, reason="Missing authentication token")
+        except Exception:
+            pass
         return
         
     try:
@@ -216,7 +219,10 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
         logger.info(f"Session {session_id}: Authenticated user {user_id}")
     except Exception as e:
         logger.warning(f"Session {session_id}: Rejected connection with invalid token: {e}")
-        await websocket.close(code=1008, reason="Invalid authentication token")
+        try:
+            await websocket.close(code=1008, reason="Invalid authentication token")
+        except Exception:
+            pass
         return
 
     # 2. Accept connection
@@ -224,15 +230,18 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
     language = "en"
 
     try:
-        # Greeting will be requested explicitly by client via 'request_greeting'
-
         # Main message loop
         while True:
             try:
                 data = await websocket.receive_text()
             except WebSocketDisconnect:
                 logger.info(f"Session {session_id}: Client disconnected normally.")
-                manager.disconnect(session_id)
+                break
+            except RuntimeError as e:
+                logger.warning(f"Session {session_id}: WebSocket runtime error: {e}")
+                break
+            except Exception as e:
+                logger.warning(f"Session {session_id}: Unexpected receive error: {e}")
                 break
 
             try:
@@ -264,14 +273,16 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
 
     except WebSocketDisconnect:
         logger.info(f"Session {session_id}: WebSocket disconnected (outer).")
-        manager.disconnect(session_id)
     except Exception as e:
         logger.error(f"Session {session_id}: Unexpected error: {e}")
         traceback.print_exc()
-        await manager.send_json(session_id, {
-            "type": "error",
-            "message": "An unexpected server error occurred."
-        })
-        manager.disconnect(session_id)
+        try:
+            await manager.send_json(session_id, {
+                "type": "error",
+                "message": "An unexpected server error occurred."
+            })
+        except Exception:
+            pass
     finally:
         manager.disconnect(session_id)
+        logger.info(f"Session {session_id}: Cleaned up.")
