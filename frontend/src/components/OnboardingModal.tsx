@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
+
 import { X } from 'lucide-react';
 
 type ValuePiece = Date | null;
@@ -46,11 +45,11 @@ export default function OnboardingModal() {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative animate-in fade-in zoom-in duration-300">
-        
+
         {/* Header */}
         <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
           <h2 className="text-xl font-bold font-heading">Welcome to CivicPulse</h2>
-          <button 
+          <button
             onClick={handleClose}
             className="p-1 hover:bg-white/20 rounded-full transition-colors"
           >
@@ -65,43 +64,15 @@ export default function OnboardingModal() {
           </p>
 
           <div className="flex justify-center mb-6">
-            <style jsx global>{`
-              .react-calendar {
-                border: 1px solid #e2e8f0;
-                border-radius: 0.75rem;
-                font-family: inherit;
-                padding: 10px;
-                width: 100%;
-                box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-              }
-              .react-calendar__navigation button {
-                border-radius: 0.5rem;
-              }
-              .react-calendar__navigation button:hover,
-              .react-calendar__navigation button:focus {
-                background-color: #f1f5f9;
-              }
-              .react-calendar__tile--active {
-                background: #4f46e5 !important;
-                border-radius: 0.5rem;
-              }
-              .react-calendar__tile--active:enabled:hover,
-              .react-calendar__tile--active:enabled:focus {
-                background: #4338ca !important;
-              }
-              .react-calendar__tile {
-                border-radius: 0.5rem;
-              }
-              .react-calendar__tile:enabled:hover,
-              .react-calendar__tile:enabled:focus {
-                background-color: #f1f5f9;
-              }
-            `}</style>
-            <Calendar
-              onChange={setDate}
-              value={date}
-              className="w-full"
-            />
+            <div className="relative w-full max-w-[200px]">
+              <input
+                type="date"
+                id="onboarding-date"
+                value={date instanceof Date ? date.toISOString().split('T')[0] : ''}
+                onChange={(e) => setDate(new Date(e.target.value))}
+                className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block p-3 min-h-[44px] shadow-sm transition-all outline-none font-medium text-center cursor-pointer hover:bg-slate-100"
+              />
+            </div>
           </div>
 
           <div className="mb-6 flex items-start gap-3 bg-slate-50 p-4 rounded-lg border border-slate-100">
@@ -122,20 +93,19 @@ export default function OnboardingModal() {
           </div>
 
           <div className="flex gap-3 mt-4">
-            <button 
+            <button
               onClick={handleClose}
               className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
             >
               Skip
             </button>
-            <button 
+            <button
               onClick={handleComplete}
               disabled={!agreedToTerms}
-              className={`flex-1 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors ${
-                agreedToTerms
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors ${agreedToTerms
+                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
             >
               Continue
             </button>

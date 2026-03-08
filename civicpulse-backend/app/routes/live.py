@@ -139,8 +139,11 @@ async def process_voice_turn(
 
         # 1. Process with RAG Pipeline (Streaming)
         logger.info(f"Session {session_id}: Running RAG pipeline (streaming to TTS)...")
+        # Enforce highly conversational, brief answers for Live Mode to save tokens/TTS cost
+        prompt_injection = transcript_text + "\n\n(Keep your answer extremely concise, friendly, and conversational—max 2-3 sentences. No markdown formatting.)"
+        
         llm_stream = rag_pipeline.analyze_document(
-            query=transcript_text,
+            query=prompt_injection,
             user_id="live_user",
             session_id=session_id,
             language=language,

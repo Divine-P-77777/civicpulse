@@ -17,89 +17,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      {/* Top Navigation */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex-shrink-0 flex items-center">
-              <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <span className="text-xl font-bold font-heading text-slate-900 tracking-tight">CivicPulse</span>
-              </Link>
-            </div>
-
-            {/* Desktop Navigation Links */}
-            <nav className="hidden lg:flex space-x-8">
-              <Link href="#" className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">Home</Link>
-              <Link href="#" className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">City Options</Link>
-              <Link href="#" className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">Language</Link>
-              <Link href="#" className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors">Security</Link>
-            </nav>
-
-            {/* Desktop Action Buttons */}
-            <div className="hidden lg:flex items-center space-x-4">
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors px-3 py-2 border border-slate-300 rounded-md">Log In</button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <button className="text-sm font-medium text-indigo-600 px-4 py-2 border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors">Join</button>
-                </SignUpButton>
-                <SignUpButton mode="modal">
-                  <button className="text-sm font-medium text-white px-5 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm transition-colors">Get Started</button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <Link href="/chat" className="text-sm font-medium text-white px-5 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm transition-colors">Go to Dashboard</Link>
-              </SignedIn>
-            </div>
-
-            {/* Mobile menu button */}
-            <div className="flex items-center lg:hidden">
-              <button
-                type="button"
-                className="p-2 rounded-md text-slate-400 hover:text-slate-500 hover:bg-slate-100"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                <span className="sr-only">Open main menu</span>
-                {mobileMenuOpen ? <X className="block h-6 w-6" aria-hidden="true" /> : <Menu className="block h-6 w-6" aria-hidden="true" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Navigation Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-200 bg-white">
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              <Link href="#" className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-indigo-600 hover:bg-slate-50">Home</Link>
-              <Link href="#" className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-indigo-600 hover:bg-slate-50">City Options</Link>
-              <Link href="#" className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-indigo-600 hover:bg-slate-50">Language</Link>
-              <Link href="#" className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:text-indigo-600 hover:bg-slate-50">Security</Link>
-            </div>
-            <div className="pt-4 pb-4 border-t border-slate-200">
-              <div className="flex items-center justify-center space-x-4 px-5">
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <button className="text-base font-medium text-slate-700 px-4 py-2 border border-slate-300 rounded-md">Log In</button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
-                    <button className="text-base font-medium text-white px-4 py-2 bg-indigo-600 rounded-md">Get Started</button>
-                  </SignUpButton>
-                </SignedOut>
-                <SignedIn>
-                  <Link href="/chat" className="text-base font-medium text-white px-4 py-2 bg-indigo-600 rounded-md">Go to Dashboard</Link>
-                </SignedIn>
-              </div>
-            </div>
-          </div>
-        )}
-      </header>
 
       {/* Hero Section */}
       <section className="relative w-full pt-16 pb-20 lg:pt-24 lg:pb-32 overflow-hidden">
@@ -117,26 +34,35 @@ export default function Home() {
                 AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
               </p>
               
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 sm:justify-center lg:justify-start">
+              <div className="mt-8 flex flex-col sm:flex-row flex-wrap gap-4 sm:justify-center lg:justify-start">
                 <Link
                   href="/live"
                   onClick={() => handleModeSelect('live')}
-                  className="flex items-center justify-center gap-2 px-8 py-3.5 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all hover:shadow-md"
+                  className="flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all hover:shadow-md"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a5 5 0 1110 0v6a3 3 0 01-3 3z" />
                   </svg>
-                  Start Live Chat
+                  Live Mode
                 </Link>
                 <Link
                   href="/chat"
                   onClick={() => handleModeSelect('chat')}
-                  className="flex items-center justify-center gap-2 px-8 py-3.5 border border-indigo-200 text-base font-semibold rounded-lg text-indigo-700 bg-white hover:bg-indigo-50 shadow-sm transition-all"
+                  className="flex items-center justify-center gap-2 px-6 py-3 border border-indigo-200 text-base font-semibold rounded-lg text-indigo-700 bg-white hover:bg-indigo-50 shadow-sm transition-all"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Upload Document
+                  Chat Mode
+                </Link>
+                <Link
+                  href="/draftcreation"
+                  className="flex items-center justify-center gap-2 px-6 py-3 border border-slate-200 text-base font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  Make Draft
                 </Link>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm text-slate-500 font-medium font-sans">
@@ -146,59 +72,10 @@ export default function Home() {
               </div>
             </div>
             
-            {/* Hero Image / Mockup */}
+            {/* Hero Image */}
             <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-7 lg:flex lg:items-center">
               <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-2xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500">
-                {/* Mockup Top Bar */}
-                <div className="bg-slate-100 rounded-t-xl py-2 px-4 flex items-center gap-2">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                    <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-                    <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
-                  </div>
-                  <div className="mx-auto bg-white rounded-md text-[10px] px-2 py-0.5 text-slate-400 flex items-center gap-1">
-                    <Lock className="w-2.5 h-2.5" /> civicpulse.com
-                  </div>
-                </div>
-                {/* Mockup Content placeholder, representing a dashboard */}
-                <div className="bg-slate-50 relative pb-[56.25%] rounded-b-xl overflow-hidden shadow-inner border-t border-slate-200">
-                    <div className="absolute inset-0 p-4 lg:p-6 flex flex-col gap-4">
-                        {/* Mock header */}
-                        <div className="flex justify-between items-center mb-2">
-                            <div className="h-6 w-32 bg-slate-200 rounded-md"></div>
-                            <div className="h-8 w-8 bg-indigo-100 rounded-full"></div>
-                        </div>
-                        {/* Mock columns */}
-                        <div className="flex-1 flex gap-4">
-                            <div className="w-1/3 flex flex-col gap-3">
-                                <div className="h-20 bg-white shadow-sm rounded-lg border border-slate-100"></div>
-                                <div className="h-10 w-3/4 bg-white shadow-sm rounded-lg border border-slate-100"></div>
-                                <div className="h-32 bg-indigo-50 border border-indigo-100 rounded-lg"></div>
-                            </div>
-                            <div className="w-2/3 flex flex-col gap-4">
-                                <div className="h-40 bg-white shadow-sm border border-slate-100 rounded-lg p-4 flex flex-col gap-3">
-                                    <div className="h-4 w-1/3 bg-slate-200 rounded"></div>
-                                    <div className="h-2 w-full bg-slate-100 rounded mt-2"></div>
-                                    <div className="h-2 w-5/6 bg-slate-100 rounded"></div>
-                                    <div className="h-2 w-4/6 bg-slate-100 rounded"></div>
-                                    <div className="mt-auto flex gap-2">
-                                        <div className="h-6 w-16 bg-red-100 rounded text-[10px] font-bold text-red-600 flex items-center justify-center">High Risk</div>
-                                        <div className="h-6 w-20 bg-emerald-100 rounded text-[10px] font-bold text-emerald-600 flex items-center justify-center">Safe Clause</div>
-                                    </div>
-                                </div>
-                                <div className="flex gap-4">
-                                    <div className="h-24 flex-1 bg-white shadow-sm border border-slate-100 rounded-lg relative overflow-hidden">
-                                        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-indigo-500/20 to-transparent"></div>
-                                    </div>
-                                    <div className="h-24 w-1/3 bg-slate-800 rounded-lg flex items-center justify-center flex-col gap-1">
-                                        <div className="text-white text-xl font-bold">85%</div>
-                                        <div className="text-slate-400 text-[10px]">Readability</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                  <img src="/hero-cartoon.png" alt="CivicPulse Friendly AI Assistant" className="w-full h-auto rounded-xl shadow-inner" />
               </div>
             </div>
           </div>

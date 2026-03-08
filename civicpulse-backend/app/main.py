@@ -34,10 +34,10 @@ app.include_router(analyze.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 
-
-# Note: Live Mode uses native FastAPI WebSocket (/api/live/ws/)
-# Chat streaming uses native SSE (StreamingResponse)
-# No Socket.IO needed — removes a heavy dependency and avoids route conflicts
+# ─── Mount Socket.IO ───
+# We need Socket.IO exclusively for Admin panel upload progress events
+from app.core.socket_manager import socket_app
+app.mount("/socket.io", socket_app)
 
 # ─── Startup Event ───
 @app.on_event("startup")
@@ -54,8 +54,13 @@ def read_root():
     return {"message": "Welcome to CivicPulse API"}
 
 @app.get("/health")
-def health_check():
-    return {"status": "healthy", "service": "civicpulse-backend", "version": "1.0.0"}
+async def health_check():
+    return {
+        "status": "ok", 
+        "service": "civicpulse-backend", 
+        "version": "1.0.0",
+        "message": "Backend is running smoothly"
+    }
 
 # ─── Global Exception Handler ───
 @app.exception_handler(Exception)
