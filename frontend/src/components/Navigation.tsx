@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { toggleSidebar, setCurrentMode } from '@/store/slices/uiSlice';
-import { clearAuth } from '@/store/slices/authSlice';
+import { SignedIn, SignedOut, UserButton, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 import { 
   Menu, 
   X, 
@@ -21,7 +21,7 @@ export default function Navigation() {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { sidebarOpen } = useAppSelector((state) => state.ui);
-  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+  const { user, isLoaded, isSignedIn } = useUser();
 
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
@@ -29,10 +29,6 @@ export default function Navigation() {
     { name: 'Chat Mode', href: '/chat', icon: MessageCircle },
     { name: 'Documents', href: '/documents', icon: FileText },
   ];
-
-  const handleLogout = () => {
-    dispatch(clearAuth());
-  };
 
   return (
     <>
@@ -93,16 +89,16 @@ export default function Navigation() {
 
           {/* User section */}
           <div className="border-t px-4 py-4">
-            {isAuthenticated && user ? (
+            <SignedIn>
               <div className="space-y-2">
                 <div className="flex items-center px-4 py-2">
-                  <User size={20} className="mr-3 text-gray-400" />
-                  <div className="flex-1 min-w-0">
+                  <UserButton afterSignOutUrl="/" />
+                  <div className="flex-1 min-w-0 ml-3">
                     <p className="text-sm font-medium text-gray-900 truncate">
-                      {user.full_name || user.email}
+                      {isLoaded && isSignedIn ? user.fullName || user.primaryEmailAddress?.emailAddress : 'Loading...'}
                     </p>
                     <p className="text-xs text-gray-500 truncate">
-                      {user.email}
+                      {isLoaded && isSignedIn ? user.primaryEmailAddress?.emailAddress : ''}
                     </p>
                   </div>
                 </div>
@@ -114,31 +110,22 @@ export default function Navigation() {
                   <Settings size={20} className="mr-3" />
                   Settings
                 </Link>
-                
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
-                >
-                  <LogOut size={20} className="mr-3" />
-                  Sign Out
-                </button>
               </div>
-            ) : (
+            </SignedIn>
+            <SignedOut>
               <div className="space-y-2">
-                <Link
-                  href="/auth/login"
-                  className="block w-full px-4 py-2 text-sm text-center text-white bg-primary-600 hover:bg-primary-700 rounded-lg"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/auth/register"
-                  className="block w-full px-4 py-2 text-sm text-center text-primary-600 border border-primary-600 hover:bg-primary-50 rounded-lg"
-                >
-                  Sign Up
-                </Link>
+                <SignInButton mode="modal">
+                  <button className="block w-full px-4 py-2 text-sm text-center text-white bg-primary-600 hover:bg-primary-700 rounded-lg">
+                    Sign In
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button className="block w-full px-4 py-2 text-sm text-center text-primary-600 border border-primary-600 hover:bg-primary-50 rounded-lg">
+                    Sign Up
+                  </button>
+                </SignUpButton>
               </div>
-            )}
+            </SignedOut>
           </div>
         </div>
       </div>

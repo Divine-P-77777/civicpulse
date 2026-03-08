@@ -53,7 +53,7 @@ const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStre
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{
-                                    table: ({ node, ...props }) => (
+                                    table: ({ node, ...props }: any) => (
                                         <div className="overflow-x-auto max-w-[calc(100vw-6.5rem)] md:max-w-none my-3 border border-gray-100 rounded-lg">
                                             <table className="min-w-full text-left border-collapse" {...props} />
                                         </div>
