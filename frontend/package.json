@@ -27,6 +27,7 @@
     "react-calendar": "^6.0.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^13.5.0",
+    "react-joyride": "^2.9.3",
     "react-markdown": "^10.1.0",
     "react-redux": "^9.0.4",
     "react-simple-maps": "^3.0.0",

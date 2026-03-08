@@ -44,15 +44,11 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 GREETING_TEXT = (
-    "Hello! I'm CivicPulse, your AI legal rights assistant. "
-    "How can I help you today? You can ask me anything about your legal rights, "
-    "government schemes, or civic issues."
+    "Hi! I'm CivicPulse. How can I help you today?"
 )
 
 GREETING_TEXT_HI = (
-    "नमस्ते! मैं CivicPulse हूँ, आपकी AI कानूनी अधिकार सहायक। "
-    "आज मैं आपकी कैसे मदद कर सकती हूँ? आप मुझसे अपने कानूनी अधिकारों, "
-    "सरकारी योजनाओं या नागरिक मुद्दों के बारे में कुछ भी पूछ सकते हैं।"
+    "नमस्ते! मैं CivicPulse हूँ। आज कैसे मदद कर सकती हूँ?"
 )
 
 

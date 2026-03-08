@@ -19,72 +19,113 @@ export function useLiveAudio({
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
   const finalTranscriptRef = useRef<string>('');
+  const recognitionActiveRef = useRef<boolean>(false);
 
   useEffect(() => {
     isListeningRef.current = (status === 'listening');
   }, [status]);
 
-  // ─── Audio Playback ────────────────────────────────────
-  const playNextAudioChunk = useCallback(() => {
-    if (isPlayingRef.current || audioQueueRef.current.length === 0 || !audioElementRef.current) {
-      if (audioQueueRef.current.length === 0 && isPlayingRef.current) {
-        isPlayingRef.current = false;
-        setStatus('listening');
-        // Resume recognition after AI finishes speaking
-        resumeRecognition();
+  // ─── Web Speech API (STT) ─────────────────────────────
+  const pauseRecognition = useCallback(() => {
+    recognitionActiveRef.current = false;
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
       }
+    } catch (e) { /* ignore - may not be started */ }
+  }, []);
+
+  const resumeRecognition = useCallback(() => {
+    console.log("[Audio] Attempting to resume recognition...");
+    recognitionActiveRef.current = true;
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.start();
+        console.log("[Audio] Recognition restarted successfully");
+      } else {
+        console.warn("[Audio] No recognition instance to resume");
+      }
+    } catch (e) {
+      console.warn("[Audio] Resume failed (may already be running):", e);
+    }
+  }, []);
+
+  // ─── Audio Playback ────────────────────────────────────
+  const onAudioFinished = useCallback(() => {
+    console.log("[Audio] All audio finished playing, transitioning to listening");
+    isPlayingRef.current = false;
+    setStatus('listening');
+    setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
+    finalTranscriptRef.current = '';
+    // Directly resume recognition — don't rely on isListeningRef since
+    // setStatus is async and the ref won't be updated yet
+    resumeRecognition();
+  }, [setStatus, setTranscript, language, resumeRecognition]);
+
+  const playNextAudioChunk = useCallback(() => {
+    // If already playing, do nothing (onended will call us again)
+    if (isPlayingRef.current) return;
+
+    // No more chunks in queue → we're done
+    if (audioQueueRef.current.length === 0) {
       return;
     }
+
+    // We have chunks to play
     isPlayingRef.current = true;
 
     // Pause recognition while playing to avoid echo
     pauseRecognition();
 
     const base64Audio = audioQueueRef.current.shift();
-    if (!base64Audio) return;
+    if (!base64Audio || !audioElementRef.current) {
+      isPlayingRef.current = false;
+      return;
+    }
 
     const byteCharacters = atob(base64Audio);
     const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
     const byteArray = new Uint8Array(byteNumbers);
     const blob = new Blob([byteArray], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(blob);
     audioElementRef.current.src = url;
     audioElementRef.current.play().catch(e => {
-      console.error("Audio play error", e);
-      setTimeout(() => { isPlayingRef.current = false; playNextAudioChunk(); }, 100);
-    });
-  }, []);
-
-  useEffect(() => {
-    audioElementRef.current = new Audio();
-    audioElementRef.current.onended = () => {
+      console.error("[Audio] Play error:", e);
       isPlayingRef.current = false;
-      playNextAudioChunk();
+      // Try next chunk after a small delay
+      setTimeout(() => playNextAudioChunk(), 100);
+    });
+  }, [pauseRecognition]);
+
+  // Setup audio element with onended handler
+  useEffect(() => {
+    const audio = new Audio();
+    audioElementRef.current = audio;
+
+    audio.onended = () => {
+      console.log("[Audio] Chunk finished playing, queue length:", audioQueueRef.current.length);
+      isPlayingRef.current = false;
+      
+      if (audioQueueRef.current.length > 0) {
+        // More chunks to play
+        playNextAudioChunk();
+      } else {
+        // All done — transition back to listening
+        onAudioFinished();
+      }
     };
+
     return () => {
-      if (audioElementRef.current) {
-        audioElementRef.current.pause();
-        audioElementRef.current = null;
-      }
+      audio.pause();
+      audio.onended = null;
+      audioElementRef.current = null;
     };
-  }, []);
+  }, [playNextAudioChunk, onAudioFinished]);
 
-  // ─── Web Speech API (STT) ─────────────────────────────
-  const pauseRecognition = () => {
-    try {
-      if (recognitionRef.current) recognitionRef.current.stop();
-    } catch (e) { /* ignore */ }
-  };
-
-  const resumeRecognition = () => {
-    try {
-      if (recognitionRef.current && isListeningRef.current) {
-        recognitionRef.current.start();
-      }
-    } catch (e) { /* may already be running */ }
-  };
-
+  // ─── Speech Recognition Setup ────────────────────────
   const startRecording = async () => {
     try {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -97,6 +138,7 @@ export function useLiveAudio({
 
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
+      recognitionActiveRef.current = true;
 
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -119,7 +161,7 @@ export function useLiveAudio({
 
         if (finalTranscript) {
           finalTranscriptRef.current += finalTranscript;
-          console.log("Final STT transcript:", finalTranscriptRef.current);
+          console.log("[STT] Final transcript:", finalTranscriptRef.current);
         }
 
         // Show live transcript to user
@@ -130,38 +172,53 @@ export function useLiveAudio({
       };
 
       recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
+        console.warn("[STT] Error:", event.error);
         if (event.error === 'no-speech') {
-          // No speech detected, restart recognition
-          try { recognition.start(); } catch (e) { /* ignore */ }
+          // No speech detected — auto-restart if still active
+          if (recognitionActiveRef.current) {
+            try { recognition.start(); } catch (e) { /* ignore */ }
+          }
           return;
         }
         if (event.error === 'aborted') return; // Normal stop
+        if (event.error === 'network') {
+          // Network error — try restart after delay
+          if (recognitionActiveRef.current) {
+            setTimeout(() => {
+              try { recognition.start(); } catch (e) { /* ignore */ }
+            }, 1000);
+          }
+        }
       };
 
       recognition.onend = () => {
-        // Auto-restart if we're still in listening mode
-        if (isListeningRef.current && !isPlayingRef.current) {
-          try { recognition.start(); } catch (e) { /* ignore */ }
+        console.log("[STT] onend fired, activeRef:", recognitionActiveRef.current, "playingRef:", isPlayingRef.current);
+        // Auto-restart only if we should be listening
+        if (recognitionActiveRef.current && !isPlayingRef.current) {
+          console.log("[STT] Auto-restarting recognition...");
+          setTimeout(() => {
+            try { recognition.start(); } catch (e) { /* ignore */ }
+          }, 100);
         }
       };
 
       recognition.start();
       setStatus('listening');
-      setTranscript('Listening... Speak now.');
+      setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
 
       // Request greeting from WebSocket
       if (wsReadyState === WebSocket.OPEN) {
         requestGreeting();
       }
     } catch (err) {
-      console.error("Speech recognition failed to start", err);
+      console.error("[STT] Failed to start:", err);
       setStatus('error');
       setTranscript('Microphone access denied or STT not available.');
     }
   };
 
   const stopRecording = () => {
+    recognitionActiveRef.current = false;
     try {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
@@ -177,7 +234,7 @@ export function useLiveAudio({
   const sendCurrentTranscript = () => {
     const text = finalTranscriptRef.current.trim();
     if (text) {
-      console.log("Sending user text to backend:", text);
+      console.log("[Live] Sending user text to backend:", text);
       sendUserText(text);
       finalTranscriptRef.current = '';
       setStatus('processing');
@@ -186,10 +243,11 @@ export function useLiveAudio({
       pauseRecognition();
     } else {
       // No transcript accumulated, just resume listening
-      setTranscript('No speech detected. Try again.');
+      setTranscript(language === 'hi' ? 'कोई आवाज़ नहीं सुनी। फिर से बोलिए।' : 'No speech detected. Try again.');
       setTimeout(() => {
         setStatus('listening');
-        setTranscript('Listening... Speak now.');
+        setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
+        resumeRecognition();
       }, 1500);
     }
   };
@@ -203,5 +261,5 @@ export function useLiveAudio({
     isPlayingRef.current = false;
   };
 
-  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript };
+  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition };
 }
