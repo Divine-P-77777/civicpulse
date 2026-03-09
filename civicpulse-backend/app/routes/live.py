@@ -135,15 +135,14 @@ async def process_voice_turn(
 
         # 1. Process with RAG Pipeline (Streaming)
         logger.info(f"Session {session_id}: Running RAG pipeline (streaming to TTS)...")
-        # Enforce highly conversational, brief answers for Live Mode to save tokens/TTS cost
-        prompt_injection = transcript_text + "\n\n(This is a live voice conversation. Respond naturally and warmly in 2-3 sentences. No markdown formatting, no bullet points, no headers. Just speak like a caring friend. If it's an emergency, give clear immediate steps first.)"
         
         llm_stream = rag_pipeline.analyze_document(
-            query=prompt_injection,
+            query=transcript_text,
             user_id="live_user",
             session_id=session_id,
             language=language,
-            stream=True
+            stream=True,
+            mode="live"
         )
 
         # Buffer to capture the full transcript for the UI while streaming to TTS
@@ -263,6 +262,12 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
                 text = message.get("text", "")
                 if text:
                     await process_voice_turn(session_id, text, language)
+
+            elif msg_type == "ingestion_complete":
+                # Auto-respond about an uploaded document
+                doc_name = message.get("filename", "document")
+                auto_query = f"A document called '{doc_name}' was just uploaded. Please briefly tell me what this document is about and if there are any concerns I should know about."
+                await process_voice_turn(session_id, auto_query, language)
 
             elif msg_type == "interrupt":
                 logger.info(f"Session {session_id}: Interrupted by user.")

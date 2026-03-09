@@ -50,6 +50,24 @@ export function useLiveAudio({
     }
   }, []);
 
+  // ─── Trigger Sound (chime when mic resumes) ────────────
+  const playTriggerSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(660, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.2);
+    } catch (e) { /* ignore — AudioContext may not be available */ }
+  }, []);
+
   // ─── Audio Playback ────────────────────────────────────
   const onAudioFinished = useCallback(() => {
     console.log("[Audio] All audio finished playing, transitioning to listening");
@@ -57,10 +75,11 @@ export function useLiveAudio({
     setStatus('listening');
     setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
     finalTranscriptRef.current = '';
-    // Directly resume recognition — don't rely on isListeningRef since
-    // setStatus is async and the ref won't be updated yet
+    // Play a short chime so the user knows it's their turn
+    playTriggerSound();
+    // Directly resume recognition
     resumeRecognition();
-  }, [setStatus, setTranscript, language, resumeRecognition]);
+  }, [setStatus, setTranscript, language, resumeRecognition, playTriggerSound]);
 
   const playNextAudioChunk = useCallback(() => {
     // If already playing, do nothing (onended will call us again)
@@ -206,10 +225,8 @@ export function useLiveAudio({
       setStatus('listening');
       setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
 
-      // Request greeting from WebSocket
-      if (wsReadyState === WebSocket.OPEN) {
-        requestGreeting();
-      }
+      // Always request greeting — startRecording is called from ws.onopen so WS is guaranteed open
+      requestGreeting();
     } catch (err) {
       console.error("[STT] Failed to start:", err);
       setStatus('error');

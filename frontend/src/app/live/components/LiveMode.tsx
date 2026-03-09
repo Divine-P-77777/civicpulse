@@ -133,6 +133,14 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
             if (!response.ok) throw new Error('Upload failed');
             setTranscript(isHindi ? 'फ़ाइल अपलोड हो गई! प्रोसेसिंग हो रही है...' : 'File uploaded! Processing...');
+
+            // Notify backend to auto-analyze the uploaded document
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                    type: 'ingestion_complete',
+                    filename: file.name
+                }));
+            }
         } catch (err) {
             setStatus('error');
             setTranscript(language === 'hi' ? 'फ़ाइल अपलोड करने में विफल।' : 'Failed to upload file.');

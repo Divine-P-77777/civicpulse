@@ -24,6 +24,13 @@ class RagPipeline:
         with open(prompt_path, "r") as f:
             self.prompt_template = f.read()
 
+        live_prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "live_prompt.txt")
+        try:
+            with open(live_prompt_path, "r") as f:
+                self.live_prompt_template = f.read()
+        except FileNotFoundError:
+            self.live_prompt_template = self.prompt_template  # Fallback
+
     def _build_conversation_context(self, chat_history: list) -> str:
         """
         Smart context builder for conversation memory.
@@ -83,7 +90,7 @@ class RagPipeline:
 
         return f"[Earlier conversation summary]\n{older_summary}\n\n[Recent messages]\n{recent_text}"
 
-    def analyze_document(self, query: str, user_id: str = None, session_id: str = None, chat_history: list = None, language: str = "en", stream: bool = False):
+    def analyze_document(self, query: str, user_id: str = None, session_id: str = None, chat_history: list = None, language: str = "en", stream: bool = False, mode: str = "chat"):
         """
         Orchestrates the RAG flow with conversation memory:
         1. Build conversation context from chat history
@@ -102,8 +109,9 @@ class RagPipeline:
         # 3. Summarize retrieved documents
         context_summary = summarize_service.summarize_context(context_metadata, query)
         
-        # 4. Prompt construction — includes both conversation history and RAG context
-        final_prompt = self.prompt_template.format(
+        # 4. Prompt construction — use live prompt for live mode, chat prompt for chat
+        template = self.live_prompt_template if mode == "live" else self.prompt_template
+        final_prompt = template.format(
             context=context_summary,
             query=query,
             chat_history=conversation_context
