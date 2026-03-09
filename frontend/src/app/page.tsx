@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useAppDispatch } from '@/hooks/redux';
 import { setCurrentMode } from '@/store/slices/uiSlice';
-import { CheckCircle2, Shield, Lock, Sliders, Menu, X } from 'lucide-react';
+import { CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic } from 'lucide-react';
 import { useState } from 'react';
 import { SignInButton, SignUpButton, SignedIn, SignedOut } from '@clerk/nextjs';
+import { NativeTypewriter } from '@/components/NativeTypewriter';
 
 export default function Home() {
   const dispatch = useAppDispatch();
@@ -26,11 +27,23 @@ export default function Home() {
           <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center">
             
             {/* Hero Text */}
-            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-5 lg:text-left pt-6">
-              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl text-balance">
-                Understand Your Legal Rights in <span className="text-indigo-600">Simple Language</span>
+            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left pt-6">
+              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance">
+                Understand Your Legal Rights in{" "}
+                <div className="text-indigo-600 block mt-2 h-[1.2em]">
+                  <NativeTypewriter
+                    content={[
+                      "Simple Language.",
+                      "Clear Explanations.",
+                      "Real Rights."
+                    ]}
+                    loop
+                    speed={80}
+                    cursor={true}
+                  />
+                </div>
               </h1>
-              <p className="mt-4 text-lg text-slate-600 sm:mt-5 sm:max-w-xl sm:mx-auto md:mt-6 lg:mx-0 text-balance">
+              <p className="mt-6 text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance">
                 AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
               </p>
               
@@ -73,9 +86,9 @@ export default function Home() {
             </div>
             
             {/* Hero Image */}
-            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-7 lg:flex lg:items-center">
-              <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-2xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500">
-                  <img src="/hero-cartoon.png" alt="CivicPulse Friendly AI Assistant" className="w-full h-auto rounded-xl shadow-inner" />
+            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
+              <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500 border-2">
+                  <img src="/demo.png" alt="CivicPulse Interactive Demo" className="w-full h-auto rounded-xl shadow-inner object-cover" />
               </div>
             </div>
           </div>
@@ -251,6 +264,41 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Features Section */}
+      <section className="py-24 bg-slate-50 border-t border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-extrabold text-slate-900">Everything You Need</h2>
+            <p className="mt-4 text-lg text-slate-600">Built to make legal understanding accessible and secure.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl mb-6">
+                <Mic className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">24/7 AI Help</h3>
+              <p className="text-slate-600 leading-relaxed">Access expert-level analysis anytime. Features seamless Voice interaction and powerful OCR document scanning.</p>
+            </div>
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl mb-6">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Risk Flags</h3>
+              <p className="text-slate-600 leading-relaxed">Instantly spot danger. Our system categorizes clauses into intuitive Red, Yellow, and Green risk levels.</p>
+            </div>
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 flex items-center justify-center rounded-xl mb-6">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Secure History</h3>
+              <p className="text-slate-600 leading-relaxed">Private by design. Your analysis history and documents are encrypted and kept strictly confidential.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Language Section */}
       <section className="py-24 bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 relative overflow-hidden">
         <div className="absolute inset-0 bg-white/10 pattern-grid-lg opacity-20"></div>
@@ -352,61 +400,69 @@ export default function Home() {
       </section>
 
       {/* Footer Match Design */}
-      <footer className="bg-[#1e2330] text-slate-300 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
-            <div className="col-span-2 lg:col-span-2">
-              <Link href="/" className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <span className="text-2xl font-bold text-white tracking-tight">CivicPulse</span>
-              </Link>
-              <p className="text-slate-400 max-w-xs text-sm">
-                Empowering individuals to understand their legal rights through AI assistance.
-              </p>
+      <div className="px-4 pb-8 sm:px-6 sm:pb-12 lg:px-8 lg:pb-12 bg-slate-50">
+        <footer className="bg-[#1e2330] text-slate-300 py-16 rounded-3xl shadow-2xl overflow-hidden relative border border-slate-700/50">
+          <div className="max-w-7xl mx-auto px-8 sm:px-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
+              <div className="col-span-2 lg:col-span-2">
+                <Link href="/" className="flex items-center gap-2 mb-6 w-max">
+                  <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <span className="text-2xl font-bold text-white tracking-tight">CivicPulse</span>
+                </Link>
+                <p className="text-slate-400 max-w-xs text-sm">
+                  Empowering individuals to understand their legal rights through AI assistance.
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="text-white font-bold mb-4">Tools</h4>
+                <ul className="space-y-3 text-sm">
+                  <li><Link href="/live" className="hover:text-white transition-colors">Live Mode</Link></li>
+                  <li><Link href="/chat" className="hover:text-white transition-colors">Chat Mode</Link></li>
+                  <li><Link href="/draftcreation" className="hover:text-white transition-colors">Make Draft</Link></li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-4">Account</h4>
+                <ul className="space-y-3 text-sm">
+                  <li><Link href="/admin" className="hover:text-white transition-colors flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Admin Dashboard</Link></li>
+                  <li><Link href="/settings" className="hover:text-white transition-colors">Profile Settings</Link></li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-white font-bold mb-4">Legal</h4>
+                <ul className="space-y-3 text-sm">
+                  <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+                  <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+                  <li><Link href="/cookies" className="hover:text-white transition-colors">Cookie Policy</Link></li>
+                </ul>
+              </div>
             </div>
             
-            <div>
-              <h4 className="text-white font-bold mb-4">Product</h4>
-              <ul className="space-y-3 text-sm">
-                <li><Link href="#" className="hover:text-white transition-colors">Features</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Pricing</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Security</Link></li>
-              </ul>
+            <div className="mt-16 pt-8 border-t border-slate-700/50 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
+              <p className="text-slate-400">© 2026 CivicPulse. All rights reserved.</p>
+              <div className="flex gap-6 z-10">
+                <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+                <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
+                <Link href="#" className="hover:text-white transition-colors">Help Center</Link>
+              </div>
             </div>
 
-            <div>
-              <h4 className="text-white font-bold mb-4">Resources</h4>
-              <ul className="space-y-3 text-sm">
-                <li><Link href="#" className="hover:text-white transition-colors">Blog</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Help Center</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">API</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-bold mb-4">Company</h4>
-              <ul className="space-y-3 text-sm">
-                <li><Link href="#" className="hover:text-white transition-colors">About</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Contact</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Careers</Link></li>
-              </ul>
+            {/* Massive modern typography text */}
+            <div className="mt-12 w-full flex justify-center overflow-hidden opacity-5 pointer-events-none select-none">
+              <span className="text-[12rem] leading-none font-black tracking-tighter text-white">
+                CivicPulse
+              </span>
             </div>
           </div>
-          
-          <div className="mt-16 pt-8 border-t border-slate-700/50 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-            <p className="text-slate-400">© 2026 CivicPulse. All rights reserved.</p>
-            <div className="flex gap-6">
-              <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
-              <Link href="#" className="hover:text-white transition-colors">Terms</Link>
-              <Link href="#" className="hover:text-white transition-colors">Cookies</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }

@@ -71,7 +71,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
     const { 
         wsRef, status, setStatus, transcript, setTranscript, uploadProgress, 
-        connectWebSocket, closeWebSocket 
+        connectWebSocket, closeWebSocket, trackedSend
     } = useLiveWebSocket({
         sessionId: sessionIdRef.current,
         language: language as 'en' | 'hi',
@@ -90,15 +90,15 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         startCamera, stopCamera, capturePhoto, toggleCamera, handleRetry
     } = useLiveCamera({
         wsReadyState: wsRef.current?.readyState,
-        sendCaptureFrame: (b64) => wsRef.current?.send(JSON.stringify({ type: 'camera_capture', data: b64 }))
+        sendCaptureFrame: (b64) => trackedSend({ type: 'camera_capture', data: b64 })
     });
 
     const {
         playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit
     } = useLiveAudio({
         wsReadyState: wsRef.current?.readyState,
-        sendUserText: (text) => wsRef.current?.send(JSON.stringify({ type: 'user_text', text })),
-        requestGreeting: () => wsRef.current?.send(JSON.stringify({ type: 'request_greeting' })),
+        sendUserText: (text) => trackedSend({ type: 'user_text', text }),
+        requestGreeting: () => trackedSend({ type: 'request_greeting' }),
         status, setStatus, setTranscript,
         language: language as 'en' | 'hi',
         audioQueueRef,
@@ -161,10 +161,10 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
             // Notify backend to auto-analyze the uploaded document
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
+                trackedSend({
                     type: 'ingestion_complete',
                     filename: file.name
-                }));
+                });
             }
         } catch (err) {
             setStatus('error');
@@ -200,7 +200,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         }
         if (status === 'speaking') {
             interruptAudio();
-            wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
+            trackedSend({ type: 'interrupt' });
             setStatus('listening');
             setTranscript(language === 'hi' ? 'रुकावट। सुन रहा हूँ...' : 'Interrupted. Listening...');
             resumeRecognition();

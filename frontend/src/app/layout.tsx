@@ -19,6 +19,7 @@ import LenisProvider from '@/components/LenisProvider';
 import OnboardingModal from '@/components/OnboardingModal';
 import MobileFooter from '@/components/MobileFooter';
 import Navigation from '@/components/Navigation';
+import { PerformanceLogger } from '@/components/PerformanceLogger';
 
 export default function RootLayout({
   children,
@@ -31,6 +32,7 @@ export default function RootLayout({
         <ClerkProvider>
           <Providers>
             <LenisProvider>
+              <PerformanceLogger />
               <Navigation />
               <div id="root">{children}</div>
               <OnboardingModal />
