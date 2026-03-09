@@ -27,10 +27,10 @@ export default function Home() {
           <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center">
             
             {/* Hero Text */}
-            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-5 lg:text-left pt-6">
-              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl text-balance">
+            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left pt-6">
+              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance">
                 Understand Your Legal Rights in{" "}
-                <div className="text-indigo-600 block mt-2">
+                <div className="text-indigo-600 block mt-2 h-[1.2em]">
                   <NativeTypewriter
                     content={[
                       "Simple Language.",
@@ -39,11 +39,11 @@ export default function Home() {
                     ]}
                     loop
                     speed={80}
-                    cursor={false}
+                    cursor={true}
                   />
                 </div>
               </h1>
-              <p className="mt-4 text-lg text-slate-600 sm:mt-5 sm:max-w-xl sm:mx-auto md:mt-6 lg:mx-0 text-balance">
+              <p className="mt-6 text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance">
                 AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
               </p>
               
@@ -86,9 +86,9 @@ export default function Home() {
             </div>
             
             {/* Hero Image */}
-            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-7 lg:flex lg:items-center">
-              <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-2xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500">
-                  <img src="/hero-cartoon.png" alt="CivicPulse Friendly AI Assistant" className="w-full h-auto rounded-xl shadow-inner" />
+            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
+              <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500 border-2">
+                  <img src="/demo.png" alt="CivicPulse Interactive Demo" className="w-full h-auto rounded-xl shadow-inner object-cover" />
               </div>
             </div>
           </div>

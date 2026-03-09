@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 interface NativeTypewriterProps {
@@ -9,7 +9,7 @@ interface NativeTypewriterProps {
   cursor?: boolean;
   loop?: boolean;
   startDelay?: number;
-  morph?: boolean;
+  morph?: boolean; // kept for backwards compatibility of props
   className?: string;
 }
 
@@ -19,10 +19,8 @@ export function NativeTypewriter({
   cursor = true,
   loop = false,
   startDelay = 0,
-  morph = true,
   className,
 }: NativeTypewriterProps) {
-  const shouldReduceMotion = useReducedMotion();
   const [displayedText, setDisplayedText] = useState("");
 
   const speedMap = {
@@ -33,18 +31,17 @@ export function NativeTypewriter({
 
   const typingSpeed = typeof speed === "number" ? speed : speedMap[speed];
 
-  useEffect(() => {
-    if (shouldReduceMotion) {
-      setDisplayedText(Array.isArray(content) ? content.join(" ") : content);
-      return;
-    }
+  // Stringify content so array literals don't cause infinite re-renders or resets
+  const contentHash = JSON.stringify(content);
 
+  useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     let currentIndex = 0;
     let currentStringIndex = 0;
     let isDeleting = false;
 
-    const textArray = Array.isArray(content) ? content : [content];
+    // Use parsed content
+    const textArray = JSON.parse(contentHash);
 
     const runLoop = () => {
       const currentString = textArray[currentStringIndex];
@@ -92,22 +89,11 @@ export function NativeTypewriter({
       clearTimeout(initialTimer);
       clearTimeout(timeoutId);
     };
-  }, [content, typingSpeed, loop, startDelay, shouldReduceMotion]);
+  }, [contentHash, typingSpeed, loop, startDelay]);
 
   return (
     <div className={`inline-flex items-center ${className || ""}`}>
-      <span className="whitespace-pre-wrap">
-        {displayedText.split("").map((char, index) => (
-          <motion.span
-            key={index}
-            initial={morph ? { opacity: 0, filter: "blur(2px)" } : { opacity: 1 }}
-            animate={morph ? { opacity: 1, filter: "blur(0px)" } : { opacity: 1 }}
-            transition={{ duration: 0.1 }}
-          >
-            {char}
-          </motion.span>
-        ))}
-      </span>
+      <span className="whitespace-pre-wrap">{displayedText}</span>
 
       {cursor && (
         <motion.span
@@ -118,7 +104,7 @@ export function NativeTypewriter({
             repeat: Infinity,
             repeatType: "reverse",
           }}
-          className="ml-0.5 inline-block h-[1.2em] w-[2px] bg-primary"
+          className="ml-0.5 inline-block h-[1.2em] w-[2px] bg-indigo-600"
         />
       )}
     </div>
