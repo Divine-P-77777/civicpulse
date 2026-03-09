@@ -14,6 +14,7 @@ interface DashboardTabProps {
 export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: DashboardTabProps) {
     const [vectorStats, setVectorStats] = React.useState<any>(null);
     const [dynamoItems, setDynamoItems] = React.useState<any>(null);
+    const [weeklyStats, setWeeklyStats] = React.useState<any[]>([]);
     const [s3Files, setS3Files] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
 
@@ -22,16 +23,18 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
         const fetchDashboardStats = async () => {
             setLoading(true);
             try {
-                const [vecRes, dynRes, s3Res] = await Promise.all([
+                const [vecRes, dynRes, s3Res, statsRes] = await Promise.all([
                     authFetch(`${API_BASE}/api/admin/vectors/stats`),
                     authFetch(`${API_BASE}/api/admin/dynamodb?limit=1`),
-                    authFetch(`${API_BASE}/api/admin/s3`)
+                    authFetch(`${API_BASE}/api/admin/s3`),
+                    authFetch(`${API_BASE}/api/admin/dynamodb/stats`)
                 ]);
 
                 if (!isMounted) return;
                 setVectorStats(await vecRes.json());
                 setDynamoItems(await dynRes.json());
                 setS3Files(await s3Res.json());
+                setWeeklyStats(await statsRes.json());
             } catch (err) {
                 console.error("Failed to fetch dashboard stats", err);
             } finally {
@@ -41,21 +44,24 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
         fetchDashboardStats();
         return () => { isMounted = false; };
     }, [authFetch, API_BASE]);
-    const usageData = [
-        { name: 'Mon', queries: 400, documents: 24 },
-        { name: 'Tue', queries: 300, documents: 13 },
-        { name: 'Wed', queries: 550, documents: 45 },
-        { name: 'Thu', queries: 420, documents: 33 },
-        { name: 'Fri', queries: 800, documents: 60 },
-        { name: 'Sat', queries: 250, documents: 5 },
-        { name: 'Sun', queries: 310, documents: 10 },
+
+    // Fallback static data if backend returns empty/error
+    const usageData = weeklyStats && weeklyStats.length > 0 ? weeklyStats : [
+        { name: 'Mon', queries: 0, documents: 0 },
+        { name: 'Tue', queries: 0, documents: 0 },
+        { name: 'Wed', queries: 0, documents: 0 },
+        { name: 'Thu', queries: 0, documents: 0 },
+        { name: 'Fri', queries: 0, documents: 0 },
+        { name: 'Sat', queries: 0, documents: 0 },
+        { name: 'Sun', queries: 0, documents: 0 },
     ];
 
-    const pieData = [
-        { name: 'Legal Texts', value: vectorStats?.doc_count ? Math.floor(vectorStats.doc_count * 0.7) : 400 },
-        { name: 'Schemes', value: vectorStats?.doc_count ? Math.floor(vectorStats.doc_count * 0.3) : 300 },
-    ];
-    const COLORS = ['#2A6CF0', '#4CB782'];
+    const COLORS = ['#2A6CF0', '#4CB782', '#A855F7', '#F97316', '#E45454'];
+    
+    // Process pie chart data directly from backend if available, padding if none exist yet.
+    const pieData = vectorStats?.type_distribution?.length > 0 
+        ? vectorStats.type_distribution 
+        : [{ name: 'No Data Indexed', value: 1 }];
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -100,7 +106,7 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                                    {pieData.map((entry, index) => (
+                                    {pieData.map((entry: any, index: number) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
@@ -109,7 +115,7 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
                         </ResponsiveContainer>
                     </div>
                     <div className="flex justify-center gap-4 mt-2">
-                        {pieData.map((entry, index) => (
+                        {pieData.map((entry: any, index: number) => (
                             <div key={index} className="flex items-center gap-2 text-sm">
                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index] }}></div>
                                 <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>{entry.name}</span>

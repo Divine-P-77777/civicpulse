@@ -56,6 +56,56 @@ def get_monthly_usage():
         return 0
 
 # --- READ ---
+def get_weekly_usage_stats():
+    """Calculates query counts and pages processed grouped by day for the last 7 days."""
+    try:
+        table = _get_table()
+        # Get start of exactly 7 days ago
+        import datetime as dt
+        now = dt.datetime.utcnow()
+        seven_days_ago = (now - dt.timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # We need all records from the last 7 days
+        # In a very large table, this scan needs a GSI on Timestamp. 
+        # For now, it filters effectively for the dashboard.
+        response = table.scan(
+            FilterExpression=Key('Timestamp').gte(seven_days_ago.isoformat()),
+            ProjectionExpression='#ts, pages_processed, Query',
+            ExpressionAttributeNames={'#ts': 'Timestamp'}
+        )
+        items = response.get("Items", [])
+        
+        # Initialize the 7 days mapping
+        # days mapping array like: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        days_order = []
+        usage_map = {}
+        
+        for i in range(6, -1, -1):
+            day_date = now - dt.timedelta(days=i)
+            day_name = day_date.strftime("%a") # e.g. "Mon"
+            days_order.append(day_name)
+            usage_map[day_name] = {"name": day_name, "queries": 0, "documents": 0}
+            
+        # Group data into the mapping
+        for item in items:
+            ts_str = item.get("Timestamp")
+            if not ts_str: continue
+            
+            # Parse ISO string and get day name
+            item_dt = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00") if ts_str.endswith("Z") else ts_str)
+            day_name = item_dt.strftime("%a")
+            
+            if day_name in usage_map:
+                usage_map[day_name]["queries"] += 1
+                usage_map[day_name]["documents"] += int(item.get("pages_processed", 0))
+                
+        # Return as an ordered list for Recharts
+        return [usage_map[day] for day in days_order]
+        
+    except Exception as e:
+        print(f"Error calculating weekly usage: {e}")
+        return []
+
 def list_results(limit: int = 20, last_key: dict = None):
     """Paginated scan of all results."""
     table = _get_table()

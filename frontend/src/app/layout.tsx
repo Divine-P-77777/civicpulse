@@ -8,10 +8,15 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://civicpulse.vercel.app'),
   title: 'CivicPulse - AI Legal Rights Assistant',
   description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
-  keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis'],
+  keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis', 'Bharat', 'law'],
   manifest: '/manifest.json',
+};
+
+import { Viewport } from 'next';
+export const viewport: Viewport = {
   themeColor: '#4f46e5',
 };
 
