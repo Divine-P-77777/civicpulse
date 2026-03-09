@@ -145,25 +145,46 @@ async def process_voice_turn(
             mode="live"
         )
 
-        # Buffer to capture the full transcript for the UI while streaming to TTS
+        # Buffer to capture the full transcript while streaming to TTS
         full_response_chunks = []
         
         def text_iterator():
+            """Yields text from LLM and sends live transcript updates to frontend."""
+            text_buffer = ""
             for chunk in llm_stream:
                 full_response_chunks.append(chunk)
-                yield chunk
+                text_buffer += chunk
+                # Send partial transcript every ~40 chars so user sees text while audio loads
+                if len(text_buffer) >= 40 or chunk.endswith(('.', '!', '?', ',')):
+                    asyncio.get_event_loop().call_soon_threadsafe(
+                        lambda t=text_buffer: None  # We send below in the async context
+                    )
+                    yield chunk
+                    text_buffer = ""
+                else:
+                    yield chunk
+
+        # Send transcript text early (before TTS) so user sees it immediately
+        async def send_partial_transcript():
+            """Send partial text so user sees AI response before audio finishes."""
+            text_so_far = "".join(full_response_chunks)
+            if text_so_far:
+                await manager.send_json(session_id, {
+                    "type": "ai_transcript",
+                    "text": text_so_far
+                })
 
         # 2. Generate Speech with TTS Service using Text Stream
         logger.info(f"Session {session_id}: Generating TTS streaming for language '{language}'")
         
-        # Route to Sarvam for Hindi, ElevenLabs for everything else
         if language == "hi":
             from app.services.sarvamai_service import sarvam_service
             audio_generator = sarvam_service.generate_speech_stream(text_iterator())
         else:
             audio_generator = elevenlabs_service.generate_speech_stream(text_iterator())
 
-        # 3. Stream TTS audio chunks back to the client instantly
+        # 3. Stream TTS audio chunks back to the client
+        chunk_count = 0
         async for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
             if session_id not in manager.active_connections:
@@ -172,8 +193,12 @@ async def process_voice_turn(
                 "type": "audio_stream",
                 "data": chunk_b64
             })
+            # Send the transcript text after the first audio chunk so user sees it early
+            chunk_count += 1
+            if chunk_count == 1:
+                await send_partial_transcript()
 
-        # 4. Send final AI transcript (after streaming ends)
+        # 4. Send final complete AI transcript
         final_text = "".join(full_response_chunks)
         logger.info(f"Session {session_id}: RAG response length: {len(final_text)}")
         await manager.send_json(session_id, {

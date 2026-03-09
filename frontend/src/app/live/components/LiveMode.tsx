@@ -21,6 +21,8 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
     const sessionIdRef = useRef<string>(Math.random().toString(36).substring(2, 10));
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [autoSubmitCountdown, setAutoSubmitCountdown] = useState<number | null>(null);
+    const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Tour State
     const [runTour, setRunTour] = useState(false);
@@ -92,14 +94,37 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     });
 
     const {
-        playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition
+        playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit
     } = useLiveAudio({
         wsReadyState: wsRef.current?.readyState,
         sendUserText: (text) => wsRef.current?.send(JSON.stringify({ type: 'user_text', text })),
         requestGreeting: () => wsRef.current?.send(JSON.stringify({ type: 'request_greeting' })),
         status, setStatus, setTranscript,
         language: language as 'en' | 'hi',
-        audioQueueRef
+        audioQueueRef,
+        onAutoSubmitStart: (seconds) => {
+            // Start visual countdown
+            setAutoSubmitCountdown(seconds);
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            const startTime = Date.now();
+            countdownIntervalRef.current = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000;
+                const remaining = Math.max(0, seconds - elapsed);
+                if (remaining <= 0) {
+                    setAutoSubmitCountdown(null);
+                    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+                } else {
+                    setAutoSubmitCountdown(Math.round(remaining * 10) / 10);
+                }
+            }, 100);
+        },
+        onAutoSubmitCancel: () => {
+            setAutoSubmitCountdown(null);
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+        }
     });
 
     useEffect(() => {
@@ -296,6 +321,20 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                 <div className={`mt-3 w-full max-h-[5rem] text-base text-gray-600 leading-relaxed px-4 overflow-y-auto rounded-xl ${transcript ? 'opacity-90' : 'opacity-40'} ${language === 'hi' ? 'font-medium' : 'font-light'}`}>
                     {transcript || (language === 'hi' ? 'कनेक्ट करने के लिए नीचे बटन दबाएँ' : 'Tap the button below to connect')}
                 </div>
+
+                {/* Auto-submit countdown indicator */}
+                {autoSubmitCountdown !== null && (
+                    <button
+                        onClick={() => { cancelAutoSubmit(); }}
+                        className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-medium text-amber-700 hover:bg-amber-100 transition-all animate-pulse cursor-pointer"
+                        title={language === 'hi' ? 'रोकने के लिए टैप करें' : 'Tap to cancel'}
+                    >
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="62.83" strokeDashoffset={62.83 * (1 - (autoSubmitCountdown / 2.5))} strokeLinecap="round" className="text-amber-500" />
+                        </svg>
+                        {language === 'hi' ? `${autoSubmitCountdown.toFixed(1)}s में भेज रहा... रद्द करें` : `Sending in ${autoSubmitCountdown.toFixed(1)}s — tap to cancel`}
+                    </button>
+                )}
             </div>
 
             {/* ─── Glowing Animation Zone ─────────────────────────── */}

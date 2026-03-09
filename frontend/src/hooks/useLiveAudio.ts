@@ -9,10 +9,13 @@ interface UseLiveAudioParams {
   setTranscript: (t: string) => void;
   language: 'en' | 'hi';
   audioQueueRef: React.MutableRefObject<string[]>;
+  onAutoSubmitStart?: (seconds: number) => void;
+  onAutoSubmitCancel?: () => void;
 }
 
 export function useLiveAudio({
-  wsReadyState, sendUserText, requestGreeting, status, setStatus, setTranscript, language, audioQueueRef
+  wsReadyState, sendUserText, requestGreeting, status, setStatus, setTranscript, language, audioQueueRef,
+  onAutoSubmitStart, onAutoSubmitCancel
 }: UseLiveAudioParams) {
   const isPlayingRef = useRef<boolean>(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
@@ -20,6 +23,8 @@ export function useLiveAudio({
   const isListeningRef = useRef<boolean>(false);
   const finalTranscriptRef = useRef<string>('');
   const recognitionActiveRef = useRef<boolean>(false);
+  const autoSubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const AUTO_SUBMIT_DELAY = 2500; // ms of silence before auto-submit
 
   useEffect(() => {
     isListeningRef.current = (status === 'listening');
@@ -181,6 +186,35 @@ export function useLiveAudio({
         if (finalTranscript) {
           finalTranscriptRef.current += finalTranscript;
           console.log("[STT] Final transcript:", finalTranscriptRef.current);
+
+          // ─── Auto-submit: start/reset the silence timer ───
+          if (autoSubmitTimerRef.current) {
+            clearTimeout(autoSubmitTimerRef.current);
+          }
+          onAutoSubmitStart?.(AUTO_SUBMIT_DELAY / 1000);
+          autoSubmitTimerRef.current = setTimeout(() => {
+            const text = finalTranscriptRef.current.trim();
+            if (text && recognitionActiveRef.current && !isPlayingRef.current) {
+              console.log("[Auto-Submit] Silence detected, auto-sending:", text);
+              sendCurrentTranscriptAuto();
+            }
+            onAutoSubmitCancel?.();
+          }, AUTO_SUBMIT_DELAY);
+        }
+
+        // Any new speech (even interim) resets the timer
+        if (interimTranscript && autoSubmitTimerRef.current) {
+          clearTimeout(autoSubmitTimerRef.current);
+          onAutoSubmitCancel?.();
+          // Restart timer from now
+          autoSubmitTimerRef.current = setTimeout(() => {
+            const text = finalTranscriptRef.current.trim();
+            if (text && recognitionActiveRef.current && !isPlayingRef.current) {
+              console.log("[Auto-Submit] Silence after interim, auto-sending:", text);
+              sendCurrentTranscriptAuto();
+            }
+            onAutoSubmitCancel?.();
+          }, AUTO_SUBMIT_DELAY);
         }
 
         // Show live transcript to user
@@ -245,10 +279,36 @@ export function useLiveAudio({
   };
 
   /**
+   * Internal auto-submit — same as sendCurrentTranscript but doesn't need user tap.
+   */
+  const sendCurrentTranscriptAuto = () => {
+    const text = finalTranscriptRef.current.trim();
+    if (text) {
+      console.log("[Live] Auto-sending user text to backend:", text);
+      sendUserText(text);
+      finalTranscriptRef.current = '';
+      setStatus('processing');
+      setTranscript(`You: "${text}"`);
+      pauseRecognition();
+      if (autoSubmitTimerRef.current) {
+        clearTimeout(autoSubmitTimerRef.current);
+        autoSubmitTimerRef.current = null;
+      }
+    }
+  };
+
+  /**
    * Called when user taps the "send" button. Collects accumulated final transcript,
    * sends it as user_text to the backend, and resets the buffer.
    */
   const sendCurrentTranscript = () => {
+    // Clear any auto-submit timer since user is manually sending
+    if (autoSubmitTimerRef.current) {
+      clearTimeout(autoSubmitTimerRef.current);
+      autoSubmitTimerRef.current = null;
+      onAutoSubmitCancel?.();
+    }
+
     const text = finalTranscriptRef.current.trim();
     if (text) {
       console.log("[Live] Sending user text to backend:", text);
@@ -269,6 +329,18 @@ export function useLiveAudio({
     }
   };
 
+  /**
+   * Cancel a pending auto-submit (called from UI cancel button).
+   */
+  const cancelAutoSubmit = () => {
+    if (autoSubmitTimerRef.current) {
+      clearTimeout(autoSubmitTimerRef.current);
+      autoSubmitTimerRef.current = null;
+      onAutoSubmitCancel?.();
+      console.log("[Auto-Submit] Cancelled by user");
+    }
+  };
+
   const interruptAudio = () => {
     if (audioElementRef.current) {
       audioElementRef.current.pause();
@@ -276,7 +348,13 @@ export function useLiveAudio({
     }
     audioQueueRef.current = [];
     isPlayingRef.current = false;
+    // Also cancel any pending auto-submit
+    if (autoSubmitTimerRef.current) {
+      clearTimeout(autoSubmitTimerRef.current);
+      autoSubmitTimerRef.current = null;
+      onAutoSubmitCancel?.();
+    }
   };
 
-  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition };
+  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit };
 }

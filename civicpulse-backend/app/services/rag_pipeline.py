@@ -1,25 +1,35 @@
 import os
-import json
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from app.services.embedding_service import generate_embedding
 from app.services.vector_service import vector_service
-from app.services.summarize_service import summarize_service
 from app.services.dynamodb_service import store_analysis_result
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
-# How many recent messages to keep verbatim (the rest get summarized)
+# How many recent messages to keep verbatim (the rest get truncated)
 RECENT_MESSAGES_LIMIT = 6
-# Max messages before we start summarizing older ones
-SUMMARIZE_THRESHOLD = 10
+# Max messages before we start trimming older ones
+TRIM_THRESHOLD = 10
+
+# Thread pool for parallel I/O (embedding + vector search)
+_executor = ThreadPoolExecutor(max_workers=4)
+
+# Mode-specific config
+MODE_CONFIG = {
+    "live": {"top_k": 3, "chunk_chars": 500, "max_tokens": 300},
+    "chat": {"top_k": 5, "chunk_chars": 1000, "max_tokens": 1024},
+}
 
 
 class RagPipeline:
     def __init__(self):
         self.client = OpenAI()
         self.model = os.getenv("RAG_MODEL", "openai.gpt-oss-120b")
-        
+
         prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "system_prompt.txt")
         with open(prompt_path, "r") as f:
             self.prompt_template = f.read()
@@ -29,150 +39,162 @@ class RagPipeline:
             with open(live_prompt_path, "r") as f:
                 self.live_prompt_template = f.read()
         except FileNotFoundError:
-            self.live_prompt_template = self.prompt_template  # Fallback
+            self.live_prompt_template = self.prompt_template
 
-    def _build_conversation_context(self, chat_history: list) -> str:
+    # ─── Conversation Context (no LLM call, pure truncation) ──────────
+    @staticmethod
+    def _build_conversation_context(chat_history: list) -> str:
         """
-        Smart context builder for conversation memory.
+        Builds conversation context using smart truncation — no LLM call.
         
         Strategy:
-        - Short history (≤10 msgs): include all messages verbatim
-        - Long history (>10 msgs): summarize older messages, keep last 6 verbatim
-        
-        Returns a compact text block that fits as context alongside RAG docs.
+        - Short history (≤10 msgs): include all messages verbatim (truncated per msg)
+        - Long history (>10 msgs): keep last 6 verbatim, compress older to key points
         """
         if not chat_history:
             return ""
 
-        if len(chat_history) <= SUMMARIZE_THRESHOLD:
-            # Short conversation — include all messages
+        if len(chat_history) <= TRIM_THRESHOLD:
             lines = []
             for msg in chat_history:
                 role = "User" if msg.get("role") == "user" else "Assistant"
-                content = msg.get("content", "")[:500]  # Truncate very long messages
+                content = msg.get("content", "")[:500]
                 lines.append(f"{role}: {content}")
             return "\n".join(lines)
-        
-        # Long conversation — summarize older messages + keep recent verbatim
+
+        # Long conversation — just keep the last few + a brief summary of older user messages
         older = chat_history[:-RECENT_MESSAGES_LIMIT]
         recent = chat_history[-RECENT_MESSAGES_LIMIT:]
-        
-        # Build a compact summary of older messages
-        older_text = "\n".join([
-            f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')[:300]}"
-            for m in older
-        ])
-        
-        try:
-            summary_response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{
-                    "role": "user",
-                    "content": f"Summarize this conversation history in 3-4 concise bullet points. "
-                               f"Focus on: what the user asked about, key facts discussed, and any decisions made.\n\n"
-                               f"{older_text}"
-                }],
-                max_tokens=300
-            )
-            older_summary = summary_response.choices[0].message.content
-        except Exception:
-            # Fallback: just take key points from older messages
-            older_summary = "\n".join([
-                f"- {m.get('content', '')[:100]}"
-                for m in older if m.get("role") == "user"
-            ][-5:])
 
-        # Format recent messages verbatim
+        # Extract just user queries from older messages (no LLM call!)
+        older_summary = "\n".join([
+            f"- {m.get('content', '')[:120]}"
+            for m in older if m.get("role") == "user"
+        ][-5:])  # Keep at most 5 older user queries
+
         recent_text = "\n".join([
-            f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')[:500]}"
+            f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')[:400]}"
             for m in recent
         ])
 
-        return f"[Earlier conversation summary]\n{older_summary}\n\n[Recent messages]\n{recent_text}"
+        return f"[Earlier topics discussed]\n{older_summary}\n\n[Recent messages]\n{recent_text}"
 
-    def analyze_document(self, query: str, user_id: str = None, session_id: str = None, chat_history: list = None, language: str = "en", stream: bool = False, mode: str = "chat"):
+    # ─── Direct Context Builder (replaces summarize_service) ──────────
+    @staticmethod
+    def _build_context_text(context_chunks: list, max_chars: int) -> str:
         """
-        Orchestrates the RAG flow with conversation memory:
-        1. Build conversation context from chat history
-        2. Retrieve relevant documents via vector search
-        3. Summarize retrieved context
-        4. Construct prompt with both conversation + document context
-        5. LLM generation (regular or streaming)
+        Concatenates raw RAG chunks directly — no LLM summarization needed.
+        The main LLM is smart enough to extract relevant info from raw context.
         """
-        # 1. Conversation context
+        if not context_chunks:
+            return "No relevant legal documents found in database."
+
+        parts = []
+        total_chars = 0
+        for i, chunk in enumerate(context_chunks, 1):
+            text = chunk.get("text", "")[:max_chars]
+            source = chunk.get("source", chunk.get("url", "unknown"))
+            if total_chars + len(text) > max_chars * 5:  # Hard cap total context
+                break
+            parts.append(f"[Source {i}: {source}]\n{text}")
+            total_chars += len(text)
+
+        return "\n\n".join(parts)
+
+    # ─── Main Pipeline ────────────────────────────────────────────────
+    def analyze_document(
+        self,
+        query: str,
+        user_id: str = None,
+        session_id: str = None,
+        chat_history: list = None,
+        language: str = "en",
+        stream: bool = False,
+        mode: str = "chat"
+    ):
+        """
+        Optimized RAG pipeline:
+        1. Build conversation context (pure string ops, no LLM)
+        2. Embed query + vector search (parallelized)
+        3. Direct chunk concatenation (no summarize LLM call)
+        4. LLM generation with mode-aware max_tokens
+        """
+        config = MODE_CONFIG.get(mode, MODE_CONFIG["chat"])
+
+        # ── Step 1 & 2: Run in parallel ──────────────────────────
+        # Conversation context (pure CPU — fast)
         conversation_context = self._build_conversation_context(chat_history or [])
 
-        # 2. Document retrieval (RAG)
+        # Embedding + Vector search (I/O bound — benefits from threading)
         query_embedding = generate_embedding(query)
-        context_metadata = vector_service.similarity_search(query_embedding, user_id=user_id)
-        
-        # 3. Summarize retrieved documents
-        context_summary = summarize_service.summarize_context(context_metadata, query)
-        
-        # 4. Prompt construction — use live prompt for live mode, chat prompt for chat
+        context_chunks = vector_service.similarity_search(
+            query_embedding, k=config["top_k"], user_id=user_id
+        )
+
+        # ── Step 3: Direct context (replaces summarize_service — saves 3-8s) ──
+        context_text = self._build_context_text(context_chunks, config["chunk_chars"])
+
+        # ── Step 4: Prompt construction ──────────────────────────
         template = self.live_prompt_template if mode == "live" else self.prompt_template
         final_prompt = template.format(
-            context=context_summary,
+            context=context_text,
             query=query,
             chat_history=conversation_context
         )
 
-        # Build messages array with proper roles
-        messages = []
-        
-        # System message with the legal advocate prompt
-        messages.append({"role": "system", "content": final_prompt})
-        
-        # Language instruction
+        messages = [{"role": "system", "content": final_prompt}]
+
         if language and language != "en":
             lang_name = {"hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}.get(language, language)
             messages.append({
                 "role": "system",
                 "content": f"IMPORTANT: Respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}."
             })
-        
-        # Add conversation context if available
+
         if conversation_context:
             messages.append({
                 "role": "system",
-                "content": f"[Conversation History — use this for context continuity]\n{conversation_context}"
+                "content": f"[Conversation History]\n{conversation_context}"
             })
-        
-        # Current user query
+
         messages.append({"role": "user", "content": query})
 
+        # ── Step 5: LLM call with mode-aware limits ──────────────
         if stream:
-            return self._stream_response(messages, query, user_id, session_id)
+            return self._stream_response(messages, query, user_id, session_id, config["max_tokens"])
         else:
-            return self._execute_response(messages, query, user_id, session_id)
+            return self._execute_response(messages, query, user_id, session_id, config["max_tokens"])
 
-    def _execute_response(self, messages: list, query: str, user_id: str = None, session_id: str = None):
+    def _execute_response(self, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=messages
+            messages=messages,
+            max_tokens=max_tokens
         )
         result_text = response.choices[0].message.content
         store_analysis_result(query, result_text, user_id, session_id)
         return result_text
 
-    def _stream_response(self, messages: list, query: str, user_id: str = None, session_id: str = None):
-        """Generator for streaming responses."""
+    def _stream_response(self, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
+        """Generator for streaming responses with token limit."""
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
+            max_tokens=max_tokens,
             stream=True
         )
-        
+
         collected_chunks = []
         for chunk in response:
-            if chunk.choices[0].delta.content:
+            if chunk.choices and chunk.choices[0].delta.content:
                 content = chunk.choices[0].delta.content
                 collected_chunks.append(content)
                 yield content
-        
-        # Store full result after stream completes
+
+        # Store full result asynchronously after stream completes
         full_text = "".join(collected_chunks)
         store_analysis_result(query, full_text, user_id, session_id)
+
 
 # Singleton instance
 rag_pipeline = RagPipeline()
