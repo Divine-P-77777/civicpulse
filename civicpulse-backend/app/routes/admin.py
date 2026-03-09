@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPExcep
 from app.services.s3_service import upload_to_s3, list_files, get_presigned_url, delete_file, S3_BUCKET
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import (
-    list_results, get_result, update_result, delete_result
+    list_results, get_result, update_result, delete_result, get_weekly_usage_stats
 )
 from app.ingestion.pdf_ingest import ingest_pdf_from_s3
 from app.core.auth import get_admin_user
@@ -194,6 +194,11 @@ async def list_dynamodb(
 ):
     """List all DynamoDB analysis results (paginated)."""
     return list_results(limit=limit)
+
+@router.get("/dynamodb/stats")
+async def dynamodb_stats(admin: dict = Depends(get_admin_user)):
+    """Get weekly usage statistics for the admin dashboard."""
+    return get_weekly_usage_stats()
 
 @router.get("/dynamodb/{doc_id}")
 async def get_dynamodb(

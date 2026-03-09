@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 
 export function BrandLoader() {
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-br from-purple-300 via-white to-cyan-200">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-50">
       {/* Centered Logo */}
       <motion.div 
         className="mb-6 flex items-center justify-center"
