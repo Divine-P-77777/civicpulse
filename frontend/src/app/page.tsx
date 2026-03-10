@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { SignInButton, SignUpButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { NativeTypewriter } from '@/components/NativeTypewriter';
 import ShinyText from '@/components/ui/shiny-text';
+import { NativeButton } from '@/components/ui/native-button';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -61,7 +62,8 @@ export default function Home() {
               </p>
               
               <div className="mt-8 flex flex-col sm:flex-row flex-wrap gap-4 sm:justify-center lg:justify-start">
-                <Link
+                <NativeButton
+                  glow
                   href="/live"
                   onClick={() => handleModeSelect('live')}
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all hover:shadow-md"
@@ -70,8 +72,9 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a5 5 0 1110 0v6a3 3 0 01-3 3z" />
                   </svg>
                   Live Mode
-                </Link>
-                <Link
+                </NativeButton>
+                <NativeButton
+                  glow
                   href="/chat"
                   onClick={() => handleModeSelect('chat')}
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-indigo-200 text-base font-semibold rounded-lg text-indigo-700 bg-white hover:bg-indigo-50 shadow-sm transition-all"
@@ -80,8 +83,9 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Chat Mode
-                </Link>
-                <Link
+                </NativeButton>
+                <NativeButton
+                  glow
                   href="/draftcreation"
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-slate-200 text-base font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-all"
                 >
@@ -89,7 +93,7 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                   Make Draft
-                </Link>
+                </NativeButton>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm text-slate-500 font-medium font-sans">
                 <div className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Instant Analysis</div>
