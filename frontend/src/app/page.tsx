@@ -9,6 +9,7 @@ import { SignInButton, SignUpButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { NativeTypewriter } from '@/components/NativeTypewriter';
 import ShinyText from '@/components/ui/shiny-text';
 import { NativeButton } from '@/components/ui/native-button';
+import StarBorder from '@/components/StarBorder';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -142,13 +143,17 @@ export default function Home() {
                 <li className="flex gap-3"><CheckCircle2 className="text-indigo-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Visual document scanning</span></li>
                 <li className="flex gap-3"><CheckCircle2 className="text-indigo-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Real-time Q&A</span></li>
               </ul>
-              <Link
+              <StarBorder
+                as={Link}
                 href="/live"
                 onClick={() => handleModeSelect('live')}
-                className="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all"
+                color="magenta"
+                speed="5s"
+                className="w-full block rounded-xl shadow-md transition-all hover:scale-[1.02]"
+                innerClassName="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
               >
                 Try Live Mode
-              </Link>
+              </StarBorder>
             </div>
 
             {/* Chat Mode Card */}
@@ -172,13 +177,17 @@ export default function Home() {
                 <li className="flex gap-3"><CheckCircle2 className="text-emerald-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Interactive text highlights</span></li>
                 <li className="flex gap-3"><CheckCircle2 className="text-emerald-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Downloadable reports</span></li>
               </ul>
-              <Link
+              <StarBorder
+                as={Link}
                 href="/chat"
                 onClick={() => handleModeSelect('chat')}
-                className="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 shadow-md transition-all"
+                color="magenta"
+                speed="5s"
+                className="w-full block rounded-xl shadow-md transition-all hover:scale-[1.02]"
+                innerClassName="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
               >
                 Start Document Analysis
-              </Link>
+              </StarBorder>
             </div>
           </div>
         </div>
