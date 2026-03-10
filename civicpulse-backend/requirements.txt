@@ -1,21 +1,32 @@
-fastapi
-uvicorn
-boto3
-langchain
-opensearch-py
-pydantic
-python-multipart
-tiktoken
-unstructured
-requests
-beautifulsoup4
-langchain-text-splitters
-python-jose[cryptography]
-python-dotenv
-openai
-elevenlabs
-google-genai
-edge-tts
-pytesseract
-pdfplumber
-pdf2image
+# --- Core Framework ---
+fastapi==0.135.1
+uvicorn==0.40.0
+websockets==15.0.1
+pydantic[email]==2.12.0
+python-dotenv==1.0.1
+python-multipart==0.0.20
+anyio==4.11.0
+
+# --- Database & Search ---
+boto3==1.37.9
+opensearch-py==2.8.0
+
+# --- AI & Voice Services ---
+openai==2.14.0
+elevenlabs==2.28.0
+edge-tts==7.2.7
+sarvamai==0.0.5
+
+# --- Content Ingestion & OCR ---
+beautifulsoup4==4.13.5
+pdf2image==1.17.0
+pdfplumber==0.11.5
+pytesseract==0.3.13
+langchain-text-splitters==1.1.1
+
+# --- Utilities & Networking ---
+requests==2.32.5
+python-jose[cryptography]==3.4.0
+python-socketio==5.12.1
+sse-starlette==3.2.0
+curl-cffi==0.14.0

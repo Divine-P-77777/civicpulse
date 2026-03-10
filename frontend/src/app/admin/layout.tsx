@@ -1,5 +1,12 @@
 import React from 'react';
 
+export const metadata = {
+    title: 'CivicPulse Admin',
+    description: 'Admin interface for CivicPulse',
+};
+
+
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#111827', color: 'white' }}>

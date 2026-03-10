@@ -150,21 +150,69 @@ export function useChat({ apiBase, authFetch, getToken, isSignedIn, language }: 
         setStreamingText('');
 
         try {
+            const startTime = performance.now();
+            let ttft: number | null = null;
+            let firstTokenReceived = false;
+
             const token = await getToken();
-            const response = await fetch(`${apiBase}/api/chat/message`, {
+            const response = await fetch(`${apiBase}/api/chat/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ session_id: sessionId, message: userMessage, language }),
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            const data = await response.json();
-            setMessages(prev => [...prev, { role: 'assistant', content: data.bot_response.content, timestamp: data.bot_response.timestamp }]);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (!response.body) throw new Error("No response body");
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.done) break;
+                            if (data.content) {
+                                if (!firstTokenReceived) {
+                                    ttft = performance.now() - startTime;
+                                    firstTokenReceived = true;
+                                }
+                                fullContent += data.content;
+                                setStreamingText(fullContent);
+                            }
+                        } catch (e) {
+                            console.warn("Error parsing stream chunk", e);
+                        }
+                    }
+                }
+            }
+
+            const totalLatency = performance.now() - startTime;
+            
+            // Log Benchmark
+            console.log(
+                `%c ⚡ CivicPulse AI Benchmark [Chat Mode] %c TTFT: ${ttft ? (ttft / 1000).toFixed(2) : 'N/A'}s | Total: ${(totalLatency / 1000).toFixed(2)}s `,
+                'background: #4f46e5; color: #fff; font-weight: bold; padding: 2px 4px; border-radius: 3px 0 0 3px;',
+                'background: #1e293b; color: #fff; padding: 2px 4px; border-radius: 0 3px 3px 0;'
+            );
+
+            setMessages(prev => [...prev, { role: 'assistant', content: fullContent, timestamp: new Date().toISOString() }]);
+            setStreamingText('');
             await loadSessions();
-        } catch {
+        } catch (err) {
+            console.error("Chat error:", err);
             setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.', timestamp: new Date().toISOString() }]);
         } finally {
             setIsStreaming(false);
+            setStreamingText('');
         }
     };
 

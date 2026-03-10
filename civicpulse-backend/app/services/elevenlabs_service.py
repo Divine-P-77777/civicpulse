@@ -1,89 +1,123 @@
 import os
+import re
 import asyncio
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
-# Circuit breaker to prevent repeated failed calls to ElevenLabs if limit/voice is broken
+# Circuit breaker — if ElevenLabs fails, switch to Edge TTS permanently
 _elevenlabs_unhealthy = False
+
+# Split only on SENTENCE boundaries for natural-sounding TTS
+# (not commas/semicolons which create choppy 3-word fragments)
+_SENTENCE_SPLIT = re.compile(r'(?<=[.!?\n])\s+')
+
+# Minimum chars before flushing to TTS — ensures proper intonation
+_MIN_PHRASE_LENGTH = 80
+
 
 class TTSService:
     def __init__(self):
         self.api_key = os.getenv("ELEVENLABS_API_KEY")
-        
+
         try:
             from elevenlabs.client import ElevenLabs
             self.client = ElevenLabs(api_key=self.api_key) if self.api_key else None
         except ImportError:
             self.client = None
 
-        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL") # Default "Sarah"
-    
+        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+
     async def generate_edge_tts(self, text: str):
+        """Fallback TTS using Microsoft Edge TTS (free, fast)."""
         import edge_tts
-        # Fallback to English Ava
         edge_voice = "en-US-AvaNeural"
-        
         communicate = edge_tts.Communicate(text, edge_voice)
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 yield chunk["data"]
 
-    async def generate_speech_stream(self, text_iterator):
+    async def _elevenlabs_stream(self, text: str):
+        """
+        Stream audio from ElevenLabs — yields chunks as they arrive
+        instead of buffering the entire response.
+        """
         global _elevenlabs_unhealthy
-        import re
-        buffer = ""
-        # Simple sentence split heuristic
-        sentence_endings = re.compile(r'(?<=[.!?])\s+')
 
-        async def process_sentence(sentence):
-            global _elevenlabs_unhealthy
-            if not sentence: return
+        def _call():
+            return self.client.text_to_speech.convert(
+                text=text,
+                voice_id=self.voice_id,
+                model_id="eleven_multilingual_v2",
+                output_format="mp3_44100_128",
+                optimize_streaming_latency=3,
+            )
+
+        try:
+            generator = await asyncio.to_thread(_call)
             
-            if self.client and not _elevenlabs_unhealthy:
-                try:
-                    # Run ElevenLabs blocking call in a background thread to prevent blocking WebSocket
-                    def _call_elevenlabs():
-                        print(f"[ElevenLabs Debug] Calling text_to_speech.convert for: {sentence}")
-                        generator = self.client.text_to_speech.convert(
-                            text=sentence,
-                            voice_id=self.voice_id,
-                            model_id="eleven_multilingual_v2",
-                            output_format="mp3_44100_128",
-                            optimize_streaming_latency=2
-                        )
-                        return b"".join(list(generator)) # consume fully in thread
-                        
-                    audio_data = await asyncio.to_thread(_call_elevenlabs)
-                    if audio_data:
-                        yield audio_data
-                    return # Success, no fallback needed
-                except Exception as e:
-                    print(f"ElevenLabs TTS Warning: {e}")
-                    print("Marking ElevenLabs as unhealthy. Switching to Edge TTS fallback permanently.")
-                    _elevenlabs_unhealthy = True
+            # Buffer the entire audio response for this phrase
+            # Browser <audio> elements cannot play arbitrary byte-slices of an MP3 stream.
+            full_audio = b""
+            for audio_chunk in generator:
+                if audio_chunk:
+                    full_audio += audio_chunk
                     
-            # Fallback to Edge TTS
-            edge_audio = b""
-            async for chunk in self.generate_edge_tts(sentence):
-                edge_audio += chunk
-            if edge_audio:
-                yield edge_audio
+            if full_audio:
+                yield full_audio
 
-        for chunk in text_iterator:
-            buffer += chunk
-            if sentence_endings.search(buffer) or "\n" in buffer:
-                sentence = buffer.strip()
-                if sentence:
-                    async for audio_chunk in process_sentence(sentence):
+        except Exception as e:
+            logger.warning(f"ElevenLabs TTS failed: {e}. Switching to Edge TTS.")
+            _elevenlabs_unhealthy = True
+            # Fallback to Edge TTS for this phrase
+            async for chunk in self.generate_edge_tts(text):
+                yield chunk
+
+    async def generate_speech_stream(self, text_iterator):
+        """
+        Converts an LLM text stream into an audio stream.
+        
+        Buffers text into COMPLETE SENTENCES before sending to TTS.
+        This produces natural-sounding speech with proper intonation,
+        unlike splitting on every comma which creates choppy fragments.
+        """
+        global _elevenlabs_unhealthy
+        buffer = ""
+
+        async def process_phrase(phrase: str):
+            """Send a phrase to TTS and yield audio chunks."""
+            if not phrase.strip():
+                return
+
+            if self.client and not _elevenlabs_unhealthy:
+                async for audio_chunk in self._elevenlabs_stream(phrase):
+                    yield audio_chunk
+            else:
+                # Edge TTS fallback
+                edge_audio = b""
+                async for chunk in self.generate_edge_tts(phrase):
+                    edge_audio += chunk
+                if edge_audio:
+                    yield edge_audio
+
+        for text_chunk in text_iterator:
+            buffer += text_chunk
+
+            # Only flush when we have a complete sentence AND enough text
+            if _SENTENCE_SPLIT.search(buffer) and len(buffer) >= _MIN_PHRASE_LENGTH:
+                phrase = buffer.strip()
+                if phrase:
+                    async for audio_chunk in process_phrase(phrase):
                         yield audio_chunk
                 buffer = ""
-                
-        # Flush whatever remains
-        sentence = buffer.strip()
-        if sentence:
-            async for audio_chunk in process_sentence(sentence):
+
+        # Flush remaining buffer
+        if buffer.strip():
+            async for audio_chunk in process_phrase(buffer.strip()):
                 yield audio_chunk
+
 
 # Singleton instance
 elevenlabs_service = TTSService()

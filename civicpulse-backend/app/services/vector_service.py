@@ -1,8 +1,10 @@
 import os
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 class VectorService:
     def __init__(self):
@@ -117,6 +119,36 @@ class VectorService:
         except Exception as e:
             return {"deleted": False, "error": str(e)}
 
+    def delete_document_by_source(self, source: str):
+        """Delete all documents (chunks) that match a specific source/filename.
+        
+        The ingestion pipeline stores source as 's3://bucket/key', but the 
+        admin panel passes just the raw S3 key. We search for both formats.
+        """
+        try:
+            query = {
+                "query": {
+                    "bool": {
+                        "should": [
+                            # Exact match on raw key (e.g. "uploads/file.pdf")
+                            {"term": {"metadata.source.keyword": source}},
+                            {"term": {"metadata.url.keyword": source}},
+                            # Wildcard match for s3:// prefixed source (e.g. "s3://bucket/uploads/file.pdf")
+                            {"wildcard": {"metadata.source.keyword": f"*/{source}"}},
+                            {"wildcard": {"metadata.url.keyword": f"*/{source}"}},
+                        ],
+                        "minimum_should_match": 1
+                    }
+                }
+            }
+            result = self.client.delete_by_query(index=self.index_name, body=query)
+            deleted_count = result.get("deleted", 0)
+            logger.info(f"Cascading delete for '{source}': {deleted_count} vectors removed")
+            return {"deleted": True, "count": deleted_count}
+        except Exception as e:
+            logger.error(f"Failed to delete vectors for source '{source}': {e}")
+            return {"deleted": False, "error": str(e)}
+
     def delete_all_documents(self):
         """Purge all documents from the index."""
         result = self.client.delete_by_query(
@@ -127,19 +159,48 @@ class VectorService:
 
     # --- STATS ---
     def get_index_stats(self):
-        """Get index health and document count."""
+        """Get index health, document count, and type distribution."""
         try:
             stats = self.client.indices.stats(index=self.index_name)
             health = self.client.cluster.health(index=self.index_name)
             index_stats = stats["indices"].get(self.index_name, {})
+            
+            # Get type distribution
+            distribution = self.get_document_type_distribution()
+            
             return {
                 "status": health.get("status", "unknown"),
                 "doc_count": index_stats.get("primaries", {}).get("docs", {}).get("count", 0),
                 "store_size": index_stats.get("primaries", {}).get("store", {}).get("size_in_bytes", 0),
-                "health": health.get("status", "unknown")
+                "health": health.get("status", "unknown"),
+                "type_distribution": distribution
             }
         except Exception as e:
             return {"status": "error", "error": str(e)}
+
+    def get_document_type_distribution(self):
+        """Aggregate documents by their metadata.type field."""
+        try:
+            query = {
+                "size": 0,
+                "aggs": {
+                    "types": {
+                        "terms": {
+                            "field": "metadata.type.keyword",
+                            "size": 10
+                        }
+                    }
+                }
+            }
+            response = self.client.search(index=self.index_name, body=query)
+            buckets = response.get("aggregations", {}).get("types", {}).get("buckets", [])
+            
+            # Map into recharts expected format {name: 'type', value: count}
+            # Fallback to 'unknown' if type is empty/missing
+            return [{"name": b["key"] if b["key"] else "unknown", "value": b["doc_count"]} for b in buckets]
+        except Exception as e:
+            print(f"Error getting document type distribution: {e}")
+            return []
 
 # Singleton instance
 vector_service = VectorService()

@@ -44,15 +44,11 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 GREETING_TEXT = (
-    "Hello! I'm CivicPulse, your AI legal rights assistant. "
-    "How can I help you today? You can ask me anything about your legal rights, "
-    "government schemes, or civic issues."
+    "Hi! I'm CivicPulse. How can I help you today?"
 )
 
 GREETING_TEXT_HI = (
-    "नमस्ते! मैं CivicPulse हूँ, आपकी AI कानूनी अधिकार सहायक। "
-    "आज मैं आपकी कैसे मदद कर सकती हूँ? आप मुझसे अपने कानूनी अधिकारों, "
-    "सरकारी योजनाओं या नागरिक मुद्दों के बारे में कुछ भी पूछ सकते हैं।"
+    "नमस्ते! मैं CivicPulse हूँ। आज कैसे मदद कर सकती हूँ?"
 )
 
 
@@ -129,46 +125,45 @@ async def process_voice_turn(
     transcript_text: str,
     language: str
 ):
-    """Process a complete voice turn: RAG → TTS → stream back (bypassing STT)."""
+    """Process a complete voice turn: RAG → TTS → stream back."""
     try:
         transcript_text = transcript_text.strip()
         logger.info(f"Session {session_id}: Transcript received: '{transcript_text}'")
 
         if not transcript_text:
-            return  # Silence or blank
+            return
 
-        # 1. Process with RAG Pipeline (Streaming)
-        logger.info(f"Session {session_id}: Running RAG pipeline (streaming to TTS)...")
-        # Enforce highly conversational, brief answers for Live Mode to save tokens/TTS cost
-        prompt_injection = transcript_text + "\n\n(Keep your answer extremely concise, friendly, and conversational—max 2-3 sentences. No markdown formatting.)"
+        # 1. Run RAG Pipeline (streaming)
+        logger.info(f"Session {session_id}: Running RAG pipeline...")
         
         llm_stream = rag_pipeline.analyze_document(
-            query=prompt_injection,
+            query=transcript_text,
             user_id="live_user",
             session_id=session_id,
             language=language,
-            stream=True
+            stream=True,
+            mode="live"
         )
 
-        # Buffer to capture the full transcript for the UI while streaming to TTS
+        # Collect full response while streaming to TTS
         full_response_chunks = []
         
         def text_iterator():
+            """Yields text chunks from LLM stream, collecting them for the final transcript."""
             for chunk in llm_stream:
                 full_response_chunks.append(chunk)
                 yield chunk
 
-        # 2. Generate Speech with TTS Service using Text Stream
-        logger.info(f"Session {session_id}: Generating TTS streaming for language '{language}'")
+        # 2. Generate TTS audio from the text stream
+        logger.info(f"Session {session_id}: Generating TTS for language '{language}'")
         
-        # Route to Sarvam for Hindi, ElevenLabs for everything else
         if language == "hi":
             from app.services.sarvamai_service import sarvam_service
             audio_generator = sarvam_service.generate_speech_stream(text_iterator())
         else:
             audio_generator = elevenlabs_service.generate_speech_stream(text_iterator())
 
-        # 3. Stream TTS audio chunks back to the client instantly
+        # 3. Stream TTS audio chunks back to the client
         async for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
             if session_id not in manager.active_connections:
@@ -178,9 +173,9 @@ async def process_voice_turn(
                 "data": chunk_b64
             })
 
-        # 4. Send final AI transcript (after streaming ends)
+        # 4. Send the AI transcript ONCE after all audio is streamed
         final_text = "".join(full_response_chunks)
-        logger.info(f"Session {session_id}: RAG response length: {len(final_text)}")
+        logger.info(f"Session {session_id}: RAG response ({len(final_text)} chars)")
         await manager.send_json(session_id, {
             "type": "ai_transcript",
             "text": final_text
@@ -188,7 +183,7 @@ async def process_voice_turn(
 
     except Exception as e:
         logger.error(f"Session {session_id}: Voice turn error: {e}")
-        traceback.print_exc() # Print full stack trace to terminal
+        traceback.print_exc()
         await manager.send_json(session_id, {
             "type": "error",
             "message": f"Processing error: {str(e)}"
@@ -206,7 +201,10 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
     token = websocket.query_params.get("token")
     if not token:
         logger.warning(f"Session {session_id}: Rejected connection missing token.")
-        await websocket.close(code=1008, reason="Missing authentication token")
+        try:
+            await websocket.close(code=1008, reason="Missing authentication token")
+        except Exception:
+            pass
         return
         
     try:
@@ -216,7 +214,10 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
         logger.info(f"Session {session_id}: Authenticated user {user_id}")
     except Exception as e:
         logger.warning(f"Session {session_id}: Rejected connection with invalid token: {e}")
-        await websocket.close(code=1008, reason="Invalid authentication token")
+        try:
+            await websocket.close(code=1008, reason="Invalid authentication token")
+        except Exception:
+            pass
         return
 
     # 2. Accept connection
@@ -224,15 +225,18 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
     language = "en"
 
     try:
-        # Greeting will be requested explicitly by client via 'request_greeting'
-
         # Main message loop
         while True:
             try:
                 data = await websocket.receive_text()
             except WebSocketDisconnect:
                 logger.info(f"Session {session_id}: Client disconnected normally.")
-                manager.disconnect(session_id)
+                break
+            except RuntimeError as e:
+                logger.warning(f"Session {session_id}: WebSocket runtime error: {e}")
+                break
+            except Exception as e:
+                logger.warning(f"Session {session_id}: Unexpected receive error: {e}")
                 break
 
             try:
@@ -259,19 +263,27 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
                 if text:
                     await process_voice_turn(session_id, text, language)
 
+            elif msg_type == "ingestion_complete":
+                # Auto-respond about an uploaded document
+                doc_name = message.get("filename", "document")
+                auto_query = f"A document called '{doc_name}' was just uploaded. Please briefly tell me what this document is about and if there are any concerns I should know about."
+                await process_voice_turn(session_id, auto_query, language)
+
             elif msg_type == "interrupt":
                 logger.info(f"Session {session_id}: Interrupted by user.")
 
     except WebSocketDisconnect:
         logger.info(f"Session {session_id}: WebSocket disconnected (outer).")
-        manager.disconnect(session_id)
     except Exception as e:
         logger.error(f"Session {session_id}: Unexpected error: {e}")
         traceback.print_exc()
-        await manager.send_json(session_id, {
-            "type": "error",
-            "message": "An unexpected server error occurred."
-        })
-        manager.disconnect(session_id)
+        try:
+            await manager.send_json(session_id, {
+                "type": "error",
+                "message": "An unexpected server error occurred."
+            })
+        except Exception:
+            pass
     finally:
         manager.disconnect(session_id)
+        logger.info(f"Session {session_id}: Cleaned up.")

@@ -28,7 +28,22 @@ export function useLiveWebSocket({
   const maxReconnectAttempts = 3;
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+
+
+  const lastRequestTimeRef = useRef<number | null>(null);
+  const ttftMeasuredRef = useRef<boolean>(false);
+
   const connectWebSocket = async () => {
+    // Clean up any existing connection first
+    if (wsRef.current) {
+      try {
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close(1000, 'Reconnecting');
+        }
+      } catch (e) { /* ignore */ }
+      wsRef.current = null;
+    }
+
     try {
       const token = await getToken();
       if (!token) {
@@ -47,6 +62,9 @@ export function useLiveWebSocket({
       setTranscript('Connecting to Live Voice...');
       setStatus('idle');
 
+      // Reset reconnect counter for fresh connections
+      reconnectAttemptsRef.current = 0;
+
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -60,6 +78,18 @@ export function useLiveWebSocket({
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          
+          // Benchmark Tracking
+          if ((message.type === 'audio_stream' || message.type === 'ai_transcript') && lastRequestTimeRef.current && !ttftMeasuredRef.current) {
+            const ttft = performance.now() - lastRequestTimeRef.current;
+            ttftMeasuredRef.current = true;
+            console.log(
+                `%c ⚡ CivicPulse AI Benchmark [Live Mode] %c TTFT: ${(ttft / 1000).toFixed(2)}s `,
+                'background: #059669; color: #fff; font-weight: bold; padding: 2px 4px; border-radius: 3px 0 0 3px;',
+                'background: #1e293b; color: #fff; padding: 2px 4px; border-radius: 0 3px 3px 0;'
+            );
+          }
+
           if (message.type === 'user_transcript') {
             setTranscript(`You: "${message.text}"`);
             setStatus('processing');
@@ -132,5 +162,19 @@ export function useLiveWebSocket({
     }
   }, [language]);
 
-  return { wsRef, status, setStatus, transcript, setTranscript, uploadProgress, setUploadProgress, connectWebSocket, closeWebSocket };
+  // Tracked send for benchmarking
+  const trackedSend = (data: string | object) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const stringified = typeof data === 'string' ? data : JSON.stringify(data);
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+      
+      if (parsed.type === 'user_text' || parsed.type === 'request_greeting' || parsed.type === 'ingestion_complete') {
+        lastRequestTimeRef.current = performance.now();
+        ttftMeasuredRef.current = false;
+      }
+      wsRef.current.send(stringified);
+    }
+  };
+
+  return { wsRef, status, setStatus, transcript, setTranscript, uploadProgress, setUploadProgress, connectWebSocket, closeWebSocket, trackedSend };
 }

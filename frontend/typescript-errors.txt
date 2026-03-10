@@ -1,6 +1,0 @@
-src/app/admin/components/DashboardTab.tsx(2,96): error TS2307: Cannot find module 'recharts' or its corresponding type declarations.
-src/app/admin/components/DashboardTab.tsx(3,63): error TS2307: Cannot find module 'react-simple-maps' or its corresponding type declarations.
-src/app/chat/components/ChatMessage.tsx(4,27): error TS2307: Cannot find module 'react-markdown' or its corresponding type declarations.
-src/app/chat/components/ChatMessage.tsx(5,23): error TS2307: Cannot find module 'remark-gfm' or its corresponding type declarations.
-src/app/chat/components/ChatMessage.tsx(56,47): error TS7031: Binding element 'node' implicitly has an 'any' type.
-src/components/LenisProvider.tsx(4,19): error TS2307: Cannot find module 'lenis' or its corresponding type declarations.

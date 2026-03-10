@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, Form, Depends, Query, Path, HTTPExcep
 from app.services.s3_service import upload_to_s3, list_files, get_presigned_url, delete_file, S3_BUCKET
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import (
-    list_results, get_result, update_result, delete_result
+    list_results, get_result, update_result, delete_result, get_weekly_usage_stats
 )
 from app.ingestion.pdf_ingest import ingest_pdf_from_s3
 from app.core.auth import get_admin_user
@@ -195,6 +195,11 @@ async def list_dynamodb(
     """List all DynamoDB analysis results (paginated)."""
     return list_results(limit=limit)
 
+@router.get("/dynamodb/stats")
+async def dynamodb_stats(admin: dict = Depends(get_admin_user)):
+    """Get weekly usage statistics for the admin dashboard."""
+    return get_weekly_usage_stats()
+
 @router.get("/dynamodb/{doc_id}")
 async def get_dynamodb(
     doc_id: str = Path(...),
@@ -246,7 +251,19 @@ async def download_s3_file(
 @router.delete("/s3/{key:path}")
 async def delete_s3_file(
     key: str = Path(...),
+    delete_vectors: bool = Query(False, description="Also delete associated vectors"),
     admin: dict = Depends(get_admin_user)
 ):
-    """Delete a file from S3."""
-    return delete_file(key)
+    """Delete a file from S3 and optionally its associated vector chunks."""
+    s3_result = delete_file(key)
+    
+    # If S3 deletion actually occurred (or if forced), and cascade is requested
+    vector_result = None
+    if delete_vectors:
+        # Pass the key which matches metadata.source
+        vector_result = vector_service.delete_document_by_source(key)
+        
+    return {
+        **s3_result,
+        "vectors_deleted": vector_result.get("count", 0) if vector_result else 0
+    }

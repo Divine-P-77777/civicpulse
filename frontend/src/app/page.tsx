@@ -30,7 +30,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center">
             {/* Hero Text */}
-            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-5 lg:text-left pt-6 flex flex-col items-center lg:items-start">
+            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left pt-6 flex flex-col items-center lg:items-start">
               <div className="mb-6 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/50 backdrop-blur-sm px-4 py-1.5 shadow-sm">
                 <ShinyText
                   text="✨ Welcome to the future"
@@ -45,9 +45,9 @@ export default function Home() {
                   disabled={false}
                 />
               </div>
-              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl text-balance">
+              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance">
                 Understand Your Legal Rights in{" "}
-                <div className="text-indigo-600 block mt-2">
+                <div className="text-indigo-600 block mt-2 h-[1.2em]">
                   <NativeTypewriter
                     content={[
                       "Simple Language.",
@@ -56,11 +56,11 @@ export default function Home() {
                     ]}
                     loop
                     speed={80}
-                    cursor={false}
+                    cursor={true}
                   />
                 </div>
               </h1>
-              <p className="mt-4 text-lg text-slate-600 sm:mt-5 sm:max-w-xl sm:mx-auto md:mt-6 lg:mx-0 text-balance">
+              <p className="mt-6 text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance">
                 AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
               </p>
               
@@ -106,9 +106,9 @@ export default function Home() {
             </div>
             
             {/* Hero Image */}
-            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-7 lg:flex lg:items-center">
-              <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-2xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500">
-                  <img src="/hero-cartoon.png" alt="CivicPulse Friendly AI Assistant" className="w-full h-auto rounded-xl shadow-inner" />
+            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
+              <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500 border-2">
+                  <img src="/demo.png" alt="CivicPulse Interactive Demo" className="w-full h-auto rounded-xl shadow-inner object-cover" />
               </div>
             </div>
           </div>
@@ -344,12 +344,21 @@ export default function Home() {
         <div className="absolute inset-0 bg-white/10 pattern-grid-lg opacity-20"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           <h2 className="text-3xl font-extrabold text-white mb-6">Speak Your Language</h2>
-          <p className="text-indigo-100 max-w-2xl mx-auto text-lg mb-12">Available in English, Hindi, and several local Indian languages.</p>
+          <p className="text-indigo-100 max-w-2xl mx-auto text-lg mb-12">Available in English and Hindi, with more local Indian languages coming soon.</p>
           
           <div className="flex flex-wrap justify-center gap-4">
-            {['English', 'Hindi', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Kannada'].map((lang) => (
-              <span key={lang} className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full text-white font-semibold transition-colors cursor-default border border-white/30 shadow-sm">
+            {['English', 'Hindi'].map((lang) => (
+              <span key={lang} className="flex items-center gap-2 px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full text-white font-semibold transition-colors cursor-default border border-white/30 shadow-sm">
                 {lang}
+                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+              </span>
+            ))}
+            {['Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Kannada'].map((lang) => (
+              <span key={lang} className="flex items-center gap-2 px-6 py-3 bg-white/5 backdrop-blur-md rounded-full text-white/50 font-medium cursor-default border border-white/10">
+                {lang}
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-white/10 rounded-md text-white/70">
+                  Soon
+                </span>
               </span>
             ))}
           </div>

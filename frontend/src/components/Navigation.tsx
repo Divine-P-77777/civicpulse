@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { toggleSidebar, setCurrentMode } from '@/store/slices/uiSlice';
-import { SignedIn, SignedOut, UserButton, SignInButton, SignUpButton, useUser, useClerk } from '@clerk/nextjs';
+import { SignedIn, SignedOut, UserButton, SignInButton, SignUpButton, SignOutButton, useUser, useClerk } from '@clerk/nextjs';
 import { NativeStartNow } from '@/components/ui/native-start-now';
 import {
   Menu,
@@ -232,26 +232,38 @@ export default function Navigation() {
                 Admin Dashboard
               </Link>
 
-              {/* Install App Button (PWA) */}
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleInstallApp();
-                }}
-                className="w-full flex items-center px-4 py-3 rounded-2xl text-base font-bold text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors mt-2 border border-indigo-100/50"
-              >
-                <Download size={20} className="mr-3" />
-                Install App
-              </button>
+              {/* Install App Button (PWA) - Only show if installable */}
+              {deferredPrompt && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleInstallApp();
+                  }}
+                  className="w-full flex items-center px-4 py-3 rounded-2xl text-base font-bold text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors mt-2 border border-indigo-100/50"
+                >
+                  <Download size={20} className="mr-3" />
+                  Install App
+                </button>
+              )}
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-slate-50">
               <SignedIn>
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-3">
-                    <UserButton afterSignOutUrl="/" />
-                    <div className="text-sm font-bold text-slate-700">Account Profile</div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <UserButton afterSignOutUrl="/" />
+                      <div className="text-sm font-bold text-slate-700 truncate">Account Profile</div>
+                    </div>
                   </div>
+                  <SignOutButton redirectUrl="/">
+                    <button 
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-full flex justify-center items-center px-4 py-3 border border-red-200 rounded-2xl text-base font-bold text-red-600 bg-red-50 hover:bg-red-100 shadow-sm transition-colors"
+                    >
+                      <LogOut size={18} className="mr-2" /> Log Out
+                    </button>
+                  </SignOutButton>
                 </div>
               </SignedIn>
               <SignedOut>
