@@ -11,6 +11,7 @@ import ShinyText from '@/components/ui/shiny-text';
 import { NativeButton } from '@/components/ui/native-button';
 import StarBorder from '@/components/StarBorder';
 import SpotlightCard from '@/components/SpotlightCard';
+import GlareHover from '@/components/GlareHover';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -299,29 +300,41 @@ export default function Home() {
             <p className="mt-4 text-lg text-slate-600">Built to make legal understanding accessible and secure.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl mb-6">
+            <GlareHover 
+              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+              glareColor="#4f46e5" 
+              glareOpacity={0.15}
+            >
+              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
                 <Mic className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">24/7 AI Help</h3>
-              <p className="text-slate-600 leading-relaxed">Access expert-level analysis anytime. Features seamless Voice interaction and powerful OCR document scanning.</p>
-            </div>
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl mb-6">
+              <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">24/7 AI Help</h3>
+              <p className="text-slate-600 leading-relaxed relative z-10">Access expert-level analysis anytime. Features seamless Voice interaction and powerful OCR document scanning.</p>
+            </GlareHover>
+            <GlareHover 
+              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+              glareColor="#f59e0b" 
+              glareOpacity={0.15}
+            >
+              <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Risk Flags</h3>
-              <p className="text-slate-600 leading-relaxed">Instantly spot danger. Our system categorizes clauses into intuitive Red, Yellow, and Green risk levels.</p>
-            </div>
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 flex items-center justify-center rounded-xl mb-6">
+              <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">Risk Flags</h3>
+              <p className="text-slate-600 leading-relaxed relative z-10">Instantly spot danger. Our system categorizes clauses into intuitive Red, Yellow, and Green risk levels.</p>
+            </GlareHover>
+            <GlareHover 
+              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+              glareColor="#10b981" 
+              glareOpacity={0.15}
+            >
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
                 <Lock className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Secure History</h3>
-              <p className="text-slate-600 leading-relaxed">Private by design. Your analysis history and documents are encrypted and kept strictly confidential.</p>
-            </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">Secure History</h3>
+              <p className="text-slate-600 leading-relaxed relative z-10">Private by design. Your analysis history and documents are encrypted and kept strictly confidential.</p>
+            </GlareHover>
           </div>
         </div>
       </section>
