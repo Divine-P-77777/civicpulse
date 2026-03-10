@@ -10,6 +10,7 @@ import { NativeTypewriter } from '@/components/NativeTypewriter';
 import ShinyText from '@/components/ui/shiny-text';
 import { NativeButton } from '@/components/ui/native-button';
 import StarBorder from '@/components/StarBorder';
+import SpotlightCard from '@/components/SpotlightCard';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -123,7 +124,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {/* Live Mode Card */}
-            <div className="bg-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col">
+            <SpotlightCard className="bg-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col" spotlightColor="rgba(99, 102, 241, 0.15)">
               <div className="flex items-center gap-4 mb-6">
                  <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
                     <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -154,10 +155,10 @@ export default function Home() {
               >
                 Try Live Mode
               </StarBorder>
-            </div>
+            </SpotlightCard>
 
             {/* Chat Mode Card */}
-            <div className="bg-white rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col">
+            <SpotlightCard className="bg-white rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col" spotlightColor="rgba(16, 185, 129, 0.15)">
               <div className="flex items-center gap-4 mb-6">
                  <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
                     <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -188,7 +189,7 @@ export default function Home() {
               >
                 Start Document Analysis
               </StarBorder>
-            </div>
+            </SpotlightCard>
           </div>
         </div>
       </section>
