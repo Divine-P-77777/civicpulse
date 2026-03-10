@@ -7,7 +7,7 @@ import { CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic } from 'lucide-react'
 import { useState } from 'react';
 import { SignInButton, SignUpButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { NativeTypewriter } from '@/components/NativeTypewriter';
-
+import ShinyText from '@/components/ui/shiny-text';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -28,6 +28,20 @@ export default function Home() {
             
             {/* Hero Text */}
             <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-5 lg:text-left pt-6">
+              <div className="mb-4">
+                <ShinyText
+                  text="✨ Shiny Text Effect"
+                  speed={2}
+                  delay={0}
+                  color="#b5b5b5"
+                  shineColor="#ffffff"
+                  spread={120}
+                  direction="left"
+                  yoyo
+                  pauseOnHover={false}
+                  disabled={false}
+                />
+              </div>
               <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl text-balance">
                 Understand Your Legal Rights in{" "}
                 <div className="text-indigo-600 block mt-2">
