@@ -5,8 +5,8 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Prevent Python from writing .pyc files and enable unbuffered logging
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Install system dependencies required for some Python packages (e.g., unstructured, grpc)
 RUN apt-get update && apt-get install -y --no-install-recommends \
