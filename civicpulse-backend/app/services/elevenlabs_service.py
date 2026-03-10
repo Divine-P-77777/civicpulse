@@ -10,8 +10,12 @@ logger = logging.getLogger(__name__)
 # Circuit breaker — if ElevenLabs fails, switch to Edge TTS permanently
 _elevenlabs_unhealthy = False
 
-# Split on shorter phrase boundaries for faster first-audio delivery
-_PHRASE_SPLIT = re.compile(r'(?<=[.!?,;:\n])\s+')
+# Split only on SENTENCE boundaries for natural-sounding TTS
+# (not commas/semicolons which create choppy 3-word fragments)
+_SENTENCE_SPLIT = re.compile(r'(?<=[.!?\n])\s+')
+
+# Minimum chars before flushing to TTS — ensures proper intonation
+_MIN_PHRASE_LENGTH = 80
 
 
 class TTSService:
@@ -48,18 +52,21 @@ class TTSService:
                 voice_id=self.voice_id,
                 model_id="eleven_multilingual_v2",
                 output_format="mp3_44100_128",
-                optimize_streaming_latency=3,  # Most aggressive latency optimization
+                optimize_streaming_latency=3,
             )
 
         try:
-            # ElevenLabs returns a generator — run the initial API call in a thread
-            # then consume chunks as they arrive
             generator = await asyncio.to_thread(_call)
-
-            # Yield each chunk from the generator as it arrives
+            
+            # Buffer the entire audio response for this phrase
+            # Browser <audio> elements cannot play arbitrary byte-slices of an MP3 stream.
+            full_audio = b""
             for audio_chunk in generator:
                 if audio_chunk:
-                    yield audio_chunk
+                    full_audio += audio_chunk
+                    
+            if full_audio:
+                yield full_audio
 
         except Exception as e:
             logger.warning(f"ElevenLabs TTS failed: {e}. Switching to Edge TTS.")
@@ -72,9 +79,9 @@ class TTSService:
         """
         Converts an LLM text stream into an audio stream.
         
-        Buffers text until a phrase boundary (.,!?;:\n) then sends each
-        phrase to TTS immediately — much faster first-audio than waiting
-        for full sentences.
+        Buffers text into COMPLETE SENTENCES before sending to TTS.
+        This produces natural-sounding speech with proper intonation,
+        unlike splitting on every comma which creates choppy fragments.
         """
         global _elevenlabs_unhealthy
         buffer = ""
@@ -98,8 +105,8 @@ class TTSService:
         for text_chunk in text_iterator:
             buffer += text_chunk
 
-            # Split on phrase boundaries for faster first-audio
-            if _PHRASE_SPLIT.search(buffer):
+            # Only flush when we have a complete sentence AND enough text
+            if _SENTENCE_SPLIT.search(buffer) and len(buffer) >= _MIN_PHRASE_LENGTH:
                 phrase = buffer.strip()
                 if phrase:
                     async for audio_chunk in process_phrase(phrase):

@@ -1,7 +1,8 @@
 import os
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from openai import OpenAI
+from app.config import bedrock_client
 from app.services.embedding_service import generate_embedding
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import store_analysis_result
@@ -24,11 +25,14 @@ MODE_CONFIG = {
     "chat": {"top_k": 5, "chunk_chars": 1000, "max_tokens": 1024},
 }
 
+# Default model — Claude 3 Haiku via AWS Bedrock
+DEFAULT_MODEL = "anthropic.claude-3-haiku-20240307-v1:0"
+
 
 class RagPipeline:
     def __init__(self):
-        self.client = OpenAI()
-        self.model = os.getenv("RAG_MODEL", "openai.gpt-oss-120b")
+        self.model = os.getenv("RAG_MODEL", DEFAULT_MODEL)
+        logger.info(f"RAG Pipeline initialized with model: {self.model}")
 
         prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "system_prompt.txt")
         with open(prompt_path, "r") as f:
@@ -136,62 +140,77 @@ class RagPipeline:
 
         # ── Step 4: Prompt construction ──────────────────────────
         template = self.live_prompt_template if mode == "live" else self.prompt_template
-        final_prompt = template.format(
+        system_prompt = template.format(
             context=context_text,
             query=query,
             chat_history=conversation_context
         )
 
-        messages = [{"role": "system", "content": final_prompt}]
-
+        # Add language instruction to system prompt if non-English
         if language and language != "en":
             lang_name = {"hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}.get(language, language)
-            messages.append({
-                "role": "system",
-                "content": f"IMPORTANT: Respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}."
-            })
+            system_prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}."
 
         if conversation_context:
-            messages.append({
-                "role": "system",
-                "content": f"[Conversation History]\n{conversation_context}"
-            })
+            system_prompt += f"\n\n[Conversation History]\n{conversation_context}"
 
-        messages.append({"role": "user", "content": query})
+        # Bedrock Converse API uses separate system and messages params
+        messages = [{"role": "user", "content": [{"type": "text", "text": query}]}]
 
         # ── Step 5: LLM call with mode-aware limits ──────────────
         if stream:
-            return self._stream_response(messages, query, user_id, session_id, config["max_tokens"])
+            return self._stream_response(system_prompt, messages, query, user_id, session_id, config["max_tokens"])
         else:
-            return self._execute_response(messages, query, user_id, session_id, config["max_tokens"])
+            return self._execute_response(system_prompt, messages, query, user_id, session_id, config["max_tokens"])
 
-    def _execute_response(self, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens
-        )
-        result_text = response.choices[0].message.content
+    def _execute_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
+        """Non-streaming response via Bedrock invoke_model API."""
+        body = json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens,
+            "temperature": 0.7,
+            "system": system_prompt,
+            "messages": messages
+        })
+        
+        response = bedrock_client.invoke_model(modelId=self.model, body=body)
+        result = json.loads(response['body'].read())
+        result_text = result["content"][0]["text"]
+        
         store_analysis_result(query, result_text, user_id, session_id)
         return result_text
 
-    def _stream_response(self, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
-        """Generator for streaming responses with token limit."""
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=max_tokens,
-            stream=True
-        )
+    def _stream_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
+        """Streaming generator via Bedrock invoke_model_with_response_stream API."""
+        body = json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens,
+            "temperature": 0.7,
+            "system": system_prompt,
+            "messages": messages
+        })
+        
+        response = bedrock_client.invoke_model_with_response_stream(modelId=self.model, body=body)
 
         collected_chunks = []
-        for chunk in response:
-            if chunk.choices and chunk.choices[0].delta.content:
-                content = chunk.choices[0].delta.content
-                collected_chunks.append(content)
-                yield content
+        for event in response["body"]:
+            try:
+                # The event contains a 'chunk' with bytes that represent JSON
+                chunk_str = event.get('chunk', {}).get('bytes', b'').decode('utf-8')
+                if not chunk_str:
+                    continue
+                    
+                chunk_data = json.loads(chunk_str)
+                if chunk_data.get("type") == "content_block_delta":
+                    text = chunk_data.get("delta", {}).get("text", "")
+                    if text:
+                        collected_chunks.append(text)
+                        yield text
+            except Exception as e:
+                logger.error(f"Error parsing bedrock stream chunk: {e}")
+                continue
 
-        # Store full result asynchronously after stream completes
+        # Store full result after stream completes
         full_text = "".join(collected_chunks)
         store_analysis_result(query, full_text, user_id, session_id)
 

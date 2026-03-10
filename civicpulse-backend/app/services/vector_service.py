@@ -1,8 +1,10 @@
 import os
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 class VectorService:
     def __init__(self):
@@ -115,6 +117,36 @@ class VectorService:
             self.client.delete(index=self.index_name, id=doc_id)
             return {"deleted": True}
         except Exception as e:
+            return {"deleted": False, "error": str(e)}
+
+    def delete_document_by_source(self, source: str):
+        """Delete all documents (chunks) that match a specific source/filename.
+        
+        The ingestion pipeline stores source as 's3://bucket/key', but the 
+        admin panel passes just the raw S3 key. We search for both formats.
+        """
+        try:
+            query = {
+                "query": {
+                    "bool": {
+                        "should": [
+                            # Exact match on raw key (e.g. "uploads/file.pdf")
+                            {"term": {"metadata.source.keyword": source}},
+                            {"term": {"metadata.url.keyword": source}},
+                            # Wildcard match for s3:// prefixed source (e.g. "s3://bucket/uploads/file.pdf")
+                            {"wildcard": {"metadata.source.keyword": f"*/{source}"}},
+                            {"wildcard": {"metadata.url.keyword": f"*/{source}"}},
+                        ],
+                        "minimum_should_match": 1
+                    }
+                }
+            }
+            result = self.client.delete_by_query(index=self.index_name, body=query)
+            deleted_count = result.get("deleted", 0)
+            logger.info(f"Cascading delete for '{source}': {deleted_count} vectors removed")
+            return {"deleted": True, "count": deleted_count}
+        except Exception as e:
+            logger.error(f"Failed to delete vectors for source '{source}': {e}")
             return {"deleted": False, "error": str(e)}
 
     def delete_all_documents(self):
