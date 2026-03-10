@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { toggleSidebar, setCurrentMode } from '@/store/slices/uiSlice';
-import { SignedIn, SignedOut, UserButton, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
+import { SignedIn, SignedOut, UserButton, SignInButton, SignUpButton, useUser, useClerk } from '@clerk/nextjs';
+import { NativeStartNow } from '@/components/ui/native-start-now';
 import {
   Menu,
   X,
@@ -24,6 +25,7 @@ export default function Navigation() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { user, isLoaded, isSignedIn } = useUser();
+  const { openSignUp } = useClerk();
   const [isClient, setIsClient] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoClicks, setLogoClicks] = useState(0);
@@ -167,11 +169,14 @@ export default function Navigation() {
                     <User size={18} className="mr-2" /> Log In
                   </button>
                 </SignInButton>
-                <SignUpButton mode="modal">
-                  <button className="text-sm font-bold text-white px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-full shadow-[0_4px_14px_rgba(79,70,229,0.3)] transition-all transform hover:scale-105">
-                    Start Free
-                  </button>
-                </SignUpButton>
+                <NativeStartNow
+                  label="Start Free"
+                  variant="gradient"
+                  onStart={async () => {
+                    await new Promise((resolve) => setTimeout(resolve, 1500));
+                    openSignUp();
+                  }}
+                />
               </div>
             </SignedOut>
           </div>
@@ -256,11 +261,17 @@ export default function Navigation() {
                       <User size={18} className="mr-2" /> Log In
                     </button>
                   </SignInButton>
-                  <SignUpButton mode="modal">
-                    <button className="w-full px-4 py-3 bg-indigo-600 rounded-2xl text-base font-bold text-white shadow-md">
-                      Start Free Now
-                    </button>
-                  </SignUpButton>
+                  <div className="w-full flex justify-center">
+                    <NativeStartNow
+                      label="Start Free Now"
+                      variant="gradient"
+                      onStart={async () => {
+                        await new Promise((resolve) => setTimeout(resolve, 1500));
+                        openSignUp();
+                        setMobileMenuOpen(false);
+                      }}
+                    />
+                  </div>
                 </div>
               </SignedOut>
             </div>
