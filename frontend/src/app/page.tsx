@@ -30,11 +30,11 @@ export default function Home() {
             <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-5 lg:text-left pt-6">
               <div className="mb-4">
                 <ShinyText
-                  text="✨ Shiny Text Effect"
+                  text="✨ Welcome to the future"
                   speed={2}
                   delay={0}
-                  color="#b5b5b5"
-                  shineColor="#ffffff"
+                  color="#000000"
+                  shineColor="#a1a1aa"
                   spread={120}
                   direction="left"
                   yoyo
