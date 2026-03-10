@@ -25,10 +25,9 @@ export default function Home() {
         <div className="absolute top-0 right-0 -mr-40 -mt-20 w-96 h-96 bg-indigo-100 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center">
-            
             {/* Hero Text */}
-            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-5 lg:text-left pt-6">
-              <div className="mb-4">
+            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-5 lg:text-left pt-6 flex flex-col items-center lg:items-start">
+              <div className="mb-6 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/50 backdrop-blur-sm px-4 py-1.5 shadow-sm">
                 <ShinyText
                   text="✨ Welcome to the future"
                   speed={2}
