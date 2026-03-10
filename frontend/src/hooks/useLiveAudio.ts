@@ -110,17 +110,23 @@ export function useLiveAudio({
     const byteCharacters = atob(base64Audio);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
     const byteArray = new Uint8Array(byteNumbers);
+    
+    // Explicitly define proper mime type for MP3 files to prevent NotSupportedError
     const blob = new Blob([byteArray], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(blob);
+    
+    // Reset audio element before loading new source
+    audioElementRef.current.pause();
     audioElementRef.current.src = url;
+    audioElementRef.current.load(); // Force load the new blob
+    
     audioElementRef.current.play().catch(e => {
-      console.error("[Audio] Play error:", e);
-      isPlayingRef.current = false;
-      // Try next chunk after a small delay
-      setTimeout(() => playNextAudioChunk(), 100);
+        console.error("[Audio] Play error:", e);
+        isPlayingRef.current = false;
+        setTimeout(() => playNextAudioChunk(), 100);
     });
   }, [pauseRecognition]);
 

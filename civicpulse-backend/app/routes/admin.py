@@ -251,7 +251,19 @@ async def download_s3_file(
 @router.delete("/s3/{key:path}")
 async def delete_s3_file(
     key: str = Path(...),
+    delete_vectors: bool = Query(False, description="Also delete associated vectors"),
     admin: dict = Depends(get_admin_user)
 ):
-    """Delete a file from S3."""
-    return delete_file(key)
+    """Delete a file from S3 and optionally its associated vector chunks."""
+    s3_result = delete_file(key)
+    
+    # If S3 deletion actually occurred (or if forced), and cascade is requested
+    vector_result = None
+    if delete_vectors:
+        # Pass the key which matches metadata.source
+        vector_result = vector_service.delete_document_by_source(key)
+        
+    return {
+        **s3_result,
+        "vectors_deleted": vector_result.get("count", 0) if vector_result else 0
+    }
