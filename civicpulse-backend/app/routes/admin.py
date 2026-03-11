@@ -339,3 +339,10 @@ async def delete_s3_file(
         **s3_result,
         "vectors_deleted": vector_result.get("count", 0) if vector_result else 0
     }
+@router.get("/jobs")
+async def list_jobs(
+    status: Optional[str] = Query(None),
+    admin: dict = Depends(get_admin_user)
+):
+    """Placeholder for background job tracking (if used by specific frontend versions)."""
+    return {"jobs": [], "count": 0, "status_filter": status}
