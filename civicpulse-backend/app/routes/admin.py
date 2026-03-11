@@ -4,6 +4,7 @@ from app.services.vector_service import vector_service
 from app.services.dynamodb_service import (
     list_results, get_result, update_result, delete_result, get_weekly_usage_stats
 )
+
 from app.services.job_tracker import create_job, update_job, complete_job, fail_job, get_job, list_jobs, cancel_job
 from app.ingestion.pdf_ingest import ingest_pdf_from_s3
 from app.core.auth import get_admin_user
@@ -12,6 +13,7 @@ from typing import Optional
 import json
 import logging
 import asyncio
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -221,6 +223,27 @@ async def cancel_job_endpoint(
 async def vector_stats(admin: dict = Depends(get_admin_user)):
     """Get OpenSearch index health and document count."""
     return vector_service.get_index_stats()
+
+@router.get("/vectors/by-source")
+async def vectors_by_source(
+    source: str = Query(..., description="S3 key to search vectors for"),
+    admin: dict = Depends(get_admin_user)
+):
+    """Find all vector chunks that match a specific S3 source key."""
+    return vector_service.search_by_source(source)
+
+class BatchDeleteRequest(BaseModel):
+    ids: list
+
+@router.post("/vectors/batch-delete")
+async def batch_delete_vectors(
+    body: BatchDeleteRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """Delete multiple vector documents by their IDs."""
+    if not body.ids:
+        raise HTTPException(400, "No IDs provided")
+    return vector_service.delete_documents_batch(body.ids)
 
 @router.get("/vectors")
 async def list_vectors(

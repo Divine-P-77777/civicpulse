@@ -84,6 +84,52 @@ class VectorService:
         response = self.client.search(index=self.index_name, body=search_query)
         return [hit["_source"]["metadata"] for hit in response["hits"]["hits"]]
 
+    def search_by_source(self, source: str, size: int = 200):
+        """Find all vector chunks that match a specific source/filename."""
+        try:
+            query = {
+                "size": size,
+                "query": {
+                    "bool": {
+                        "should": [
+                            {"term": {"metadata.source.keyword": source}},
+                            {"term": {"metadata.url.keyword": source}},
+                            {"wildcard": {"metadata.source.keyword": f"*/{source}"}},
+                            {"wildcard": {"metadata.url.keyword": f"*/{source}"}},
+                        ],
+                        "minimum_should_match": 1
+                    }
+                },
+                "_source": ["metadata"]
+            }
+            response = self.client.search(index=self.index_name, body=query)
+            results = []
+            for hit in response["hits"]["hits"]:
+                meta = hit["_source"].get("metadata", {})
+                results.append({
+                    "id": hit["_id"],
+                    "text": (meta.get("text", ""))[:200],
+                    "chunk_index": meta.get("chunk_index", "—"),
+                    "source": meta.get("source", meta.get("url", "unknown")),
+                    "type": meta.get("type", "unknown"),
+                })
+            return {"total": response["hits"]["total"]["value"], "vectors": results}
+        except Exception as e:
+            logger.error(f"search_by_source failed for '{source}': {e}")
+            return {"total": 0, "vectors": [], "error": str(e)}
+
+    def delete_documents_batch(self, doc_ids: list):
+        """Delete multiple vector documents by their IDs."""
+        deleted = 0
+        errors = []
+        for doc_id in doc_ids:
+            try:
+                self.client.delete(index=self.index_name, id=doc_id)
+                deleted += 1
+            except Exception as e:
+                errors.append({"id": doc_id, "error": str(e)})
+        return {"deleted": deleted, "errors": errors}
+
     def list_documents(self, page: int = 0, size: int = 20):
         """List all indexed documents with pagination."""
         search_query = {
