@@ -17,6 +17,11 @@ export const metadata: Metadata = {
     icon: '/logo_minimal.png',
     apple: '/icons/icon-192.png',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'CivicPulse',
+  },
   openGraph: {
     type: 'website',
     url: 'https://civicpulse.vercel.app/',
@@ -50,6 +55,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apple PWA Meta Tags */}
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="CivicPulse" />
+      </head>
       <body className={`${inter.className} ${notoDevanagari.variable} font-sans`} suppressHydrationWarning>
         <ClerkProvider>
           <Providers>
