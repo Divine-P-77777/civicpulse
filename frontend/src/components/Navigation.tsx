@@ -77,7 +77,8 @@ export default function Navigation() {
         setDeferredPrompt(null);
       }
     } else {
-      alert("App installation is not supported or already installed.");
+      // Provide manual instructions if the automatic prompt isn't available (e.g. iOS Safari)
+      alert("To install this app on your device:\n\nIf you are on an iPhone (Safari): Tap the 'Share' icon at the bottom, then scroll down and tap 'Add to Home Screen'.\n\nIf you are on Android/Chrome: Tap the 3 dots menu at the top right, then tap 'Install app' or 'Add to Home screen'.");
     }
   };
 
@@ -176,8 +177,16 @@ export default function Navigation() {
             </SignedOut>
           </div>
 
-          {/* Mobile menu button */}
-          <div className="flex items-center lg:hidden">
+          {/* Mobile menu button & Install App */}
+          <div className="flex items-center gap-2 lg:hidden">
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className="p-2 rounded-full text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                title="Install App"
+              >
+                <Download className="block h-5 w-5" aria-hidden="true" />
+              </button>
             <button
               type="button"
               className="p-2 rounded-full text-slate-500 hover:text-slate-600 hover:bg-slate-100 transition-colors"
