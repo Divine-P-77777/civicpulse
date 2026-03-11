@@ -11,8 +11,25 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://civicpulse.vercel.app'),
   title: 'CivicPulse - AI Legal Rights Assistant',
   description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
-  keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis', 'Bharat', 'law'],
+  keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis', 'law'],
   manifest: '/manifest.json',
+  icons: {
+    icon: '/logo_minimal.png',
+    apple: '/icons/icon-192.png',
+  },
+  openGraph: {
+    type: 'website',
+    url: 'https://civicpulse.vercel.app/',
+    title: 'CivicPulse - AI Legal Rights Assistant',
+    description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
+    images: ['https://civicpulse.vercel.app/logo_minimal.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CivicPulse - AI Legal Rights Assistant',
+    description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
+    images: ['https://civicpulse.vercel.app/logo_minimal.png'],
+  },
 };
 
 import { Viewport } from 'next';

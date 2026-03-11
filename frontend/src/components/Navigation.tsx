@@ -77,15 +77,23 @@ export default function Navigation() {
   };
 
   const handleInstallApp = async () => {
+    // Detect iOS to show manual instruction fallback (iOS doesn't support beforeinstallprompt)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    if (isIOS) {
+      alert("To install this app on your device:\n\nTap the 'Share' icon at the bottom, then scroll down and tap 'Add to Home Screen'.");
+      return;
+    }
+
     if (deferredPrompt) {
+      // Trigger the native Android/Chrome install prompt
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setDeferredPrompt(null);
       }
     } else {
-      // Provide manual instructions if the automatic prompt isn't available (e.g. iOS Safari)
-      alert("To install this app on your device:\n\nIf you are on an iPhone (Safari): Tap the 'Share' icon at the bottom, then scroll down and tap 'Add to Home Screen'.\n\nIf you are on Android/Chrome: Tap the 3 dots menu at the top right, then tap 'Install app' or 'Add to Home screen'.");
+      alert("To install this app on Android/Chrome:\n\nTap the 3 dots menu at the top right, then tap 'Install app' or 'Add to Home screen'.");
     }
   };
 
