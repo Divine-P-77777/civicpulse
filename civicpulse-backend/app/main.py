@@ -19,9 +19,24 @@ app = FastAPI(
 )
 
 # ─── CORS Middleware ───
+ALLOWED_ORIGINS = [
+    "https://civicpulse-pro.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+class CustomCORSMiddleware(CORSMiddleware):
+    async def __call__(self, scope, receive, send):
+        # Skip CORS headers for socket.io paths - let socketio server handle it internally
+        # to avoid "multiple values" error when both FastAPI and Socket.IO add the header.
+        if scope["type"] in ("http", "websocket") and scope["path"].startswith("/socket.io"):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Allow all origins including specific local network IPs
+    CustomCORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
