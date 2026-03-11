@@ -32,6 +32,13 @@ export default function Navigation() {
   useEffect(() => {
     setIsClient(true);
 
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(() => console.log('Service Worker registered successfully.'))
+        .catch((err) => console.log('Service Worker registration failed: ', err));
+    }
+
     // Listen for PWA install prompt
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
@@ -236,19 +243,17 @@ export default function Navigation() {
                 Admin Dashboard
               </Link>
 
-              {/* Install App Button (PWA) - Only show if installable */}
-              {deferredPrompt && (
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    handleInstallApp();
-                  }}
-                  className="w-full flex items-center px-4 py-3 rounded-2xl text-base font-bold text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors mt-2 border border-indigo-100/50"
-                >
-                  <Download size={20} className="mr-3" />
-                  Install App
-                </button>
-              )}
+              {/* Install App Button (PWA) - Always show on mobile menu to support fallback for iOS */}
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleInstallApp();
+                }}
+                className="w-full flex items-center justify-center px-4 py-3 rounded-2xl text-base font-bold text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors mt-2 border border-indigo-100/50"
+              >
+                <Download size={20} className="mr-3" />
+                Install App
+              </button>
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-slate-50">
