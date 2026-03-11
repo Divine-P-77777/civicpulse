@@ -5,7 +5,7 @@ class SocketManager:
     def __init__(self):
         self.sio = socketio.AsyncServer(
             async_mode='asgi',
-            cors_allowed_origins='*',
+            cors_allowed_origins='*', # Handle CORS internally for socket.io requests
             logger=True,
             engineio_logger=True
         )
