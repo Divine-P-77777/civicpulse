@@ -24,8 +24,20 @@ interface IngestionProgressEvent {
     detail: IngestionDetail;
 }
 
+interface ActiveJob {
+    job_id: string;
+    file_key: string;
+    status: string;
+    stage: string;
+    progress: number;
+    message: string;
+    detail: IngestionDetail;
+    started_at: number;
+    cancelling?: boolean;
+}
+
 const STAGES = ['upload', 'extraction', 'chunking', 'embedding', 'storing', 'done'] as const;
-type Stage = typeof STAGES[number] | 'error' | 'unknown';
+type Stage = typeof STAGES[number] | 'error' | 'unknown' | 'cancelled';
 
 const STAGE_LABELS: Record<string, string> = {
     upload: 'Upload',
@@ -55,7 +67,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
     const [progress, setProgress] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
 
-    // Stage-aware state
+    // Stage-aware state for the CURRENT form upload
     const [currentStage, setCurrentStage] = useState<Stage>('upload');
     const [detail, setDetail] = useState<IngestionDetail>({});
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -63,6 +75,10 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
     const startTimeRef = useRef<number | null>(null);
 
     const socketRef = useRef<Socket | null>(null);
+
+    // ─── Multi-job tracking ───
+    const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         const socket = io(API_BASE);
@@ -85,10 +101,108 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
         return () => { socket.disconnect(); };
     }, [API_BASE]);
 
+    // ─── Reconnect: fetch ALL running jobs on mount ───
+    useEffect(() => {
+        const checkRunningJobs = async () => {
+            try {
+                console.log('[JobReconnect] Checking for running jobs...');
+                const res = await authFetch(`${API_BASE}/api/admin/jobs?status=running`);
+                const jobs = await res.json();
+                console.log('[JobReconnect] Running jobs:', jobs);
+                if (jobs.length > 0) {
+                    const mapped: ActiveJob[] = jobs.map((j: any) => ({
+                        job_id: j.job_id,
+                        file_key: j.file_key || 'unknown',
+                        status: j.status,
+                        stage: j.stage || 'upload',
+                        progress: j.progress || 0,
+                        message: j.message || '',
+                        detail: j.detail || {},
+                        started_at: j.started_at,
+                    }));
+                    setActiveJobs(mapped);
+                    setStatus({ type: 'info', message: `🔄 Reconnected to ${mapped.length} running job(s)` });
+                }
+            } catch (err) {
+                console.warn('[JobReconnect] Could not check for running jobs:', err);
+            }
+        };
+        checkRunningJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ─── Poll ALL active jobs for progress updates ───
+    useEffect(() => {
+        if (activeJobs.length === 0) {
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            return;
+        }
+        pollRef.current = setInterval(async () => {
+            try {
+                const res = await authFetch(`${API_BASE}/api/admin/jobs?status=running`);
+                const jobs = await res.json();
+                // Also fetch recently completed/failed/cancelled to update UI
+                const res2 = await authFetch(`${API_BASE}/api/admin/jobs`);
+                const allJobs = await res2.json();
+
+                setActiveJobs(prev => {
+                    const updated: ActiveJob[] = [];
+                    for (const pj of prev) {
+                        const fresh = allJobs.find((j: any) => j.job_id === pj.job_id);
+                        if (fresh) {
+                            if (fresh.status === 'completed' || fresh.status === 'failed' || fresh.status === 'cancelled') {
+                                // Keep it for 5s so user sees the final state, then remove
+                                updated.push({ ...pj, ...fresh, cancelling: pj.cancelling });
+                            } else {
+                                updated.push({ ...pj, ...fresh, cancelling: pj.cancelling });
+                            }
+                        }
+                        // If job not found at all, drop it
+                    }
+                    // Add any new running jobs not already tracked
+                    for (const j of jobs) {
+                        if (!updated.find(u => u.job_id === j.job_id)) {
+                            updated.push({
+                                job_id: j.job_id,
+                                file_key: j.file_key || 'unknown',
+                                status: j.status,
+                                stage: j.stage || 'upload',
+                                progress: j.progress || 0,
+                                message: j.message || '',
+                                detail: j.detail || {},
+                                started_at: j.started_at,
+                            });
+                        }
+                    }
+                    return updated;
+                });
+            } catch (err) {
+                console.warn('Job poll error:', err);
+            }
+        }, 2000);
+        return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeJobs.length]);
+
+    // ─── Auto-remove completed/cancelled jobs from activeJobs after 5s ───
+    useEffect(() => {
+        const done = activeJobs.filter(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled');
+        if (done.length > 0) {
+            const timer = setTimeout(() => {
+                setActiveJobs(prev => prev.filter(j => j.status === 'running'));
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+        return undefined;
+    }, [activeJobs]);
+
     // Elapsed time tracker
     useEffect(() => {
         if (isUploading && !timerRef.current) {
-            startTimeRef.current = Date.now();
+            // Only set startTimeRef if it hasn't been set already (e.g. by reconnect handler)
+            if (!startTimeRef.current) {
+                startTimeRef.current = Date.now();
+            }
             timerRef.current = setInterval(() => {
                 if (startTimeRef.current) {
                     setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
@@ -142,6 +256,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
         setCurrentStage('upload');
         setDetail({});
         setElapsedSeconds(0);
+        startTimeRef.current = null;
         setStatus({ type: 'info', message: 'Uploading to S3...' });
         setProgress(2);
 
@@ -161,7 +276,26 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
 
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
+            // Add to active jobs list for multi-job tracking
+            if (data.job_id) {
+                const fileName = file?.name || textInput.substring(0, 40) || 'unknown';
+                setActiveJobs(prev => [...prev, {
+                    job_id: data.job_id,
+                    file_key: fileName,
+                    status: 'running',
+                    stage: 'upload',
+                    progress: 2,
+                    message: 'Starting...',
+                    detail: {},
+                    started_at: Date.now() / 1000,
+                }]);
+            }
             setStatus({ type: 'info', message: data.message || "Ingestion started in background..." });
+            // Reset form so user can immediately queue another file
+            setFile(null);
+            setIsUploading(false);
+            setProgress(0);
+            setCurrentStage('upload');
         } catch (err: any) {
             setProgress(0);
             setIsUploading(false);
@@ -170,31 +304,40 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
         }
     };
 
-    // Auto-cleanup on completion or error
+    const handleCancelJob = async (jobId: string) => {
+        if (!window.confirm("Are you sure you want to cancel this ingestion? Any partial data will be cleaned up.")) return;
+        setActiveJobs(prev => prev.map(j => j.job_id === jobId ? { ...j, cancelling: true } : j));
+        try {
+            const res = await authFetch(`${API_BASE}/api/admin/jobs/${jobId}/cancel`, { method: 'POST' });
+            if (!res.ok) throw new Error(await res.text());
+            setActiveJobs(prev => prev.map(j => j.job_id === jobId ? { ...j, status: 'cancelled', cancelling: false, progress: 0, message: 'Cancelled & cleaned up' } : j));
+        } catch (err: any) {
+            setActiveJobs(prev => prev.map(j => j.job_id === jobId ? { ...j, cancelling: false } : j));
+            alert(`Failed to cancel job: ${err.message}`);
+        }
+    };
+
+    const getJobStageStatus = (jobStage: string, checkStage: string): 'completed' | 'active' | 'pending' => {
+        if (jobStage === 'done') return 'completed';
+        const currentIdx = STAGES.indexOf(jobStage as any);
+        const stageIdx = STAGES.indexOf(checkStage as any);
+        if (stageIdx < currentIdx) return 'completed';
+        if (stageIdx === currentIdx) return 'active';
+        return 'pending';
+    };
+
+    // Auto-cleanup on completion or error (for form-level upload state only)
     useEffect(() => {
         if (progress >= 100 && isUploading) {
             setFile(null);
             setTextInput('');
             setIsUploading(false);
             setCurrentStage('done');
+            startTimeRef.current = null;
             setTimeout(() => { setProgress(0); setCurrentStage('upload'); setDetail({}); }, 8000);
         }
     }, [progress, isUploading]);
 
-    // ─── Determine completed stages ───
-    const getStageStatus = (stage: string): 'completed' | 'active' | 'pending' => {
-        if (currentStage === 'done') return 'completed';
-        if (currentStage === 'error') {
-            const idx = STAGES.indexOf(stage as any);
-            const errorIdx = STAGES.indexOf(currentStage as any);
-            return idx < errorIdx ? 'completed' : stage === currentStage ? 'active' : 'pending';
-        }
-        const currentIdx = STAGES.indexOf(currentStage as any);
-        const stageIdx = STAGES.indexOf(stage as any);
-        if (stageIdx < currentIdx) return 'completed';
-        if (stageIdx === currentIdx) return 'active';
-        return 'pending';
-    };
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -245,105 +388,120 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                             className={`w-full rounded-xl p-3 text-sm font-mono focus:ring-2 focus:ring-[#2A6CF0]/30 outline-none transition ${isDarkMode ? 'bg-gray-900/50 border-gray-600 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-900'}`} />
                     </div>
 
-                    {/* ═══ Stage Pipeline Visualization ═══ */}
-                    {isUploading && (
-                        <div className={`rounded-xl p-4 border ${isDarkMode ? 'bg-gray-900/50 border-gray-700' : 'bg-gray-50/80 border-gray-200'}`}>
-                            {/* Elapsed time */}
-                            <div className="flex justify-between items-center mb-3">
-                                <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    ⏱️ Elapsed: {formatTime(elapsedSeconds)}
-                                </span>
-                                {detail.engine && (
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'}`}>
-                                        {detail.engine}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Stage Steps */}
-                            <div className="flex items-center gap-1 mb-4">
-                                {STAGES.map((stage, i) => {
-                                    const stageStatus = getStageStatus(stage);
-                                    return (
-                                        <React.Fragment key={stage}>
-                                            <div className={`flex flex-col items-center flex-1 min-w-0`}>
-                                                <div className={`
-                                                    w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300
-                                                    ${stageStatus === 'completed' ? 'bg-emerald-500 text-white shadow-sm' : ''}
-                                                    ${stageStatus === 'active' ? 'bg-[#2A6CF0] text-white shadow-md shadow-[#2A6CF0]/30 animate-pulse' : ''}
-                                                    ${stageStatus === 'pending' ? (isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400') : ''}
-                                                `}>
-                                                    {stageStatus === 'completed' ? '✓' : STAGE_ICONS[stage] || (i + 1)}
-                                                </div>
-                                                <span className={`text-[10px] mt-1 font-medium truncate w-full text-center
-                                                    ${stageStatus === 'active' ? 'text-[#2A6CF0] font-bold' : ''}
-                                                    ${stageStatus === 'completed' ? 'text-emerald-600' : ''}
-                                                    ${stageStatus === 'pending' ? (isDarkMode ? 'text-gray-500' : 'text-gray-400') : ''}
-                                                `}>
-                                                    {STAGE_LABELS[stage]}
-                                                </span>
-                                            </div>
-                                            {i < STAGES.length - 1 && (
-                                                <div className={`h-0.5 flex-shrink-0 w-4 mt-[-14px] rounded-full transition-colors duration-300
-                                                    ${getStageStatus(STAGES[i + 1]) !== 'pending' ? 'bg-emerald-400' : (isDarkMode ? 'bg-gray-700' : 'bg-gray-200')}
-                                                `} />
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Overall progress bar */}
-                            <div className={`w-full rounded-full h-2 overflow-hidden ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                <div className="bg-gradient-to-r from-[#2A6CF0] to-emerald-400 h-2 rounded-full transition-all duration-500 ease-out"
-                                    style={{ width: `${progress}%` }} />
-                            </div>
-
-                            {/* Live Counters */}
-                            {(detail.total_pages || detail.total_chunks) ? (
-                                <div className="grid grid-cols-3 gap-3 mt-3">
-                                    {detail.total_pages ? (
-                                        <div className={`text-center p-2 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                                            <div className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                {detail.pages_extracted || 0}
-                                                <span className="text-xs font-normal text-gray-400">/{detail.total_pages}</span>
-                                            </div>
-                                            <div className={`text-[10px] font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Pages</div>
-                                        </div>
-                                    ) : null}
-                                    {detail.total_chunks ? (
-                                        <>
-                                            <div className={`text-center p-2 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                                                <div className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                    {detail.chunks_embedded || 0}
-                                                    <span className="text-xs font-normal text-gray-400">/{detail.total_chunks}</span>
-                                                </div>
-                                                <div className={`text-[10px] font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Embedded</div>
-                                            </div>
-                                            <div className={`text-center p-2 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                                                <div className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                    {detail.chunks_stored || 0}
-                                                    <span className="text-xs font-normal text-gray-400">/{detail.total_chunks}</span>
-                                                </div>
-                                                <div className={`text-[10px] font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Stored</div>
-                                            </div>
-                                        </>
-                                    ) : null}
-                                </div>
-                            ) : null}
-                        </div>
-                    )}
-
                     <button type="submit" disabled={(ingestType !== 'web' && !file) || (ingestType === 'web' && !textInput) || isUploading}
                         className={`w-full py-3 rounded-xl font-semibold transition-all ${((ingestType !== 'web' && !file) || (ingestType === 'web' && !textInput) || isUploading) ? (isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed') : 'bg-[#2A6CF0] hover:bg-[#2259D6] text-white shadow-[0_4px_14px_rgba(42,108,240,0.25)]'}`}>
-                        {isUploading ? `⏳ ${STAGE_LABELS[currentStage] || 'Processing'}... (${progress}%)` : '📥 Start Ingestion'}
+                        {isUploading ? '⏳ Uploading...' : '📥 Start Ingestion'}
                     </button>
                 </form>
+
                 {status && (
                     <div className={`mt-4 p-3 rounded-xl text-sm border ${status.type === 'success' ? 'bg-[#4CB782]/10 border-[#4CB782]/30 text-[#3a8f65]' :
                         status.type === 'error' ? 'bg-[#E45454]/10 border-[#E45454]/30 text-[#c03c3c]' :
                             'bg-[#2A6CF0]/10 border-[#2A6CF0]/30 text-[#2259D6]'
                         }`}>{status.message}</div>
+                )}
+
+                {/* ═══ Active Jobs Panel ═══ */}
+                {activeJobs.length > 0 && (
+                    <div className="mt-5 space-y-3">
+                        <h4 className={`text-sm font-semibold flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2A6CF0] opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#2A6CF0]"></span>
+                            </span>
+                            Active Jobs ({activeJobs.filter(j => j.status === 'running').length} running)
+                        </h4>
+                        {activeJobs.map(job => (
+                            <div key={job.job_id} className={`rounded-xl p-4 border transition-all ${
+                                job.status === 'cancelled' ? (isDarkMode ? 'bg-red-900/10 border-red-800/30' : 'bg-red-50 border-red-200') :
+                                job.status === 'completed' ? (isDarkMode ? 'bg-emerald-900/10 border-emerald-800/30' : 'bg-emerald-50 border-emerald-200') :
+                                job.status === 'failed' ? (isDarkMode ? 'bg-red-900/10 border-red-800/30' : 'bg-red-50 border-red-200') :
+                                (isDarkMode ? 'bg-gray-900/50 border-gray-700' : 'bg-gray-50/80 border-gray-200')}`}>
+                                {/* Header row: filename + cancel */}
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className="text-sm">📄</span>
+                                        <span className={`text-xs font-semibold truncate ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                            {job.file_key.split('/').pop()}
+                                        </span>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                            job.status === 'running' ? 'bg-[#2A6CF0]/10 text-[#2A6CF0]' :
+                                            job.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                                            job.status === 'cancelled' ? 'bg-red-100 text-red-600' :
+                                            'bg-red-100 text-red-600'
+                                        }`}>{job.status}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-[10px] font-mono ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            {formatTime(Math.floor((Date.now() / 1000) - job.started_at))}
+                                        </span>
+                                        {job.status === 'running' && (
+                                            <button onClick={() => handleCancelJob(job.job_id)} disabled={job.cancelling}
+                                                className={`p-1.5 rounded-lg transition-all text-xs ${
+                                                    isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-500'
+                                                } ${job.cancelling ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                title="Cancel this job">
+                                                {job.cancelling ? '⏳' : '✕'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Stage dots */}
+                                <div className="flex items-center gap-0.5 mb-2">
+                                    {STAGES.map((stage, i) => {
+                                        const ss = getJobStageStatus(job.stage, stage);
+                                        return (
+                                            <React.Fragment key={stage}>
+                                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all duration-300
+                                                    ${ss === 'completed' ? 'bg-emerald-500 text-white' : ''}
+                                                    ${ss === 'active' ? 'bg-[#2A6CF0] text-white animate-pulse' : ''}
+                                                    ${ss === 'pending' ? (isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400') : ''}
+                                                `}>
+                                                    {ss === 'completed' ? '✓' : STAGE_ICONS[stage]}
+                                                </div>
+                                                {i < STAGES.length - 1 && (
+                                                    <div className={`h-0.5 flex-1 rounded-full transition-colors duration-300
+                                                        ${getJobStageStatus(job.stage, STAGES[i + 1]) !== 'pending' ? 'bg-emerald-400' : (isDarkMode ? 'bg-gray-700' : 'bg-gray-200')}
+                                                    `} />
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className={`w-full rounded-full h-2.5 overflow-hidden ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                    <div className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
+                                        job.status === 'cancelled' ? 'bg-red-400' :
+                                        job.status === 'completed' ? 'bg-emerald-400' :
+                                        'bg-gradient-to-r from-[#2A6CF0] to-emerald-400'
+                                    }`} style={{ width: `${job.progress}%` }} />
+                                </div>
+
+                                {/* Counters */}
+                                {(job.detail.total_chunks || job.detail.total_pages) && (
+                                    <div className="flex gap-3 mt-2">
+                                        {job.detail.total_pages ? (
+                                            <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                📄 {job.detail.pages_extracted || 0}/{job.detail.total_pages} pages
+                                            </span>
+                                        ) : null}
+                                        {job.detail.total_chunks ? (
+                                            <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                🧠 {job.detail.chunks_embedded || 0}/{job.detail.total_chunks} embedded
+                                            </span>
+                                        ) : null}
+                                        {job.detail.total_chunks ? (
+                                            <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                💾 {job.detail.chunks_stored || 0}/{job.detail.total_chunks} stored
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 )}
             </div>
             <div className={`rounded-2xl border p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'}`}>
