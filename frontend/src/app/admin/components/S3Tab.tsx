@@ -47,7 +47,19 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
         setDeleteTarget(null); // Close modal immediately
         
         try {
-            await authFetch(`${API_BASE}/api/admin/s3/${encodeURIComponent(key)}?delete_vectors=${deleteVectors}`, { method: 'DELETE' });
+            const res = await authFetch(`${API_BASE}/api/admin/s3/${encodeURIComponent(key)}?delete_vectors=${deleteVectors}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            // Show feedback toast
+            if (deleteVectors) {
+                const count = data.vectors_deleted || 0;
+                if (count > 0) {
+                    alert(`✅ Deleted "${key.split('/').pop()}" + ${count} vector chunk(s) removed from OpenSearch.`);
+                } else {
+                    alert(`⚠️ File deleted, but no associated vector chunks were found in OpenSearch.`);
+                }
+            }
+            
             fetchData();
         } catch (err) {
             console.error("Failed to delete file", err);

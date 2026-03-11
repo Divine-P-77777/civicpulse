@@ -6,6 +6,8 @@ import logging
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+
+
 class VectorService:
     def __init__(self):
         self.host = os.getenv("OPENSEARCH_ENDPOINT", "").replace("https://", "").replace(":443", "")
