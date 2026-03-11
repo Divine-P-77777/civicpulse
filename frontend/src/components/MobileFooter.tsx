@@ -11,13 +11,14 @@ export default function MobileFooter() {
   const dispatch = useAppDispatch();
 
   // Hide the footer on specific routes where it interferes with the UI
-  if (pathname === '/live' || pathname === '/chat') {
+  if (pathname.startsWith('/chat') || pathname.startsWith('/live')) {
     return null;
   }
 
   const navItems = [
     { name: 'Home', href: '/', icon: Home, highlight: false },
     { name: 'Chat', href: '/chat', icon: MessageCircle, highlight: false },
+
     { name: 'Live', href: '/live', icon: Mic, highlight: true }, // The big center button
     { name: 'Draft', href: '/draftcreation', icon: PenTool, highlight: false },
     { name: 'Admin', href: '/admin', icon: ShieldAlert, highlight: false },
@@ -33,7 +34,7 @@ export default function MobileFooter() {
         <nav className="flex justify-around items-center h-16 px-4">
           {navItems.map((item) => {
             const Icon = item.icon;
-            
+
             // Highlighted center button logic (e.g., the 'Live' action)
             if (item.highlight) {
               return (
@@ -60,9 +61,8 @@ export default function MobileFooter() {
                   if (item.href === '/chat') dispatch(setCurrentMode('chat'));
                   if (item.href === '/') dispatch(setCurrentMode('home'));
                 }}
-                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
-                  isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'
-                }`}
+                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'
+                  }`}
               >
                 <div className={`p-1 rounded-full transition-all ${isActive ? 'bg-indigo-50' : ''}`}>
                   <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />

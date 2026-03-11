@@ -186,6 +186,9 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
                     sid, stage="embedding", detail=detail
                 )
             _sync_job(stage="embedding", progress=pct, message=f"Embedding {i + 1}/{total_chunks}")
+        
+        # Throttle: leave headroom for live mode users to avoid Bedrock rate limiting
+        await asyncio.sleep(0.3)
 
     if sid:
         await socket_manager.emit_progress(
