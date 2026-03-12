@@ -42,7 +42,7 @@ export default function ShareModal({ sessionId, apiBase, authFetch, onClose }: S
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-100 mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-100 mx-4" onClick={(e) => e.stopPropagation()} data-lenis-prevent>
                 {/* Header */}
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-2.5">
