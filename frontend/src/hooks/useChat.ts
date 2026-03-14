@@ -145,6 +145,13 @@ export function useChat({ apiBase, authFetch, getToken, isSignedIn, language }: 
 
         if (!userMessage) return;
 
+        // Intent detection for draft creation
+        const draftRegex = /\b(?:create|make|write|generate|draft)\b.*\b(?:draft|complaint|notice|letter|document)\b/i;
+        if (draftRegex.test(userMessage) || userMessage.toLowerCase().startsWith('draft')) {
+            window.location.href = `/draftcreation?topic=${encodeURIComponent(userMessage)}&source=chat`;
+            return;
+        }
+
         setMessages(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date().toISOString() }]);
         setIsStreaming(true);
         setStreamingText('');

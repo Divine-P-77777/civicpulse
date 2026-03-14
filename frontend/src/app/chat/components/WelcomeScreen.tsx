@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
+import { PenTool } from 'lucide-react';
 
 interface WelcomeScreenProps {
     onSetInput: (val: string) => void;
@@ -14,6 +16,8 @@ const QUICK_PROMPTS = [
 ];
 
 export default function WelcomeScreen({ onSetInput }: WelcomeScreenProps) {
+    const router = useRouter();
+
     return (
         <div className="flex items-center justify-center min-h-[55vh]">
             <div className="text-center max-w-lg px-4">
@@ -33,6 +37,21 @@ export default function WelcomeScreen({ onSetInput }: WelcomeScreenProps) {
                         </button>
                     ))}
                 </div>
+
+                {/* Draft Creation Shortcut */}
+                <button
+                    onClick={() => router.push('/draftcreation')}
+                    className="mt-4 w-full max-w-md mx-auto flex items-center gap-3 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl hover:border-[#2A6CF0]/40 hover:shadow-[0_4px_14px_rgba(42,108,240,0.10)] transition-all group"
+                >
+                    <div className="w-9 h-9 bg-[#2A6CF0]/10 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#2A6CF0]/20 transition-all">
+                        <PenTool className="w-4 h-4 text-[#2A6CF0]" />
+                    </div>
+                    <div className="text-left">
+                        <p className="text-sm font-bold text-slate-800">Create a Draft</p>
+                        <p className="text-xs text-slate-400">Complaint, legal notice, RTI &amp; more</p>
+                    </div>
+                    <span className="ml-auto text-xs text-[#2A6CF0] font-bold opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+                </button>
             </div>
         </div>
     );
