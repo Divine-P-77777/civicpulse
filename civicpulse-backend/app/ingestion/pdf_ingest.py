@@ -11,7 +11,7 @@ from app.core.socket_manager import socket_manager
 logger = logging.getLogger(__name__)
 
 
-async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: str = None):
+async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: str = None, job_id: str = None):
     """
     Orchestrates the ingestion pipeline for a PDF stored in S3.
     
@@ -38,10 +38,19 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
         "engine": "Unknown"
     }
 
+    # Helper to sync job tracker with progress
+    def _sync_job(stage=None, progress=None, message=None):
+        if job_id:
+            from app.services.job_tracker import update_job, is_cancelled
+            if is_cancelled(job_id):
+                raise Exception("Job was cancelled by the user")
+            update_job(job_id, progress=progress, stage=stage, message=message, detail=detail)
+
     use_local = should_use_local_ocr()
     ocr_engine = "Local (Pytesseract)" if use_local else "Textract"
     detail["engine"] = ocr_engine
     pages_processed = 0
+    _sync_job(stage="extraction", progress=2, message=f"Starting extraction ({ocr_engine})...")
 
     # ═════════════════════════════════════════════
     # STAGE 1: EXTRACTION (0% – 40%)
@@ -110,6 +119,7 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
             40, f"✅ Extraction complete — {pages_processed} pages, {len(full_text):,} characters ({ocr_engine})",
             sid, stage="extraction", detail=detail
         )
+    _sync_job(stage="chunking", progress=40, message=f"Extraction complete — {pages_processed} pages")
 
     logger.info(f"Extraction complete ({ocr_engine}). Length: {len(full_text)}")
 
@@ -132,6 +142,7 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
             50, f"✅ Created {total_chunks} chunks from {pages_processed} pages",
             sid, stage="chunking", detail=detail
         )
+    _sync_job(stage="embedding", progress=50, message=f"Created {total_chunks} chunks")
 
     logger.info(f"Created {total_chunks} chunks.")
 
@@ -147,6 +158,11 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
     embedded_chunks = []  # (doc_id, embedding, chunk_metadata)
 
     for i, chunk in enumerate(chunks):
+        if job_id:
+            from app.services.job_tracker import is_cancelled
+            if is_cancelled(job_id):
+                raise Exception("Job was cancelled by the user")
+            
         embedding = await asyncio.to_thread(generate_embedding, chunk)
 
         chunk_metadata = metadata.copy() if metadata else {}
@@ -162,18 +178,24 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
         detail["chunks_embedded"] = i + 1
 
         # Emit progress every 3 chunks or on the last one
-        if sid and (i % 3 == 0 or i == total_chunks - 1):
+        if i % 3 == 0 or i == total_chunks - 1:
             pct = 50 + int(((i + 1) / total_chunks) * 40)
-            await socket_manager.emit_progress(
-                pct, f"Embedding chunk {i + 1}/{total_chunks}...",
-                sid, stage="embedding", detail=detail
-            )
+            if sid:
+                await socket_manager.emit_progress(
+                    pct, f"Embedding chunk {i + 1}/{total_chunks}...",
+                    sid, stage="embedding", detail=detail
+                )
+            _sync_job(stage="embedding", progress=pct, message=f"Embedding {i + 1}/{total_chunks}")
+        
+        # Throttle: leave headroom for live mode users to avoid Bedrock rate limiting
+        await asyncio.sleep(0.3)
 
     if sid:
         await socket_manager.emit_progress(
             90, f"✅ All {total_chunks} embeddings generated",
             sid, stage="embedding", detail=detail
         )
+    _sync_job(stage="storing", progress=90, message=f"All {total_chunks} embeddings generated")
 
     # ═════════════════════════════════════════════
     # STAGE 4: STORING (90% – 98%)
@@ -185,15 +207,22 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
         )
 
     for i, (doc_id, embedding, chunk_metadata) in enumerate(embedded_chunks):
+        if job_id:
+            from app.services.job_tracker import is_cancelled
+            if is_cancelled(job_id):
+                raise Exception("Job was cancelled by the user")
+
         await asyncio.to_thread(store_vector, doc_id, embedding, chunk_metadata)
         detail["chunks_stored"] = i + 1
 
-        if sid and (i % 10 == 0 or i == total_chunks - 1):
+        if i % 10 == 0 or i == total_chunks - 1:
             pct = 90 + int(((i + 1) / total_chunks) * 8)
-            await socket_manager.emit_progress(
-                pct, f"Storing vector {i + 1}/{total_chunks}...",
-                sid, stage="storing", detail=detail
-            )
+            if sid:
+                await socket_manager.emit_progress(
+                    pct, f"Storing vector {i + 1}/{total_chunks}...",
+                    sid, stage="storing", detail=detail
+                )
+            _sync_job(stage="storing", progress=pct, message=f"Storing {i + 1}/{total_chunks}")
 
     # ═════════════════════════════════════════════
     # STAGE 5: DONE (100%)
@@ -203,6 +232,7 @@ async def ingest_pdf_from_s3(bucket: str, key: str, metadata: dict = None, sid: 
             100, f"✅ Ingestion complete! {total_chunks} chunks from {pages_processed} pages ({ocr_engine})",
             sid, stage="done", detail=detail
         )
+    _sync_job(stage="done", progress=100, message=f"Complete! {total_chunks} chunks from {pages_processed} pages")
 
     logger.info(f"✅ Ingestion complete: {key} → {total_chunks} chunks ({ocr_engine})")
 

@@ -13,10 +13,10 @@ export default function NotFound() {
       <div className="relative z-10 flex flex-col items-center text-center px-4 max-w-2xl mx-auto">
 
         {/* Animated illustrative image */}
-        <div className="w-48 h-48 mb-6 transform hover:scale-105 transition-transform duration-500 rounded-3xl overflow-hidden shadow-xl shadow-cyan-200/50">
-          <img 
-            src="/not-found.png" 
-            alt="Page not found illustration" 
+        <div className="w-48 h-48 mb-6 ">
+          <img
+            src="/not-found.gif"
+            alt="Page not found illustration"
             className="w-full h-full object-cover"
           />
         </div>

@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from app.config import bedrock_client
@@ -17,7 +18,10 @@ RECENT_MESSAGES_LIMIT = 6
 TRIM_THRESHOLD = 10
 
 # Thread pool for parallel I/O (embedding + vector search)
-_executor = ThreadPoolExecutor(max_workers=4)
+_executor = ThreadPoolExecutor(max_workers=2)
+
+# Semaphore: limit concurrent Bedrock LLM calls to prevent throttling
+_bedrock_semaphore = asyncio.Semaphore(3)
 
 # Mode-specific config
 MODE_CONFIG = {
@@ -27,6 +31,7 @@ MODE_CONFIG = {
 
 # Default model — Claude 3 Haiku via AWS Bedrock
 DEFAULT_MODEL = "anthropic.claude-3-haiku-20240307-v1:0"
+
 
 
 class RagPipeline:
@@ -146,10 +151,16 @@ class RagPipeline:
             chat_history=conversation_context
         )
 
-        # Add language instruction to system prompt if non-English
+        # Add language instruction to system prompt dynamically based on user selection
         if language and language != "en":
             lang_name = {"hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}.get(language, language)
-            system_prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}."
+            system_prompt += f"\n\nIMPORTANT: The user has explicitly selected {lang_name}. You MUST respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}. Do NOT respond in English."
+            if mode == "live":
+                system_prompt += f"\nCRITICAL LIVE AUDIO RULE: The user is listening to this text via Text-to-Speech in {lang_name}. It is strictly forbidden to use English scripts or pronunciation markings. You must write natural spoken {lang_name} sentences."
+        else:
+            system_prompt += f"\n\nIMPORTANT: The user has explicitly selected English. You MUST respond entirely in English. Do NOT use Hindi, Hinglish, or any other language."
+            if mode == "live":
+                system_prompt += f"\nCRITICAL LIVE AUDIO RULE: This is an English-exclusive audio session. It is strictly forbidden to use any Hindi, Hinglish, or vernacular words. If the user accidentally spoke Hindi words, translate your response entirely to English."
 
         if conversation_context:
             system_prompt += f"\n\n[Conversation History]\n{conversation_context}"

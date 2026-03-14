@@ -15,7 +15,7 @@ CivicPulse is an AI-powered legal rights assistant designed to help users unders
 - **Frontend**: Next.js 14 with React, Redux, TypeScript
 - **Backend**: FastAPI with Python 3.11+
 - **AI Integration**: OpenAI, Amazon Bedrock, Google Gemini
-- **Database**: Supabase with PostgreSQL
+- **Database**: OpenSearch for vector storage / DynamoDB for session data
 - **Storage**: Cloudinary for documents
 - **Infrastructure**: Docker, AWS EC2, GitHub Actions
 

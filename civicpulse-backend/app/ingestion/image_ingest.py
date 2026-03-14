@@ -44,7 +44,12 @@ async def ingest_image_from_s3(bucket: str, file_key: str, metadata: dict = {}, 
 
         # 3. Generate Embedding using Bedrock (Titan)
         await emit_status(80, f"Generating embeddings ({ocr_engine})...")
-        vector = generate_embedding(full_text[:8000])
+        
+        full_text_clean = full_text.strip() if full_text else ""
+        if not full_text_clean:
+            raise Exception(f"No text could be extracted from this image using {ocr_engine}. Please ensure the image contains readable text.")
+            
+        vector = generate_embedding(full_text_clean[:8000])
 
         await emit_status(95, "Storing in vector database...")
 

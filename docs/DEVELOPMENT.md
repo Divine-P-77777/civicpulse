@@ -132,7 +132,7 @@ pre-commit install
 
 See `.env.example` for all required environment variables:
 
-- **Database**: Supabase configuration
+- **Database**: OpenSearch configuration
 - **AI Services**: OpenAI, AWS, Google API keys
 - **Storage**: Cloudinary configuration
 - **Authentication**: JWT secret keys

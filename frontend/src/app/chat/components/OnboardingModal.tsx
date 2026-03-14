@@ -13,7 +13,7 @@ interface OnboardingModalProps {
 export default function OnboardingModal({ fullName, dob, onNameChange, onDobChange, onSubmit }: OnboardingModalProps) {
     return (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-gray-100">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-gray-100" data-lenis-prevent>
                 <div className="text-center mb-6">
                     <div className="w-16 h-16 bg-[#2A6CF0]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <span className="text-3xl">👋</span>
