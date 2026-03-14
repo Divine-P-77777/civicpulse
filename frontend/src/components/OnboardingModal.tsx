@@ -44,7 +44,7 @@ export default function OnboardingModal() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative animate-in fade-in zoom-in duration-300">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative animate-in fade-in zoom-in duration-300" data-lenis-prevent>
 
         {/* Header */}
         <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">

@@ -267,7 +267,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             
             {/* Custom Delete Modal */}
             {deleteTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" data-lenis-prevent>
                     <div className={`p-6 rounded-2xl w-full max-w-sm border shadow-xl ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
                         <h4 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Delete File?</h4>
                         <p className={`text-sm mb-4 break-all ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -339,7 +339,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                         )}
 
                         {/* Body */}
-                        <div className="overflow-y-auto flex-1 p-1">
+                        <div className="overflow-y-auto flex-1 p-1" data-lenis-prevent>
                             {vectorsLoading ? (
                                 <div className={`flex items-center justify-center py-16 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                                     <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading vectors...
