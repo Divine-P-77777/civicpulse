@@ -11,7 +11,6 @@ import IngestionTab from './components/IngestionTab';
 import VectorsTab from './components/VectorsTab';
 import DynamoDBTab from './components/DynamoDBTab';
 import S3Tab from './components/S3Tab';
-import DraftHistoryTab from './components/DraftHistoryTab';
 
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
     .replace(/[\[\]'"]/g, '')
@@ -19,7 +18,7 @@ const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
     .map(e => e.trim());
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
-type Tab = 'overview' | 'ingestion' | 'drafts' | 'vectors' | 'dynamodb' | 's3';
+type Tab = 'overview' | 'ingestion' | 'vectors' | 'dynamodb' | 's3';
 
 function AdminContent() {
     const { user, isLoaded, isSignedIn } = useUser();

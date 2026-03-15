@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isDraftPage = pathname?.startsWith('/draftcreation');
+  const isImmersivePage = pathname?.startsWith('/draftcreation') || pathname?.startsWith('/admin');
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -40,12 +40,12 @@ export default function RootLayout({
             <LenisProvider>
               <PerformanceLogger />
               <div className="flex flex-col min-h-screen">
-                {!isDraftPage && <Navigation />}
+                {!isImmersivePage && <Navigation />}
                 <main id="root" className="flex-1">{children}</main>
-                {!isDraftPage && <Footer />}
+                {!isImmersivePage && <Footer />}
               </div>
               <OnboardingModal />
-              {!isDraftPage && <MobileFooter />}
+              {!isImmersivePage && <MobileFooter />}
             </LenisProvider>
           </Providers>
         </ClerkProvider>
