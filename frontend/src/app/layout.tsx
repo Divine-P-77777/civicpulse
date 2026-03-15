@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isImmersivePage = pathname?.startsWith('/draftcreation') || pathname?.startsWith('/admin');
+  const isImmersivePage = pathname?.startsWith('/draftcreation') || pathname?.startsWith('/admin') || pathname?.startsWith('/architecture') || pathname?.startsWith('/live') || pathname?.startsWith('/chat');
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -57,5 +57,5 @@ export default function RootLayout({
 // Separate Metadata to avoid issues with 'use client'
 // Note: Metadata must be in a server component or exported from a layout/page.
 // Since we turned this layout into a client component for pathname, we'll
-// keep the metadata logic but note that Next.js might require it in a separate file 
-// if it complains about mixing 'use client' and metadata export.
+// keep the metadata logic but note that Next.js might require it in a separate file
+// if it complains about mixing 'use client' and metadata export.

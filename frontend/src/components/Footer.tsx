@@ -8,7 +8,7 @@ const Footer = () => {
             <footer className="bg-[#1e2330] text-slate-300 pt-16 rounded-t-[3rem] md:rounded-[4rem] shadow-2xl relative border border-white/5 pb-56 md:pb-24 overflow-hidden">
                 {/* Subtle top glow */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
-                
+
                 <div className="max-w-7xl mx-auto px-8 sm:px-12">
                     <div className="flex flex-col lg:flex-row justify-between items-center lg:items-start gap-12 lg:gap-16">
                         {/* Brand Section */}
@@ -25,7 +25,7 @@ const Footer = () => {
                                 Bridging the gap between law and citizenry through the power of advanced AI.
                             </p>
                         </div>
-                        
+
                         {/* Links Sections - Compact Mobile */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-10 sm:gap-x-12 w-full lg:w-auto text-center sm:text-left">
                             <div className="flex flex-col gap-3">
@@ -41,6 +41,7 @@ const Footer = () => {
                                 <h4 className="text-white font-bold text-[10px] uppercase tracking-[0.25em] opacity-50">Resources</h4>
                                 <ul className="space-y-2.5 text-sm text-slate-400">
                                     <li><Link href="/admin" className="hover:text-white transition-colors">Dashboard</Link></li>
+                                    <li><Link href="/architecture" className="hover:text-white transition-colors">Architecture</Link></li>
                                     <li><Link href="/settings" className="hover:text-white transition-colors">Settings</Link></li>
                                     <li><Link href="#" className="hover:text-white transition-colors">Help Center</Link></li>
                                 </ul>
@@ -55,13 +56,13 @@ const Footer = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     {/* Bottom Metadata */}
                     <div className="mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
                         <p className="text-[10px] md:text-xs text-slate-500 font-medium">
                             © 2026 CivicPulse. All rights reserved.
                         </p>
-                        
+
                         <div className="flex items-center gap-3">
                             <div className="w-1 h-1 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
                             <span className="text-[9px] uppercase tracking-[0.2em] text-slate-600 font-bold">System Online</span>
@@ -75,7 +76,7 @@ const Footer = () => {
                         </span>
                     </div>
                 </div>
-                
+
                 {/* Decorative background shapes */}
                 <div className="absolute top-1/2 right-0 -translate-y-1/2 w-64 h-64 bg-indigo-500/5 blur-[100px] rounded-full pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-slate-500/5 blur-[80px] rounded-full pointer-events-none" />
