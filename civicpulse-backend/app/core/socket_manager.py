@@ -41,20 +41,18 @@ class SocketManager:
                 await self.sio.emit("camera_received", data, room=session_id, skip_sid=sid)
 
     async def emit_progress(self, progress: int, message: str, sid: Optional[str] = None,
-                            stage: str = "unknown", detail: Optional[dict] = None):
+                            stage: str = "unknown", detail: Optional[dict] = None,
+                            job_id: Optional[str] = None):
         """
         Emits stage-aware ingestion progress to a specific socket ID.
-        
-        Stages: upload | extraction | chunking | embedding | storing | done | error
-        Detail dict can include: pages_extracted, total_pages, chunks_created,
-                                 chunks_embedded, chunks_stored, total_chunks, engine
         """
         if sid:
             payload = {
                 "progress": progress,
                 "message": message,
                 "stage": stage,
-                "detail": detail or {}
+                "detail": detail or {},
+                "job_id": job_id
             }
             await self.sio.emit("ingestion_progress", payload, to=sid)
 

@@ -89,8 +89,8 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className={`col-span-2 p-6 rounded-2xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                     <h3 className={`text-lg font-semibold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>System Usage (Weekly)</h3>
-                    <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-64 w-full min-w-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={usageData}>
                                 <XAxis dataKey="name" stroke={isDarkMode ? "#64748b" : "#94a3b8"} fontSize={12} tickLine={false} axisLine={false} />
                                 <YAxis stroke={isDarkMode ? "#64748b" : "#94a3b8"} fontSize={12} tickLine={false} axisLine={false} />
@@ -103,8 +103,8 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
                 </div>
                 <div className={`col-span-1 p-6 rounded-2xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                     <h3 className={`text-lg font-semibold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Document Types</h3>
-                    <div className="h-64 w-full flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-64 w-full min-w-0 flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
                                     {pieData.map((entry: any, index: number) => (

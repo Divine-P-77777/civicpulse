@@ -11,6 +11,7 @@ from curl_cffi import requests as curl_requests
 from app.services.vector_service import vector_service
 from app.services.embedding_service import generate_embedding, chunk_text
 from app.core.socket_manager import socket_manager
+from app.services.job_tracker import update_job, is_cancelled, fail_job, save_extraction_checkpoint, get_job
 
 logger = logging.getLogger(__name__)
 
@@ -75,19 +76,63 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
-async def ingest_web(content: str, metadata: dict = None, sid: str = None) -> int:
+async def ingest_web(content: str, metadata: dict = None, sid: str = None, job_id: str = None) -> int:
     """
-    Ingests text from a URL or raw text input.
-    
-    - Fetches URLs with TLS impersonation (bypasses Cloudflare)
-    - Chunks long pages like the PDF pipeline
-    - Emits stage-aware progress events
+    Orchestrates web ingestion with ROM recovery and fail-safe handling.
     """
+    try:
+        return await _ingest_web_orchestrator(content, metadata, sid, job_id)
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"Web ingestion crashed: {e}\n{error_trace}")
+        if job_id:
+            fail_job(job_id, f"Critical error: {str(e)}")
+        if sid:
+            from app.core.socket_manager import socket_manager
+            await socket_manager.emit_progress(0, f"❌ Critical error: {str(e)}", sid, stage="failed")
+        raise e
+
+async def _ingest_web_orchestrator(content: str, metadata: dict = None, sid: str = None, job_id: str = None) -> int:
+    detail = {"pages_extracted": 0, "total_pages": 0, "chunks_created": 0, "chunks_embedded": 0, "chunks_stored": 0, "total_chunks": 0, "engine": "Scraper"}
+
+    def _sync_job(stage=None, progress=None, message=None):
+        if job_id:
+            if is_cancelled(job_id):
+                raise Exception("Job was cancelled by the user")
+            update_job(job_id, progress=progress, stage=stage, message=message, detail=detail)
+
+    async def emit_status(progress: int, msg: str, stage: str = "extraction"):
+        if sid:
+            await socket_manager.emit_progress(progress, msg, sid, stage=stage, detail=detail, job_id=job_id)
+        _sync_job(stage=stage, progress=progress, message=msg)
     if metadata is None:
         metadata = {}
 
-    extracted_text = content
-    source_label = "raw_text"
+    extracted_text = ""
+    source_label = content if not (content.startswith("http://") or content.startswith("https://")) else "url"
+
+    # --- RECOVERY CHECK (ROM) ---
+    if job_id:
+        job = get_job(job_id)
+        checkpoint_key = job.get("detail", {}).get("extraction_checkpoint") if job else None
+        if checkpoint_key:
+            logger.info(f"Recovery mapping found for job {job_id}: {checkpoint_key}. Skipping scrape.")
+            await emit_status(40, "Recovering extracted text from ROM...", stage="extraction")
+            
+            from app.config import s3_client
+            from app.services.s3_service import S3_BUCKET
+            resp = await asyncio.to_thread(s3_client.get_object, Bucket=S3_BUCKET, Key=checkpoint_key)
+            extracted_text = (await asyncio.to_thread(resp['Body'].read)).decode('utf-8')
+            goto_chunking = True
+        else:
+            goto_chunking = False
+    else:
+        goto_chunking = False
+
+    if not goto_chunking:
+        extracted_text = content
+        source_label = "raw_text"
 
     # ─── URL fetch ───────────────────────────────────────
     if content.startswith("http://") or content.startswith("https://"):
@@ -119,6 +164,10 @@ async def ingest_web(content: str, metadata: dict = None, sid: str = None) -> in
             )
 
         extracted_text = _clean_text(_extract_text_from_html(resp.content))
+        
+        # Save to ROM Checkpoint
+        if job_id:
+            save_extraction_checkpoint(job_id, extracted_text)
 
     # ─── Guard: must have text ────────────────────────────
     if not extracted_text.strip():
@@ -142,30 +191,37 @@ async def ingest_web(content: str, metadata: dict = None, sid: str = None) -> in
             detail={"total_chunks": total_chunks, "chunks_created": total_chunks}
         )
 
-    # ─── Embed + Store ────────────────────────────────────
-    stored = 0
-    for i, chunk in enumerate(chunks):
-        embedding = await asyncio.to_thread(generate_embedding, chunk)
+    # ─── Embed & Store (Parallel Mode) ────────────────────────────────────
+    await emit_status(50, f"Processing {total_chunks} chunks (Parallel Cloud Mode)...", stage="embedding")
 
+    from app.services.embedding_service import generate_embeddings_parallel
+    from app.services.vector_service import vector_service
+
+    # We can process web pages in one big batch since they are usually smaller than PDFs
+    vectors = await generate_embeddings_parallel(chunks, max_concurrency=10)
+    
+    docs_to_store = []
+    for i, vector in enumerate(vectors):
+        if vector is None: continue
+        
         chunk_meta = {
             **metadata,
             "source": source_label,
             "type": "web",
             "chunk_index": i,
-            "text": chunk,
-            "content_preview": chunk[:200],
+            "text": chunks[i],
+            "content_preview": chunks[i][:200],
         }
-        doc_id = str(uuid.uuid4())
-        await asyncio.to_thread(vector_service.store_vector, doc_id, embedding, chunk_meta)
-        stored += 1
+        docs_to_store.append({
+            "id": str(uuid.uuid4()),
+            "vector": vector,
+            "metadata": chunk_meta
+        })
 
-        if sid and (i % 3 == 0 or i == total_chunks - 1):
-            pct = 50 + int(((i + 1) / total_chunks) * 48)
-            await socket_manager.emit_progress(
-                pct, f"Embedding & storing chunk {i + 1}/{total_chunks}...",
-                sid, stage="storing",
-                detail={"total_chunks": total_chunks, "chunks_embedded": i + 1, "chunks_stored": stored}
-            )
+    if docs_to_store:
+        await asyncio.to_thread(vector_service.bulk_store_vectors, docs_to_store)
+
+    stored = len(docs_to_store)
 
     if sid:
         await socket_manager.emit_progress(

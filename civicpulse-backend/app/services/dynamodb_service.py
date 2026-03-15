@@ -3,6 +3,9 @@ import uuid
 from datetime import datetime
 from app.config import AWS_REGION
 from boto3.dynamodb.conditions import Key
+import logging
+
+logger = logging.getLogger(__name__)
 
 dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
 TABLE_NAME = "CivicPulseResults"
@@ -31,28 +34,48 @@ def store_analysis_result(query: str, summary: str, user_id: str = None, session
         )
         return doc_id
     except Exception as e:
-        print(f"Failed to store in DynamoDB: {e}")
+        logger.error(f"Failed to store in DynamoDB: {e}")
         return None
 
 def get_monthly_usage():
-    """Aggregates pages processed by Textract in the current month."""
+    """Aggregates pages processed by Textract in the current month from both Results and Jobs tables."""
     try:
-        table = _get_table()
-        # Start of current month in ISO format
-        start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        results_table = _get_table()
+        jobs_table = dynamodb.Table("CivicPulseJobs")
         
-        # Scan for Textract jobs this month
-        # Note: For production with high volume, consider a separate 'Usage' table or a GSI on Timestamp and ocr_engine
-        response = table.scan(
-            FilterExpression=Key('Timestamp').gte(start_of_month) & boto3.dynamodb.conditions.Attr('ocr_engine').eq('Textract'),
+        # Start of current month
+        now = datetime.utcnow()
+        start_of_month_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_of_month_iso = start_of_month_dt.isoformat()
+        start_of_month_unix = int(start_of_month_dt.timestamp())
+        
+        # 1. Monthly usage from Results (Chat/Logs)
+        results_resp = results_table.scan(
+            FilterExpression=Key('Timestamp').gte(start_of_month_iso) & boto3.dynamodb.conditions.Attr('ocr_engine').eq('Textract'),
             ProjectionExpression='pages_processed'
         )
+        total_results = sum(int(item.get('pages_processed', 0)) for item in results_resp.get('Items', []))
         
-        items = response.get('Items', [])
-        total = sum(int(item.get('pages_processed', 0)) for item in items)
-        return total
+        # 2. Monthly usage from Jobs (Background Ingestion)
+        # Note: Filter by started_at and ensuring we only count Textract jobs
+        jobs_resp = jobs_table.scan(
+            FilterExpression=boto3.dynamodb.conditions.Attr('started_at').gte(start_of_month_unix) & 
+                             boto3.dynamodb.conditions.Attr('ingest_type').contains('pdf') &
+                             boto3.dynamodb.conditions.Attr('status').eq('completed'),
+            ProjectionExpression='detail'
+        )
+        # We only count jobs that used Textract (default unless overridden)
+        total_jobs = 0
+        for item in jobs_resp.get('Items', []):
+            detail = item.get('detail', {})
+            if detail.get('engine') == 'Textract':
+                total_jobs += int(detail.get('pages_extracted', 0))
+        
+        grand_total = total_results + total_jobs
+        logger.info(f"Usage Audit: Results={total_results}, Jobs={total_jobs}, Total={grand_total}")
+        return grand_total
     except Exception as e:
-        print(f"Error calculating monthly usage: {e}")
+        logger.error(f"Error calculating monthly usage: {e}")
         return 0
 
 # --- READ ---
@@ -103,7 +126,7 @@ def get_weekly_usage_stats():
         return [usage_map[day] for day in days_order]
         
     except Exception as e:
-        print(f"Error calculating weekly usage: {e}")
+        logger.error(f"Error calculating weekly usage: {e}")
         return []
 
 def list_results(limit: int = 20, last_key: dict = None):

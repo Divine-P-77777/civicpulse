@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Calendar, ChevronLeft, ChevronRight, X, Eye, Trash2, Loader2, Zap, Database, DownloadCloud, CheckCircle2, Activity, RefreshCw } from 'lucide-react';
+import { Search, Calendar, ChevronLeft, ChevronRight, X, Eye, Trash2, Loader2, Zap, Database, DownloadCloud, CheckCircle2, Activity, RefreshCw, Tag, Edit3 } from 'lucide-react';
 
 interface S3TabProps {
     isDarkMode: boolean;
@@ -24,6 +24,10 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
     // Delete modal state
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [deleteVectors, setDeleteVectors] = useState(true);
+
+    // Edit Metadata modal state
+    const [editMetadata, setEditMetadata] = useState<{ key: string, type: string, region: string } | null>(null);
+    const [updatingMetadata, setUpdatingMetadata] = useState(false);
 
     // Vector viewer modal state
     const [vectorViewerKey, setVectorViewerKey] = useState<string | null>(null);
@@ -131,6 +135,36 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
         const res = await authFetch(`${API_BASE}/api/admin/s3/download?key=${encodeURIComponent(key)}`);
         const data = await res.json();
         if (data.url) window.open(data.url, '_blank');
+    };
+
+    const handleUpdateTags = async () => {
+        if (!editMetadata) return;
+        setUpdatingMetadata(true);
+        try {
+            const res = await authFetch(`${API_BASE}/api/admin/s3/tags`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: editMetadata.key,
+                    tags: {
+                        type: editMetadata.type,
+                        region: editMetadata.region
+                    }
+                })
+            });
+            if (res.ok) {
+                alert("✅ Metadata updated successfully!");
+                setEditMetadata(null);
+                fetchData(true);
+            } else {
+                alert("❌ Failed to update metadata");
+            }
+        } catch (err) {
+            console.error("Failed to update tags:", err);
+            alert("Error updating metadata");
+        } finally {
+            setUpdatingMetadata(false);
+        }
     };
 
     const handleProcessFile = async (key: string) => {
@@ -383,6 +417,61 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                 </div>
             )}
 
+            {/* Edit Metadata Modal */}
+            {editMetadata && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" data-lenis-prevent>
+                    <div className={`p-6 rounded-2xl w-full max-w-sm border shadow-xl ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
+                        <div className="flex items-center gap-2 mb-4">
+                            <Tag className="w-5 h-5 text-[#2A6CF0]" />
+                            <h4 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Edit Metadata</h4>
+                        </div>
+                        
+                        <div className="space-y-4 mb-6">
+                            <div>
+                                <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Document Type</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. SGST, LegalNotice" 
+                                    value={editMetadata.type}
+                                    onChange={(e) => setEditMetadata(prev => ({ ...prev!, type: e.target.value }))}
+                                    className={`w-full px-4 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#2A6CF0]/50 transition ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+                                />
+                            </div>
+                            <div>
+                                <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Region</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Assam, Delhi" 
+                                    value={editMetadata.region}
+                                    onChange={(e) => setEditMetadata(prev => ({ ...prev!, region: e.target.value }))}
+                                    className={`w-full px-4 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#2A6CF0]/50 transition ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
+                                />
+                            </div>
+                            <div className="pt-2">
+                                <label className={`block text-[10px] font-medium opacity-50 mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>S3 Key (Read-only)</label>
+                                <p className={`text-[10px] font-mono break-all opacity-70 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{editMetadata.key}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex justify-end gap-3">
+                            <button 
+                                onClick={() => setEditMetadata(null)} 
+                                className={`px-4 py-2 text-sm rounded-xl transition ${isDarkMode ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleUpdateTags}
+                                disabled={updatingMetadata}
+                                className="flex items-center gap-2 px-4 py-2 text-sm bg-[#2A6CF0] hover:bg-[#2259D6] text-white rounded-xl transition font-medium disabled:opacity-50"
+                            >
+                                {updatingMetadata ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ═══ Vector Viewer Modal ═══ */}
             {vectorViewerKey && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-4">
@@ -527,7 +616,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                                             className="rounded border-gray-300" 
                                         />
                                     </th>
-                                    <th className="p-3 text-left">Key</th>
+                                    <th className="p-3 text-left">Name</th>
                                     <th className="p-3 text-left w-24">Status</th>
                                     <th className="p-3 text-left w-24">Size</th>
                                     <th className="p-3 text-left w-40">Modified</th>
@@ -553,8 +642,23 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                                                     className="rounded border-gray-300" 
                                                 />
                                             </td>
-                                            <td className={`p-3 font-mono text-xs max-w-xs truncate ${f.status === 'processing' ? 'text-[#2A6CF0] font-bold' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`} title={f.key}>
-                                                {f.key.split('/').pop()}
+                                            <td className={`p-3 font-medium text-sm flex items-center gap-2 ${f.status === 'processing' ? 'text-[#2A6CF0] font-bold' : (isDarkMode ? 'text-gray-200' : 'text-gray-800')}`}>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="truncate max-w-[200px]" title={f.key}>
+                                                        {(() => {
+                                                            const type = f.tags?.type || "";
+                                                            const region = f.tags?.region || "";
+                                                            if (!type && !region) return f.key.split('/').pop();
+                                                            const combined = `${type}${region}`;
+                                                            return combined.length > 30 ? combined.substring(0, 30) + "..." : combined;
+                                                        })()}
+                                                    </span>
+                                                    {(f.tags?.type || f.tags?.region) && (
+                                                        <span className="text-[10px] opacity-50 font-normal truncate max-w-[200px]">
+                                                            {f.tags?.type && `Type: ${f.tags.type}`} {f.tags?.region && `• Region: ${f.tags.region}`}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="p-3">
                                                 {f.status === 'processing' ? (
@@ -575,6 +679,17 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                                             <td className={`p-3 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{(f.size / 1024).toFixed(1)} KB</td>
                                             <td className={`p-3 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(f.last_modified).toLocaleDateString()}</td>
                                             <td className="p-3 text-right whitespace-nowrap">
+                                                <button 
+                                                    onClick={() => setEditMetadata({ 
+                                                        key: f.key, 
+                                                        type: f.tags?.type || "", 
+                                                        region: f.tags?.region || "" 
+                                                    })}
+                                                    className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                                                    title="Edit Metadata"
+                                                >
+                                                    <Edit3 className="w-4 h-4" />
+                                                </button>
                                                 <button 
                                                     onClick={() => handleProcessFile(f.key)}
                                                     disabled={processingFiles.has(f.key) || f.status === 'processing'}

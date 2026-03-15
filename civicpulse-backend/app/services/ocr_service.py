@@ -88,6 +88,13 @@ async def _extract_via_ocr_fallback_async(
         return full_text, total
     except Exception as e:
         logger.error(f"OCR Fallback failed: {e}")
+        # Check if the error is due to missing dependencies
+        error_msg = str(e).lower()
+        if "tesseract" in error_msg or "poppler" in error_msg or "not found" in error_msg:
+            raise RuntimeError(
+                "Local OCR dependencies (Tesseract/Poppler) are missing. "
+                "Please install them or increase the Textract limit in .env."
+            ) from e
         return "", 0
 
 
@@ -144,7 +151,14 @@ def _extract_via_ocr_fallback(pdf_path: str):
             full_text += pytesseract.image_to_string(img) + "\n"
         return full_text, len(images)
     except Exception as e:
-        logger.error(f"OCR Fallback failed: {e}")
+        logger.error(f"OCR Fallback failed: {pdf_path}: {e}")
+        # Check if the error is due to missing dependencies
+        error_msg = str(e).lower()
+        if "tesseract" in error_msg or "poppler" in error_msg or "not found" in error_msg:
+            raise RuntimeError(
+                "Local OCR dependencies (Tesseract/Poppler) are missing. "
+                "Please install them or increase the Textract limit in .env."
+            ) from e
         return "", 0
 
 def _extract_from_image(image_path: str):

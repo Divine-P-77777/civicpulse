@@ -129,7 +129,8 @@ class RagPipeline:
         language: str = "en",
         stream: bool = False,
         mode: str = "chat",
-        use_profile: bool = True
+        use_profile: bool = True,
+        metadata_filters: dict = None
     ):
         """
         Optimized RAG pipeline:
@@ -160,10 +161,30 @@ class RagPipeline:
         # Conversation context (pure CPU — fast)
         conversation_context = self._build_conversation_context(chat_history or [])
 
+        # ── Auto-detect Metadata Filters ──
+        if metadata_filters is None:
+            metadata_filters = {}
+        
+        # 1. From user profile
+        if user_id:
+            profile = get_user_profile(user_id)
+            if profile and "metadata" in profile:
+                profile_meta = profile["metadata"]
+                if "region" in profile_meta and "region" not in metadata_filters:
+                    metadata_filters["region"] = profile_meta["region"]
+                if "type" in profile_meta and "type" not in metadata_filters:
+                    metadata_filters["type"] = profile_meta["type"]
+
+        # 2. From query (Heuristic)
+        q_norm = query.lower()
+        if "assam" in q_norm: metadata_filters["region"] = "Assam"
+        if "law" in q_norm: metadata_filters["type"] = "law"
+        if "constitution" in q_norm: metadata_filters["type"] = "constitution"
+
         # Embedding + Vector search (I/O bound — benefits from threading)
         query_embedding = generate_embedding(query)
         context_chunks = vector_service.similarity_search(
-            query_embedding, k=config["top_k"], user_id=user_id
+            query_embedding, k=config["top_k"], user_id=user_id, filters=metadata_filters
         )
 
         # ── Step 3: Direct context (replaces summarize_service — saves 3-8s) ──

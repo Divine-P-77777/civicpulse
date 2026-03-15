@@ -2,6 +2,7 @@ import os
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from dotenv import load_dotenv
 import logging
+import traceback
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -32,8 +33,30 @@ class VectorService:
         }
         return self.client.index(index=self.index_name, id=doc_id, body=body)
 
+    def bulk_store_vectors(self, documents: list[dict]):
+        """Store multiple vectors in a single request using helpers.bulk.
+        Each document in list should have: {'id': str, 'vector': list, 'metadata': dict}
+        """
+        from opensearchpy.helpers import bulk
+        
+        actions = [
+            {
+                "_index": self.index_name,
+                "_id": doc["id"],
+                "_source": {
+                    "vector": doc["vector"],
+                    "metadata": doc["metadata"]
+                }
+            }
+            for doc in documents
+        ]
+        
+        success, failed = bulk(self.client, actions)
+        logger.info(f"Bulk storage complete: {success} successes, {failed} failures")
+        return {"success": success, "failed": failed}
+
     # --- READ ---
-    def similarity_search(self, query_vector: list, k: int = 5, user_id: str = None):
+    def similarity_search(self, query_vector: list, k: int = 5, user_id: str = None, filters: dict = None):
         search_query = {
             "size": k,
             "query": {
@@ -58,6 +81,20 @@ class VectorService:
                 }
             }
         }
+
+        # Add additional metadata filters if provided
+        if filters:
+            for key, value in filters.items():
+                if value:
+                    # Append strictly to the filter section
+                    if "must" not in search_query["query"]["bool"]["filter"]["bool"]:
+                        search_query["query"]["bool"]["filter"]["bool"]["must"] = []
+                    
+                    # OpenSearch stores these in metadata prefix
+                    field_name = f"metadata.{key}.keyword"
+                    search_query["query"]["bool"]["filter"]["bool"]["must"].append(
+                        {"term": {field_name: value}}
+                    )
         
         # If user_id is provided, also allow docs where source_type is "private" and uploaded_by == user_id
         if user_id:
@@ -196,6 +233,39 @@ class VectorService:
         except Exception as e:
             logger.error(f"Failed to delete vectors for source '{source}': {e}")
             return {"deleted": False, "error": str(e)}
+
+    def update_metadata_by_source(self, source: str, new_metadata: dict):
+        """Update metadata fields for all chunks matching a source."""
+        try:
+            # Prepare script for update_by_query
+            script = {
+                "source": "".join([f"ctx._source.metadata.{k} = params.{k};" for k in new_metadata.keys()]),
+                "lang": "painless",
+                "params": new_metadata
+            }
+            
+            query = {
+                "query": {
+                    "bool": {
+                        "should": [
+                            {"term": {"metadata.source.keyword": source}},
+                            {"term": {"metadata.url.keyword": source}},
+                            {"wildcard": {"metadata.source.keyword": f"*/{source}"}},
+                            {"wildcard": {"metadata.url.keyword": f"*/{source}"}},
+                        ],
+                        "minimum_should_match": 1
+                    }
+                },
+                "script": script
+            }
+            
+            result = self.client.update_by_query(index=self.index_name, body=query, wait_for_completion=False)
+            task_id = result.get("task")
+            logger.info(f"Update by query task created for '{source}': {task_id}")
+            return {"updated": True, "task_id": task_id}
+        except Exception as e:
+            logger.error(f"Failed to update metadata for source '{source}': {traceback.format_exc()}")
+            return {"updated": False, "error": str(e)}
 
     def delete_all_documents(self):
         """Purge all documents from the index."""
