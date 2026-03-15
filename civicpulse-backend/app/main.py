@@ -7,7 +7,7 @@ import os
 # Load environment variables from .env file
 load_dotenv()
 
-from app.routes import upload, analyze, admin, live
+from app.routes import upload, analyze, admin, live, drafts
 from app.routes import chat
 from app.services.chat_service import ensure_table_exists
 import traceback
@@ -48,6 +48,7 @@ app.include_router(upload.router, prefix="/api")
 app.include_router(analyze.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(drafts.router, prefix="/api")
 
 # ─── Mount Socket.IO ───
 # We need Socket.IO exclusively for Admin panel upload progress events

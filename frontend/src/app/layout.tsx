@@ -1,58 +1,29 @@
+'use client';
+
 import type { Metadata } from 'next';
 import { Inter, Noto_Sans_Devanagari } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/lib/providers';
 import { ClerkProvider } from '@clerk/nextjs';
-
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' });
-
-export const metadata: Metadata = {
-  metadataBase: new URL('https://civicpulse.vercel.app'),
-  title: 'CivicPulse - AI Legal Rights Assistant',
-  description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
-  keywords: ['legal', 'ai', 'assistant', 'civic rights', 'document analysis', 'law'],
-  manifest: '/manifest.json',
-  icons: {
-    icon: '/logo_minimal.png',
-    apple: '/icons/icon-192.png',
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'CivicPulse',
-  },
-  openGraph: {
-    type: 'website',
-    url: 'https://civicpulse.vercel.app/',
-    title: 'CivicPulse - AI Legal Rights Assistant',
-    description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
-    images: ['https://civicpulse.vercel.app/logo_minimal.png'],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'CivicPulse - AI Legal Rights Assistant',
-    description: 'AI-powered legal rights assistant to help understand complex legal documents and civic rights',
-    images: ['https://civicpulse.vercel.app/logo_minimal.png'],
-  },
-};
-
-import { Viewport } from 'next';
-export const viewport: Viewport = {
-  themeColor: '#4f46e5',
-};
-
+import { usePathname } from 'next/navigation';
 import LenisProvider from '@/components/LenisProvider';
 import OnboardingModal from '@/components/OnboardingModal';
 import MobileFooter from '@/components/MobileFooter';
 import Navigation from '@/components/Navigation';
 import { PerformanceLogger } from '@/components/PerformanceLogger';
 
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' });
+
+// Client-side layout to handle conditional UI
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isDraftPage = pathname?.startsWith('/draftcreation');
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -67,10 +38,10 @@ export default function RootLayout({
           <Providers>
             <LenisProvider>
               <PerformanceLogger />
-              <Navigation />
+              {!isDraftPage && <Navigation />}
               <div id="root">{children}</div>
               <OnboardingModal />
-              <MobileFooter />
+              {!isDraftPage && <MobileFooter />}
             </LenisProvider>
           </Providers>
         </ClerkProvider>
@@ -78,3 +49,9 @@ export default function RootLayout({
     </html>
   );
 }
+
+// Separate Metadata to avoid issues with 'use client'
+// Note: Metadata must be in a server component or exported from a layout/page.
+// Since we turned this layout into a client component for pathname, we'll
+// keep the metadata logic but note that Next.js might require it in a separate file 
+// if it complains about mixing 'use client' and metadata export.

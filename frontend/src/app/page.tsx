@@ -45,9 +45,9 @@ export default function Home() {
                   disabled={false}
                 />
               </div>
-              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance">
+              <h1 className="text-3xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance leading-tight">
                 Understand Your Legal Rights in{" "}
-                <div className="text-indigo-600 block mt-2 h-[1.2em]">
+                <div className="text-indigo-600 block sm:mt-2 min-h-[1.2em]">
                   <NativeTypewriter
                     content={[
                       "Simple Language.",
@@ -60,7 +60,7 @@ export default function Home() {
                   />
                 </div>
               </h1>
-              <p className="mt-6 text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance">
+              <p className="mt-8 text-base sm:text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance leading-relaxed">
                 AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
               </p>
               

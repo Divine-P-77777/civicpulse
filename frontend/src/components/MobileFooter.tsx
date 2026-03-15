@@ -11,7 +11,7 @@ export default function MobileFooter() {
   const dispatch = useAppDispatch();
 
   // Hide the footer on specific routes where it interferes with the UI
-  if (pathname.startsWith('/chat') || pathname.startsWith('/live')) {
+  if (pathname.startsWith('/chat') || pathname.startsWith('/live') || pathname.startsWith('/draftcreation') || pathname.startsWith('/admin')) {
     return null;
   }
 

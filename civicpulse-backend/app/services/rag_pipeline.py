@@ -27,6 +27,7 @@ _bedrock_semaphore = asyncio.Semaphore(3)
 MODE_CONFIG = {
     "live": {"top_k": 3, "chunk_chars": 500, "max_tokens": 300},
     "chat": {"top_k": 5, "chunk_chars": 1000, "max_tokens": 1024},
+    "draft": {"top_k": 8, "chunk_chars": 2000, "max_tokens": 2048},
 }
 
 # Default model — Claude 3 Haiku via AWS Bedrock
@@ -49,6 +50,13 @@ class RagPipeline:
                 self.live_prompt_template = f.read()
         except FileNotFoundError:
             self.live_prompt_template = self.prompt_template
+
+        draft_prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "draft_file.txt")
+        try:
+            with open(draft_prompt_path, "r") as f:
+                self.draft_prompt_template = f.read()
+        except FileNotFoundError:
+            self.draft_prompt_template = self.prompt_template
 
     # ─── Conversation Context (no LLM call, pure truncation) ──────────
     @staticmethod
@@ -144,7 +152,12 @@ class RagPipeline:
         context_text = self._build_context_text(context_chunks, config["chunk_chars"])
 
         # ── Step 4: Prompt construction ──────────────────────────
-        template = self.live_prompt_template if mode == "live" else self.prompt_template
+        if mode == "live":
+            template = self.live_prompt_template
+        elif mode == "draft":
+            template = self.draft_prompt_template
+        else:
+            template = self.prompt_template
         system_prompt = template.format(
             context=context_text,
             query=query,
