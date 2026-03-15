@@ -97,7 +97,14 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit
     } = useLiveAudio({
         wsReadyState: wsRef.current?.readyState,
-        sendUserText: (text) => trackedSend({ type: 'user_text', text }),
+        sendUserText: (text) => {
+            const draftRegex = /\b(?:create|make|write|generate|draft)\b.*\b(?:draft|complaint|notice|letter|document)\b/i;
+            if (draftRegex.test(text) || text.toLowerCase().startsWith('draft')) {
+                window.location.href = `/draftcreation?topic=${encodeURIComponent(text)}&source=live`;
+                return;
+            }
+            trackedSend({ type: 'user_text', text })
+        },
         requestGreeting: () => trackedSend({ type: 'request_greeting' }),
         status, setStatus, setTranscript,
         language: language as 'en' | 'hi',

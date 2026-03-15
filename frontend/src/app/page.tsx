@@ -7,7 +7,11 @@ import { CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic } from 'lucide-react'
 import { useState } from 'react';
 import { SignInButton, SignUpButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { NativeTypewriter } from '@/components/NativeTypewriter';
-
+import ShinyText from '@/components/ui/shiny-text';
+import { NativeButton } from '@/components/ui/native-button';
+import StarBorder from '@/components/StarBorder';
+import SpotlightCard from '@/components/SpotlightCard';
+import GlareHover from '@/components/GlareHover';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -25,12 +29,25 @@ export default function Home() {
         <div className="absolute top-0 right-0 -mr-40 -mt-20 w-96 h-96 bg-indigo-100 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center">
-            
             {/* Hero Text */}
-            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left pt-6">
-              <h1 className="text-4xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance">
+            <div className="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left pt-6 flex flex-col items-center lg:items-start">
+              <div className="mb-6 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/50 backdrop-blur-sm px-4 py-1.5 shadow-sm">
+                <ShinyText
+                  text="✨ Welcome to the future"
+                  speed={2}
+                  delay={0}
+                  color="#000000"
+                  shineColor="#a1a1aa"
+                  spread={120}
+                  direction="left"
+                  yoyo
+                  pauseOnHover={false}
+                  disabled={false}
+                />
+              </div>
+              <h1 className="text-3xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance leading-tight">
                 Understand Your Legal Rights in{" "}
-                <div className="text-indigo-600 block mt-2 h-[1.2em]">
+                <div className="text-indigo-600 block sm:mt-2 min-h-[1.2em]">
                   <NativeTypewriter
                     content={[
                       "Simple Language.",
@@ -43,12 +60,13 @@ export default function Home() {
                   />
                 </div>
               </h1>
-              <p className="mt-6 text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance">
+              <p className="mt-8 text-base sm:text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance leading-relaxed">
                 AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
               </p>
               
               <div className="mt-8 flex flex-col sm:flex-row flex-wrap gap-4 sm:justify-center lg:justify-start">
-                <Link
+                <NativeButton
+                  glow
                   href="/live"
                   onClick={() => handleModeSelect('live')}
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all hover:shadow-md"
@@ -57,8 +75,9 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a5 5 0 1110 0v6a3 3 0 01-3 3z" />
                   </svg>
                   Live Mode
-                </Link>
-                <Link
+                </NativeButton>
+                <NativeButton
+                  glow
                   href="/chat"
                   onClick={() => handleModeSelect('chat')}
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-indigo-200 text-base font-semibold rounded-lg text-indigo-700 bg-white hover:bg-indigo-50 shadow-sm transition-all"
@@ -67,8 +86,9 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Chat Mode
-                </Link>
-                <Link
+                </NativeButton>
+                <NativeButton
+                  glow
                   href="/draftcreation"
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-slate-200 text-base font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-all"
                 >
@@ -76,7 +96,7 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                   Make Draft
-                </Link>
+                </NativeButton>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm text-slate-500 font-medium font-sans">
                 <div className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Instant Analysis</div>
@@ -105,7 +125,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {/* Live Mode Card */}
-            <div className="bg-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col">
+            <SpotlightCard className="bg-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col" spotlightColor="rgba(99, 102, 241, 0.15)">
               <div className="flex items-center gap-4 mb-6">
                  <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
                     <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -125,17 +145,21 @@ export default function Home() {
                 <li className="flex gap-3"><CheckCircle2 className="text-indigo-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Visual document scanning</span></li>
                 <li className="flex gap-3"><CheckCircle2 className="text-indigo-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Real-time Q&A</span></li>
               </ul>
-              <Link
+              <StarBorder
+                as={Link}
                 href="/live"
                 onClick={() => handleModeSelect('live')}
-                className="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all"
+                color="magenta"
+                speed="5s"
+                className="w-full block rounded-xl shadow-md transition-all hover:scale-[1.02]"
+                innerClassName="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
               >
                 Try Live Mode
-              </Link>
-            </div>
+              </StarBorder>
+            </SpotlightCard>
 
             {/* Chat Mode Card */}
-            <div className="bg-white rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col">
+            <SpotlightCard className="bg-white rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col" spotlightColor="rgba(16, 185, 129, 0.15)">
               <div className="flex items-center gap-4 mb-6">
                  <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
                     <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -155,14 +179,18 @@ export default function Home() {
                 <li className="flex gap-3"><CheckCircle2 className="text-emerald-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Interactive text highlights</span></li>
                 <li className="flex gap-3"><CheckCircle2 className="text-emerald-500 shrink-0 w-5 h-5" /> <span className="text-slate-700 font-medium">Downloadable reports</span></li>
               </ul>
-              <Link
+              <StarBorder
+                as={Link}
                 href="/chat"
                 onClick={() => handleModeSelect('chat')}
-                className="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 shadow-md transition-all"
+                color="magenta"
+                speed="5s"
+                className="w-full block rounded-xl shadow-md transition-all hover:scale-[1.02]"
+                innerClassName="w-full text-center block px-6 py-4 border border-transparent text-base font-bold rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
               >
                 Start Document Analysis
-              </Link>
-            </div>
+              </StarBorder>
+            </SpotlightCard>
           </div>
         </div>
       </section>
@@ -272,29 +300,41 @@ export default function Home() {
             <p className="mt-4 text-lg text-slate-600">Built to make legal understanding accessible and secure.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl mb-6">
+            <GlareHover 
+              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+              glareColor="#4f46e5" 
+              glareOpacity={0.15}
+            >
+              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
                 <Mic className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">24/7 AI Help</h3>
-              <p className="text-slate-600 leading-relaxed">Access expert-level analysis anytime. Features seamless Voice interaction and powerful OCR document scanning.</p>
-            </div>
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl mb-6">
+              <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">24/7 AI Help</h3>
+              <p className="text-slate-600 leading-relaxed relative z-10">Access expert-level analysis anytime. Features seamless Voice interaction and powerful OCR document scanning.</p>
+            </GlareHover>
+            <GlareHover 
+              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+              glareColor="#f59e0b" 
+              glareOpacity={0.15}
+            >
+              <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Risk Flags</h3>
-              <p className="text-slate-600 leading-relaxed">Instantly spot danger. Our system categorizes clauses into intuitive Red, Yellow, and Green risk levels.</p>
-            </div>
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 flex items-center justify-center rounded-xl mb-6">
+              <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">Risk Flags</h3>
+              <p className="text-slate-600 leading-relaxed relative z-10">Instantly spot danger. Our system categorizes clauses into intuitive Red, Yellow, and Green risk levels.</p>
+            </GlareHover>
+            <GlareHover 
+              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+              glareColor="#10b981" 
+              glareOpacity={0.15}
+            >
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
                 <Lock className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Secure History</h3>
-              <p className="text-slate-600 leading-relaxed">Private by design. Your analysis history and documents are encrypted and kept strictly confidential.</p>
-            </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">Secure History</h3>
+              <p className="text-slate-600 leading-relaxed relative z-10">Private by design. Your analysis history and documents are encrypted and kept strictly confidential.</p>
+            </GlareHover>
           </div>
         </div>
       </section>
@@ -399,70 +439,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer Match Design */}
-      <div className="px-4 pb-8 sm:px-6 sm:pb-12 lg:px-8 lg:pb-12 bg-slate-50">
-        <footer className="bg-[#1e2330] text-slate-300 py-16 rounded-3xl shadow-2xl overflow-hidden relative border border-slate-700/50">
-          <div className="max-w-7xl mx-auto px-8 sm:px-12">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
-              <div className="col-span-2 lg:col-span-2">
-                <Link href="/" className="flex items-center gap-2 mb-6 w-max">
-                  <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <span className="text-2xl font-bold text-white tracking-tight">CivicPulse</span>
-                </Link>
-                <p className="text-slate-400 max-w-xs text-sm">
-                  Empowering individuals to understand their legal rights through AI assistance.
-                </p>
-              </div>
-              
-              <div>
-                <h4 className="text-white font-bold mb-4">Tools</h4>
-                <ul className="space-y-3 text-sm">
-                  <li><Link href="/live" className="hover:text-white transition-colors">Live Mode</Link></li>
-                  <li><Link href="/chat" className="hover:text-white transition-colors">Chat Mode</Link></li>
-                  <li><Link href="/draftcreation" className="hover:text-white transition-colors">Make Draft</Link></li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="text-white font-bold mb-4">Account</h4>
-                <ul className="space-y-3 text-sm">
-                  <li><Link href="/admin" className="hover:text-white transition-colors flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Admin Dashboard</Link></li>
-                  <li><Link href="/settings" className="hover:text-white transition-colors">Profile Settings</Link></li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="text-white font-bold mb-4">Legal</h4>
-                <ul className="space-y-3 text-sm">
-                  <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
-                  <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-                  <li><Link href="/cookies" className="hover:text-white transition-colors">Cookie Policy</Link></li>
-                </ul>
-              </div>
-            </div>
-            
-            <div className="mt-16 pt-8 border-t border-slate-700/50 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-              <p className="text-slate-400">© 2026 CivicPulse. All rights reserved.</p>
-              <div className="flex gap-6 z-10">
-                <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
-                <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
-                <Link href="#" className="hover:text-white transition-colors">Help Center</Link>
-              </div>
-            </div>
-
-            {/* Massive modern typography text */}
-            <div className="mt-12 w-full flex justify-center overflow-hidden opacity-5 pointer-events-none select-none">
-              <span className="text-[12rem] leading-none font-black tracking-tighter text-white">
-                CivicPulse
-              </span>
-            </div>
-          </div>
-        </footer>
-      </div>
     </div>
   );
 }

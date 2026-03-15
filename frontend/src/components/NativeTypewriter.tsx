@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 interface NativeTypewriterProps {
@@ -19,8 +19,10 @@ export function NativeTypewriter({
   cursor = true,
   loop = false,
   startDelay = 0,
+  morph = true,
   className,
 }: NativeTypewriterProps) {
+  const shouldReduceMotion = useReducedMotion();
   const [displayedText, setDisplayedText] = useState("");
 
   const speedMap = {
@@ -35,13 +37,19 @@ export function NativeTypewriter({
   const contentHash = JSON.stringify(content);
 
   useEffect(() => {
+    if (shouldReduceMotion) {
+      setDisplayedText(Array.isArray(content) ? content.join(" ") : content);
+      return;
+    }
+
     let timeoutId: NodeJS.Timeout;
     let currentIndex = 0;
     let currentStringIndex = 0;
     let isDeleting = false;
 
     // Use parsed content
-    const textArray = JSON.parse(contentHash);
+    const parsed = JSON.parse(contentHash);
+    const textArray = Array.isArray(parsed) ? parsed : [parsed];
 
     const runLoop = () => {
       const currentString = textArray[currentStringIndex];
@@ -89,11 +97,22 @@ export function NativeTypewriter({
       clearTimeout(initialTimer);
       clearTimeout(timeoutId);
     };
-  }, [contentHash, typingSpeed, loop, startDelay]);
+  }, [contentHash, typingSpeed, loop, startDelay, shouldReduceMotion, content]);
 
   return (
     <div className={`inline-flex items-center ${className || ""}`}>
-      <span className="whitespace-pre-wrap">{displayedText}</span>
+      <span className="whitespace-pre-wrap">
+        {displayedText.split("").map((char, index) => (
+          <motion.span
+            key={index}
+            initial={morph ? { opacity: 0, filter: "blur(2px)" } : { opacity: 1 }}
+            animate={morph ? { opacity: 1, filter: "blur(0px)" } : { opacity: 1 }}
+            transition={{ duration: 0.1 }}
+          >
+            {char}
+          </motion.span>
+        ))}
+      </span>
 
       {cursor && (
         <motion.span

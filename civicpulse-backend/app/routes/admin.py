@@ -5,7 +5,7 @@ from app.services.dynamodb_service import (
     list_results, get_result, update_result, delete_result, get_weekly_usage_stats
 )
 
-from app.services.job_tracker import create_job, update_job, complete_job, fail_job, get_job, list_jobs, cancel_job
+from app.services.job_tracker import create_job, update_job, complete_job, fail_job, get_job, list_jobs, cancel_job, ensure_job_table
 from app.ingestion.pdf_ingest import ingest_pdf_from_s3
 from app.core.auth import get_admin_user
 from pydantic import BaseModel
@@ -14,9 +14,16 @@ import json
 import logging
 import asyncio
 
+# Ensure persistent job table exists
+ensure_job_table()
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# Concurrency Semaphore: Limits heavy background tasks (OCR/Chunking) 
+# to protect small EC2 instances (e.g. 2GB RAM micro instances).
+INGESTION_SEMAPHORE = asyncio.Semaphore(5)
 
 # ─── Pydantic Models ───
 
@@ -29,62 +36,63 @@ class UpdateResultRequest(BaseModel):
 
 async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional[str], content: Optional[str], meta_dict: dict, x_socket_id: Optional[str], x_live_sid: Optional[str] = None, job_id: Optional[str] = None):
     """Background task orchestrator for running the long document ingestion processes."""
-    try:
-        result_meta = {"chunks": 0, "pages": 1, "engine": "Textract"}
-        
-        if ingest_type == "pdf":
-            result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id, job_id=job_id)
-        elif ingest_type == "image":
-            from app.ingestion.image_ingest import ingest_image_from_s3
-            result_meta = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id, live_sid=x_live_sid)
-        elif ingest_type == "web":
-            from app.ingestion.web_ingest import ingest_web
-            chunks = await ingest_web(content, meta_dict, x_socket_id)
-            result_meta = {"chunks": chunks, "pages": 0, "engine": "Scraper"}
-        elif ingest_type == "pdf (url)":
-            result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id, job_id=job_id)
+    async with INGESTION_SEMAPHORE:
+        try:
+            result_meta = {"chunks": 0, "pages": 1, "engine": "Textract"}
             
-        chunks_processed = result_meta.get("chunks", 0)
-        pages_processed = result_meta.get("pages", 1)
-        ocr_engine = result_meta.get("engine", "Textract")
+            if ingest_type == "pdf":
+                result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id, job_id=job_id)
+            elif ingest_type == "image":
+                from app.ingestion.image_ingest import ingest_image_from_s3
+                result_meta = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id, live_sid=x_live_sid)
+            elif ingest_type == "web":
+                from app.ingestion.web_ingest import ingest_web
+                chunks = await ingest_web(content, meta_dict, x_socket_id)
+                result_meta = {"chunks": chunks, "pages": 0, "engine": "Scraper"}
+            elif ingest_type == "pdf (url)":
+                result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id, job_id=job_id)
+                
+            chunks_processed = result_meta.get("chunks", 0)
+            pages_processed = result_meta.get("pages", 1)
+            ocr_engine = result_meta.get("engine", "Textract")
 
-        # Log completion to DynamoDB with usage stats
-        from app.services.dynamodb_service import store_analysis_result
-        store_analysis_result(
-            query=f"Ingestion: {file_key or content}",
-            summary=f"Processed {chunks_processed} chunks from {pages_processed} pages using {ocr_engine}.",
-            pages_processed=pages_processed,
-            ocr_engine=ocr_engine
-        )
+            # Log completion to DynamoDB with usage stats
+            from app.services.dynamodb_service import store_analysis_result
+            store_analysis_result(
+                query=f"Ingestion: {file_key or content}",
+                summary=f"Processed {chunks_processed} chunks from {pages_processed} pages using {ocr_engine}.",
+                pages_processed=pages_processed,
+                ocr_engine=ocr_engine
+            )
 
-        msg = f"✅ {chunks_processed} chunks from {pages_processed} pages ({ocr_engine})"
-        if job_id:
-            complete_job(job_id, msg)
-        logger.info(f"✅ Background Ingestion complete: {file_key or content} → {chunks_processed} chunks ({ocr_engine}).")
-    except Exception as e:
-        import traceback
-        is_cancel = False
-        if job_id:
-            from app.services.job_tracker import is_cancelled, finalize_cancel, fail_job as _fail_job
-            is_cancel = is_cancelled(job_id) or str(e) == "Job was cancelled by the user"
-            if is_cancel:
-                finalize_cancel(job_id, "Job was successfully cancelled and cleaned up")
-                logger.info(f"Job {job_id} cancelled cleanly for {file_key or content}")
+            msg = f"✅ {chunks_processed} chunks from {pages_processed} pages ({ocr_engine})"
+            if job_id:
+                complete_job(job_id, msg)
+            logger.info(f"✅ Background Ingestion complete: {file_key or content} → {chunks_processed} chunks ({ocr_engine}).")
+        except Exception as e:
+            import traceback
+            is_cancel = False
+            if job_id:
+                from app.services.job_tracker import is_cancelled, finalize_cancel, fail_job as _fail_job
+                is_cancel = is_cancelled(job_id) or str(e) == "Job was cancelled by the user"
+                if is_cancel:
+                    finalize_cancel(job_id, "Job was successfully cancelled and cleaned up")
+                    logger.info(f"Job {job_id} cancelled cleanly for {file_key or content}")
+                else:
+                    traceback.print_exc()
+                    _fail_job(job_id, str(e))
             else:
                 traceback.print_exc()
-                _fail_job(job_id, str(e))
-        else:
-            traceback.print_exc()
-        if x_socket_id:
-            from app.core.socket_manager import socket_manager
-            try:
-                loop = asyncio.get_event_loop()
-                if is_cancel:
-                    loop.create_task(socket_manager.emit_progress(0, "🛑 Job cancelled — partial data cleaned up", x_socket_id, stage="cancelled"))
-                else:
-                    loop.create_task(socket_manager.emit_progress(100, f"Error: {str(e)}", x_socket_id, stage="error"))
-            except:
-                pass
+            if x_socket_id:
+                from app.core.socket_manager import socket_manager
+                try:
+                    loop = asyncio.get_event_loop()
+                    if is_cancel:
+                        loop.create_task(socket_manager.emit_progress(0, "🛑 Job cancelled — partial data cleaned up", x_socket_id, stage="cancelled"))
+                    else:
+                        loop.create_task(socket_manager.emit_progress(100, f"Error: {str(e)}", x_socket_id, stage="error"))
+                except:
+                    pass
 
 
 @router.post("/ingest", status_code=202)
@@ -107,6 +115,14 @@ async def ingest_document(
     bucket = S3_BUCKET
     file_key = None
     
+    # Check global limit: max 5 running jobs across all admins
+    running_jobs = list_jobs(status_filter="running")
+    if len(running_jobs) >= 5:
+        raise HTTPException(
+            status_code=503, 
+            detail="Server is busy with other ingestion tasks. Please try again later."
+        )
+
     try:
         if type == "pdf":
             if not file: raise HTTPException(400, "File required for PDF ingestion")
@@ -162,6 +178,46 @@ async def ingest_document(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+        
+class IngestExistingRequest(BaseModel):
+    file_key: str
+    metadata: Optional[dict] = {}
+
+@router.post("/ingest/existing", status_code=202)
+async def ingest_existing_file(
+    request: IngestExistingRequest,
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(get_admin_user),
+    x_socket_id: Optional[str] = Header(None)
+):
+    """Admin-only endpoint. Process an existing file in S3 into vectors."""
+    bucket = S3_BUCKET
+    file_key = request.file_key
+    meta_dict = request.metadata or {}
+    meta_dict["source_type"] = "global"
+    
+    # Determine type based on extension
+    ingest_type = "pdf"
+    if file_key.lower().endswith((".png", ".jpg", ".jpeg")):
+        ingest_type = "image"
+        
+    job_id = create_job(file_key, ingest_type, x_socket_id)
+    background_tasks.add_task(
+        _run_admin_ingestion, 
+        ingest_type, 
+        bucket, 
+        file_key, 
+        None, 
+        meta_dict, 
+        x_socket_id, 
+        None, 
+        job_id
+    )
+    
+    return {
+        "message": f"Processing existing S3 file '{file_key}' in background",
+        "job_id": job_id
+    }
 
 # ═══════════════════════════════════════════════
 # JOB TRACKING
@@ -332,8 +388,48 @@ async def list_s3_files(
     prefix: str = Query("uploads/"),
     admin: dict = Depends(get_admin_user)
 ):
-    """List all files in the S3 bucket."""
-    return list_files(prefix=prefix)
+    """List all files in the S3 bucket, enriched with status and vector info."""
+    result = list_files(prefix=prefix)
+    files = result.get("files", [])
+    
+    if not files:
+        return result
+        
+    # Get all keys to check vectors and jobs
+    keys = [f["key"] for f in files]
+    
+    # Construct full S3 URLs as stored in OpenSearch (s3://bucket/key)
+    s3_urls = [f"s3://{S3_BUCKET}/{k}" for k in keys]
+    
+    # 1. Check for running jobs
+    current_jobs = list_jobs(status_filter="running")
+    job_map = {j["file_key"]: j for j in current_jobs if j.get("file_key")}
+    
+    # 2. Check for vector counts using both raw keys and full URLs
+    # We pass both to the vector service to be safe
+    all_search_terms = keys + s3_urls
+    vector_counts = vector_service.get_vector_counts_by_sources(all_search_terms)
+    
+    # 3. Merge info
+    for f in files:
+        key = f["key"]
+        full_url = f"s3://{S3_BUCKET}/{key}"
+        
+        f["job"] = job_map.get(key)
+        
+        # Count vectors from either raw key or full URL
+        count = vector_counts.get(key, 0) + vector_counts.get(full_url, 0)
+        f["vector_count"] = count
+        
+        # Derive a simplified status
+        if key in job_map:
+            f["status"] = "processing"
+        elif count > 0:
+            f["status"] = "processed"
+        else:
+            f["status"] = "pending"
+            
+    return result
 
 @router.get("/s3/download")
 async def download_s3_file(
@@ -355,10 +451,67 @@ async def delete_s3_file(
     # If S3 deletion actually occurred (or if forced), and cascade is requested
     vector_result = None
     if delete_vectors:
-        # Pass the key which matches metadata.source
+        # Pass the key which matches metadata.source (after prefix logic in vector_service)
         vector_result = vector_service.delete_document_by_source(key)
         
     return {
         **s3_result,
         "vectors_deleted": vector_result.get("count", 0) if vector_result else 0
+    }
+
+@router.post("/ingest/existing", status_code=202)
+async def ingest_existing_file(
+    request: IngestExistingRequest,
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(get_admin_user),
+    x_socket_id: Optional[str] = Header(None)
+):
+    """Admin-only endpoint. Process an existing file in S3 into vectors."""
+    bucket = S3_BUCKET
+    file_key = request.file_key
+    
+    # --- GLOBAL LIMIT CHECK ---
+    # Check if there are already 5 running jobs
+    running_jobs = list_jobs(status_filter="running")
+    if len(running_jobs) >= 5:
+        raise HTTPException(
+            status_code=503, 
+            detail="Server is busy with other ingestion tasks. Please try again later."
+        )
+
+    # --- CONCURRENCY CHECK ---
+    # Don't start a new job if one is already running for this file
+    existing_jobs = list_jobs(status_filter="running")
+    for job in existing_jobs:
+        if job.get("file_key") == file_key:
+            return {
+                "message": f"Job already running for '{file_key}'",
+                "job_id": job["job_id"],
+                "already_running": True
+            }
+            
+    meta_dict = request.metadata or {}
+    meta_dict["source_type"] = "global"
+    
+    # Determine type based on extension
+    ingest_type = "pdf"
+    if file_key.lower().endswith((".png", ".jpg", ".jpeg")):
+        ingest_type = "image"
+        
+    job_id = create_job(file_key, ingest_type, x_socket_id)
+    background_tasks.add_task(
+        _run_admin_ingestion, 
+        ingest_type, 
+        bucket, 
+        file_key, 
+        None, 
+        meta_dict, 
+        x_socket_id, 
+        None, 
+        job_id
+    )
+    
+    return {
+        "message": f"Processing existing S3 file '{file_key}' in background",
+        "job_id": job_id
     }

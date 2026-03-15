@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 class VectorService:
     def __init__(self):
-        self.host = os.getenv("OPENSEARCH_ENDPOINT", "").replace("https://", "").replace(":443", "")
-        self.username = os.getenv("OPENSEARCH_USER", "admin")
-        self.password = os.getenv("OPENSEARCH_PASSWORD", "")
+        self.host = os.getenv("OPENSEARCH_ENDPOINT", "").replace("https://", "").replace(":443", "").strip()
+        self.username = os.getenv("OPENSEARCH_USER", "admin").strip()
+        self.password = os.getenv("OPENSEARCH_PASSWORD", "").strip()
         
         self.client = OpenSearch(
             hosts=[{"host": self.host, "port": 443}],
@@ -22,7 +22,7 @@ class VectorService:
             connection_class=RequestsHttpConnection,
             timeout=30
         )
-        self.index_name = "civicpulse"
+        self.index_name = os.getenv("OPENSEARCH_INDEX", "civicpulse").strip()
 
     # --- CREATE ---
     def store_vector(self, doc_id: str, vector: list, metadata: dict):
@@ -204,6 +204,58 @@ class VectorService:
             body={"query": {"match_all": {}}}
         )
         return {"deleted": result.get("deleted", 0)}
+        
+    def get_vector_counts_by_sources(self, sources: list):
+        """Get the number of chunks for a list of source keys (S3 keys or URLs).
+        Uses a single aggregation query for efficiency.
+        """
+        if not sources:
+            return {}
+            
+        try:
+            query = {
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "should": [
+                            {"terms": {"metadata.source.keyword": sources}},
+                            {"terms": {"metadata.url.keyword": sources}},
+                            # For s3:// prefixed ones, we might need wildcard or separate terms if we knew the bucket
+                        ],
+                        "minimum_should_match": 1
+                    }
+                },
+                "aggs": {
+                    "sources": {
+                        "terms": {
+                            "field": "metadata.source.keyword",
+                            "size": len(sources) + 10
+                        }
+                    },
+                    "urls": {
+                        "terms": {
+                            "field": "metadata.url.keyword",
+                            "size": len(sources) + 10
+                        }
+                    }
+                }
+            }
+            response = self.client.search(index=self.index_name, body=query)
+            counts = {}
+            
+            # Aggregate from both potential metadata fields
+            for bucket in response.get("aggregations", {}).get("sources", {}).get("buckets", []):
+                key = bucket["key"]
+                counts[key] = counts.get(key, 0) + bucket["doc_count"]
+            
+            for bucket in response.get("aggregations", {}).get("urls", {}).get("buckets", []):
+                key = bucket["key"]
+                counts[key] = counts.get(key, 0) + bucket["doc_count"]
+                
+            return counts
+        except Exception as e:
+            logger.error(f"get_vector_counts_by_sources failed: {e}")
+            return {}
 
     # --- STATS ---
     def get_index_stats(self):

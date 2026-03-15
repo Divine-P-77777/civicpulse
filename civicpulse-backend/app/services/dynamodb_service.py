@@ -70,8 +70,8 @@ def get_weekly_usage_stats():
         # For now, it filters effectively for the dashboard.
         response = table.scan(
             FilterExpression=Key('Timestamp').gte(seven_days_ago.isoformat()),
-            ProjectionExpression='#ts, pages_processed, Query',
-            ExpressionAttributeNames={'#ts': 'Timestamp'}
+            ProjectionExpression='#ts, pages_processed, #q',
+            ExpressionAttributeNames={'#ts': 'Timestamp', '#q': 'Query'}
         )
         items = response.get("Items", [])
         

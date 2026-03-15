@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Calendar, ChevronLeft, ChevronRight, X, Eye, Trash2, Loader2 } from 'lucide-react';
+import { Search, Calendar, ChevronLeft, ChevronRight, X, Eye, Trash2, Loader2, Zap, Database, DownloadCloud, CheckCircle2, Activity, RefreshCw } from 'lucide-react';
 
 interface S3TabProps {
     isDarkMode: boolean;
@@ -39,23 +39,39 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFilter, setDateFilter] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [processingFiles, setProcessingFiles] = useState<Set<string>>(new Set());
 
-    const fetchData = React.useCallback(async () => {
-        setLoading(true);
+    const fetchData = React.useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const res = await authFetch(`${API_BASE}/api/admin/s3`);
-            setS3Files(await res.json());
-            setCurrentPage(1);
+            if (res.ok) {
+                setS3Files(await res.json());
+            }
         } catch (err: any) {
             console.error(`Failed to fetch s3 files:`, err);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [authFetch, API_BASE]);
+
+    const hasActiveJobs = useMemo(() => {
+        return s3Files?.files?.some((f: any) => f.status === 'processing');
+    }, [s3Files]);
 
     React.useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    React.useEffect(() => {
+        if (!hasActiveJobs) return;
+
+        const interval = setInterval(() => {
+            fetchData(true);
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [hasActiveJobs, fetchData]);
 
     const confirmDeleteS3 = async () => {
         if (!deleteTarget) return;
@@ -115,6 +131,63 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
         const res = await authFetch(`${API_BASE}/api/admin/s3/download?key=${encodeURIComponent(key)}`);
         const data = await res.json();
         if (data.url) window.open(data.url, '_blank');
+    };
+
+    const handleProcessFile = async (key: string) => {
+        setProcessingFiles(prev => new Set(prev).add(key));
+        try {
+            const res = await authFetch(`${API_BASE}/api/admin/ingest/existing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_key: key
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(`🚀 Ingestion started for "${key.split('/').pop()}". Check the Jobs tab or refreshed Vector count soon.`);
+            } else {
+                alert(`❌ Failed to start ingestion: ${data.detail || 'Unknown error'}`);
+            }
+        } catch (err) {
+            console.error("Failed to process file:", err);
+            alert("Failed to start ingestion process");
+        } finally {
+            setProcessingFiles(prev => {
+                const next = new Set(prev);
+                next.delete(key);
+                return next;
+            });
+        }
+    };
+
+    const handleBatchProcess = async () => {
+        if (selectedFiles.size === 0) return;
+        const confirmed = window.confirm(`Start processing ${selectedFiles.size} selected file(s) into the vector database?`);
+        if (!confirmed) return;
+
+        setLoading(true);
+        try {
+            let started = 0;
+            await Promise.all(Array.from(selectedFiles).map(async (key) => {
+                const res = await authFetch(`${API_BASE}/api/admin/ingest/existing`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_key: key
+                    })
+                });
+                if (res.ok) started++;
+            }));
+            
+            alert(`🚀 Ingestion initiated for ${started} file(s). You can monitor progress in the Jobs tab.`);
+            setSelectedFiles(new Set());
+        } catch (err) {
+            console.error("Batch processing failed:", err);
+            alert("Error during batch ingestion");
+        } finally {
+            setLoading(false);
+        }
     };
 
     // ─── Vector Viewer ───
@@ -228,8 +301,14 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
     return (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>☁️ S3 Files</h3>
-                <button onClick={fetchData} className={`text-sm px-3 py-1.5 rounded-xl transition border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>🔄 Refresh</button>
+                <div className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-[#2A6CF0]" />
+                    <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>S3 Storage</h3>
+                </div>
+                <button onClick={() => fetchData()} className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-xl transition border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh
+                </button>
             </div>
             
             {/* Filter Bar */}
@@ -415,19 +494,29 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                             <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                 {selectedFiles.size} file(s) selected
                             </span>
-                            <button
-                                onClick={handleDeleteSelectedFiles}
-                                disabled={selectedFiles.size === 0 || loading}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition font-medium shadow-sm hover:shadow"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Delete Selected
-                            </button>
+                            <div className="flex gap-2">
+                                    <button
+                                    onClick={handleBatchProcess}
+                                    disabled={loading}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2A6CF0] hover:bg-[#2259D6] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition font-medium shadow-sm"
+                                    title="Process all selected files into vector database"
+                                >
+                                    <Zap className="w-3.5 h-3.5" /> Process All
+                                </button>
+                                <button
+                                    onClick={handleDeleteSelectedFiles}
+                                    disabled={selectedFiles.size === 0 || loading}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition font-medium shadow-sm hover:shadow"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Delete Selected
+                                </button>
+                            </div>
                         </div>
                     )}
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                    <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+                        <table className="w-full text-sm min-w-[700px]">
                             <thead className={`text-xs uppercase ${isDarkMode ? 'bg-gray-900/50 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
                                 <tr>
                                     <th className="p-3 text-left w-10">
@@ -439,8 +528,9 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                                         />
                                     </th>
                                     <th className="p-3 text-left">Key</th>
-                                    <th className="p-3 text-left">Size</th>
-                                    <th className="p-3 text-left">Modified</th>
+                                    <th className="p-3 text-left w-24">Status</th>
+                                    <th className="p-3 text-left w-24">Size</th>
+                                    <th className="p-3 text-left w-40">Modified</th>
                                     <th className="p-3 text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -463,19 +553,57 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                                                     className="rounded border-gray-300" 
                                                 />
                                             </td>
-                                            <td className={`p-3 font-mono text-xs max-w-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`} title={f.key}>{f.key}</td>
+                                            <td className={`p-3 font-mono text-xs max-w-xs truncate ${f.status === 'processing' ? 'text-[#2A6CF0] font-bold' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`} title={f.key}>
+                                                {f.key.split('/').pop()}
+                                            </td>
+                                            <td className="p-3">
+                                                {f.status === 'processing' ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 animate-pulse">
+                                                        <Activity className="w-2.5 h-2.5" /> Ingesting
+                                                    </span>
+                                                ) : f.status === 'processed' ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                                                        <CheckCircle2 className="w-2.5 h-2.5" /> Indexed
+                                                        {f.vector_count > 0 && <span className="ml-0.5 opacity-70">({f.vector_count})</span>}
+                                                    </span>
+                                                ) : (
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${isDarkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>
+                                                        Pending
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className={`p-3 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{(f.size / 1024).toFixed(1)} KB</td>
-                                            <td className={`p-3 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(f.last_modified).toLocaleString()}</td>
+                                            <td className={`p-3 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(f.last_modified).toLocaleDateString()}</td>
                                             <td className="p-3 text-right whitespace-nowrap">
                                                 <button 
+                                                    onClick={() => handleProcessFile(f.key)}
+                                                    disabled={processingFiles.has(f.key) || f.status === 'processing'}
+                                                    className="p-2 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-50"
+                                                    title="Process into Vector DB"
+                                                >
+                                                    {processingFiles.has(f.key) || f.status === 'processing' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                                                </button>
+                                                <button 
                                                     onClick={() => handleViewVectors(f.key)} 
-                                                    className="text-[#8B5CF6] hover:text-[#7C3AED] text-xs font-medium mr-3 inline-flex items-center gap-1"
+                                                    className="p-2 text-[#8B5CF6] hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-colors"
                                                     title="View Vector Chunks"
                                                 >
-                                                    <Eye className="w-3.5 h-3.5" /> Vectors
+                                                    <Database className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => handleDownloadS3(f.key)} className="text-[#2A6CF0] hover:text-[#2259D6] text-xs font-medium mr-3">Download</button>
-                                                <button onClick={() => setDeleteTarget(f.key)} className="text-[#E45454] hover:text-[#c03c3c] text-xs font-medium">Delete</button>
+                                                <button 
+                                                    onClick={() => handleDownloadS3(f.key)} 
+                                                    className="p-2 text-[#2A6CF0] hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                                                    title="Download File"
+                                                >
+                                                    <DownloadCloud className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => setDeleteTarget(f.key)} 
+                                                    className="p-2 text-[#E45454] hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                                    title="Delete File"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     ))

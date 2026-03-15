@@ -1,51 +1,224 @@
 'use client';
 
-import { useAppDispatch } from '@/hooks/redux';
-import { setCurrentMode } from '@/store/slices/uiSlice';
-import Link from 'next/link';
-import { PenTool, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
+import { AlertCircle } from 'lucide-react';
 
-export default function DraftCreationPage() {
-    const dispatch = useAppDispatch();
+// Components
+import { DraftHeader } from './components/DraftHeader';
+import { ConfirmStep } from './components/ConfirmStep';
+import { ConfigStep } from './components/ConfigStep';
+import { GeneratingStep } from './components/GeneratingStep';
+import { DoneStep } from './components/DoneStep';
+import DraftSidebar from './components/DraftSidebar';
+
+// Hooks & Utils
+import { useDraftGeneration } from './hooks/useDraftGeneration';
+import { exportToPDF } from './utils/pdfUtils';
+import { DRAFT_TYPES } from './constants';
+import { useCallback } from 'react';
+
+function DraftCreationPageInner() {
+    const searchParams = useSearchParams();
+    const { isLoaded } = useAuth();
+
+    const topicFromURL = searchParams.get('topic') || '';
+    const sourceFromURL = searchParams.get('source') || 'direct';
+
+    const [step, setStep] = useState<'confirm' | 'form' | 'generating' | 'done'>(
+        topicFromURL ? 'confirm' : 'form'
+    );
+    const [topic, setTopic] = useState(topicFromURL);
+    const [draftType, setDraftType] = useState<string>('complaint');
+    const [additionalContext, setAdditionalContext] = useState('');
+    const [generatedContent, setGeneratedContent] = useState('');
+    const [copied, setCopied] = useState(false);
+    const [isExportingPDF, setIsExportingPDF] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [currentDraftId, setCurrentDraftId] = useState<string | undefined>();
+
+    const { getToken } = useAuth();
+
+    // ─── Responsive Sidebar Initialization ───
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 1024) {
+                setIsSidebarOpen(false);
+            } else {
+                setIsSidebarOpen(true);
+            }
+        };
+        handleResize(); // Run once on mount
+        // We don't necessarily want to listen for every resize, just initial state
+    }, []);
+
+    const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        const token = await getToken();
+        return fetch(url, {
+            ...options,
+            headers: { ...(options.headers as Record<string, string>), 'Authorization': `Bearer ${token}` },
+        });
+    }, [getToken]);
+
+    const { isGenerating, streamingContent, error, generateDraft, resetError } = useDraftGeneration({
+        topic,
+        draftType,
+        additionalContext,
+        onSuccess: (content) => {
+            setGeneratedContent(content);
+            setStep('done');
+        }
+    });
+
+    // Infer draft type from topic URL
+    useEffect(() => {
+        if (!topicFromURL) return;
+        const t = topicFromURL.toLowerCase();
+        if (t.includes('complaint')) setDraftType('complaint');
+        else if (t.includes('notice')) setDraftType('legal_notice');
+        else if (t.includes('appeal')) setDraftType('appeal');
+        else if (t.includes('affidavit')) setDraftType('affidavit');
+        else if (t.includes('rti')) setDraftType('rti');
+    }, [topicFromURL]);
+
+    // Handle transition to generating
+    useEffect(() => {
+        if (isGenerating && step !== 'generating') {
+            setStep('generating');
+        }
+    }, [isGenerating, step]);
+
+    const handleCopy = async () => {
+        await navigator.clipboard.writeText(generatedContent);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleExportPDF = async () => {
+        setIsExportingPDF(true);
+        try {
+            await exportToPDF(generatedContent, topic, draftType);
+        } finally {
+            setIsExportingPDF(false);
+        }
+    };
+
+    const handleStartOver = () => {
+        resetError();
+        setStep('form');
+        setGeneratedContent('');
+        setCurrentDraftId(undefined);
+    };
+
+    const handleSelectDraft = (draft: any) => {
+        setTopic(draft.Topic);
+        setDraftType(draft.Type);
+        setGeneratedContent(draft.Content);
+        setCurrentDraftId(draft.DraftId);
+        setStep('done');
+    };
+
+    if (!isLoaded) {
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
+                <div className="w-10 h-10 border-4 border-[#2A6CF0] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
-            <div className="w-full max-w-lg bg-white rounded-[2.5rem] p-10 sm:p-14 text-center shadow-[0_8px_40px_rgba(42,108,240,0.08)] border border-white/50 relative overflow-hidden">
-                {/* Decorative background blurs inside the card */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl opacity-60 -mr-10 -mt-10 pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-50 rounded-full blur-3xl opacity-60 -ml-10 -mb-10 pointer-events-none" />
+        <div className="min-h-screen flex flex-row" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
+            <DraftSidebar 
+                isOpen={isSidebarOpen}
+                onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+                onSelectDraft={handleSelectDraft}
+                onNewDraft={handleStartOver}
+                currentDraftId={currentDraftId}
+                authFetch={authFetch}
+            />
 
-                <div className="relative z-10 flex flex-col items-center">
-                    <div className="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mb-8 shadow-sm border border-indigo-100/50">
-                        <PenTool className="w-10 h-10 text-indigo-600" />
-                    </div>
+            <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isSidebarOpen ? 'pl-0 lg:pl-0' : 'pl-0 lg:pl-20'}`}>
+                <DraftHeader 
+                    step={step} 
+                    onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+                />
 
-                    <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
-                        Make a Draft
-                    </h1>
-                    
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-100/50 mb-6">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        <span className="text-sm font-bold text-emerald-600 uppercase tracking-widest">Soon Available</span>
-                    </div>
+                <div className="max-w-3xl mx-auto w-full px-4 py-8 space-y-6 flex-1">
+                    {/* Global Error Banner */}
+                    {error && (
+                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-rose-800">Generation Error</p>
+                                <p className="text-xs text-rose-600">{error}</p>
+                            </div>
+                            <button 
+                                onClick={handleStartOver}
+                                className="px-3 py-1.5 bg-rose-500 text-white text-xs font-bold rounded-lg hover:bg-rose-600 transition-colors"
+                            >
+                                Try Again
+                            </button>
+                        </div>
+                    )}
 
-                    <p className="text-lg text-slate-500 mb-10 leading-relaxed font-medium">
-                        Our AI drafting tool is currently in development. You will soon be able to auto-generate legal responses and letters instantly!
-                    </p>
+                    {step === 'confirm' && !error && (
+                        <ConfirmStep
+                            topic={topic}
+                            source={sourceFromURL}
+                            draftType={draftType}
+                            additionalContext={additionalContext}
+                            onEditTopic={() => setStep('form')}
+                            onDraftTypeChange={setDraftType}
+                            onAdditionalContextChange={setAdditionalContext}
+                            onGenerate={generateDraft}
+                        />
+                    )}
 
-                    <Link 
-                        href="/" 
-                        onClick={() => dispatch(setCurrentMode('home'))}
-                        className="group flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-lg shadow-[0_4px_14px_rgba(42,108,240,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_6px_20px_rgba(42,108,240,0.4)]"
-                    >
-                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                        Back to Home
-                    </Link>
+                    {step === 'form' && !error && (
+                        <ConfigStep
+                            topic={topic}
+                            draftType={draftType}
+                            additionalContext={additionalContext}
+                            onTopicChange={setTopic}
+                            onDraftTypeChange={setDraftType}
+                            onAdditionalContextChange={setAdditionalContext}
+                            onGenerate={generateDraft}
+                        />
+                    )}
+
+                    {step === 'generating' && !error && (
+                        <GeneratingStep
+                            streamingContent={streamingContent}
+                            draftType={draftType}
+                        />
+                    )}
+
+                    {step === 'done' && !error && (
+                        <DoneStep
+                            generatedContent={generatedContent}
+                            draftType={draftType}
+                            onCopy={handleCopy}
+                            onExportPDF={handleExportPDF}
+                            onStartOver={handleStartOver}
+                            isExportingPDF={isExportingPDF}
+                            copied={copied}
+                        />
+                    )}
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function DraftCreationPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
+                <div className="w-10 h-10 border-4 border-[#2A6CF0] border-t-transparent rounded-full animate-spin" />
+            </div>
+        }>
+            <DraftCreationPageInner />
+        </Suspense>
     );
 }
