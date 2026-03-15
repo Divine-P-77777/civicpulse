@@ -12,6 +12,9 @@ from app.routes import chat
 from app.services.chat_service import ensure_table_exists
 from app.services.profile_service import ensure_profile_table
 import traceback
+import logging
+
+logger = logging.getLogger("civicpulse.main")
 
 app = FastAPI(
     title="CivicPulse Backend",
@@ -22,14 +25,24 @@ app = FastAPI(
 # ─── CORS Middleware ───
 ALLOWED_ORIGINS = [
     "https://civicpulse-pro.vercel.app",
+    "https://civicpulse.pro",
+    "https://www.civicpulse.pro",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 
+# Specifically allow Vercel previews and production domains
+ORIGIN_REGEX = r"https://civicpulse-pro.*\.vercel\.app"
+
 class CustomCORSMiddleware(CORSMiddleware):
     async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+            origin = headers.get("origin")
+            if origin:
+                logger.info(f"CORS Check: Origin={origin} Path={scope['path']} Method={scope.get('method')}")
+                
         # Skip CORS headers for socket.io paths - let socketio server handle it internally
-        # to avoid "multiple values" error when both FastAPI and Socket.IO add the header.
         if scope["type"] in ("http", "websocket") and scope["path"].startswith("/socket.io"):
             await self.app(scope, receive, send)
             return
@@ -37,7 +50,8 @@ class CustomCORSMiddleware(CORSMiddleware):
 
 app.add_middleware(
     CustomCORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"] if os.getenv("DEBUG_CORS") == "true" else ALLOWED_ORIGINS,
+    allow_origin_regex=ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

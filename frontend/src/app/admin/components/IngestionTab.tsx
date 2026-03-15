@@ -22,6 +22,7 @@ interface IngestionProgressEvent {
     message: string;
     stage: string;
     detail: IngestionDetail;
+    job_id?: string;
 }
 
 interface ActiveJob {
@@ -93,12 +94,29 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
         });
 
         socket.on('ingestion_progress', (data: IngestionProgressEvent) => {
+            // 1. Update global "current upload" state
             setProgress(data.progress);
             if (data.stage) setCurrentStage(data.stage as Stage);
             if (data.detail) setDetail(data.detail);
             if (data.message) {
                 const isError = data.stage === 'error';
                 setStatus({ type: isError ? 'error' : 'info', message: data.message });
+            }
+
+            // 2. Update specific job in activeJobs list
+            if (data.job_id) {
+                setActiveJobs(prev => prev.map(job => {
+                    if (job.job_id === data.job_id) {
+                        return {
+                            ...job,
+                            progress: data.progress,
+                            stage: data.stage || job.stage,
+                            message: data.message || job.message,
+                            detail: { ...job.detail, ...data.detail }
+                        };
+                    }
+                    return job;
+                }));
             }
         });
 
@@ -111,8 +129,15 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
             try {
                 console.log('[JobReconnect] Checking for running jobs...');
                 const res = await authFetch(`${API_BASE}/api/admin/jobs?status=running`);
+                if (!res.ok) return;
+                
                 const jobs = await res.json();
                 console.log('[JobReconnect] Running jobs:', jobs);
+                
+                if (!Array.isArray(jobs)) {
+                    console.warn('[JobReconnect] Expected an array of jobs, but got:', jobs);
+                    return;
+                }
                 if (jobs.length > 0) {
                     const mapped: ActiveJob[] = jobs.map((j: any) => ({
                         job_id: j.job_id,
@@ -145,10 +170,21 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
         pollRef.current = setInterval(async () => {
             try {
                 const res = await authFetch(`${API_BASE}/api/admin/jobs?status=running`);
+                if (!res.ok) {
+                    console.warn('[JobPoll] Running jobs fetch failed:', res.status);
+                    return;
+                }
                 const jobs = await res.json();
+                
                 // Also fetch recently completed/failed/cancelled to update UI
                 const res2 = await authFetch(`${API_BASE}/api/admin/jobs`);
+                if (!res2.ok) return;
                 const allJobs = await res2.json();
+
+                if (!Array.isArray(jobs) || !Array.isArray(allJobs)) {
+                    console.warn('[JobPoll] Expected array for jobs, got:', jobs);
+                    return;
+                }
 
                 setActiveJobs(prev => {
                     const updated: ActiveJob[] = [];
@@ -162,7 +198,6 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                                 updated.push({ ...pj, ...fresh, cancelling: pj.cancelling });
                             }
                         }
-                        // If job not found at all, drop it
                     }
                     // Add any new running jobs not already tracked
                     for (const j of jobs) {

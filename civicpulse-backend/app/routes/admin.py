@@ -23,9 +23,14 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Concurrency Semaphore: Limits heavy background tasks (OCR/Chunking) 
 # to protect small EC2 instances (e.g. 2GB RAM micro instances).
+# Increased for production level.
 INGESTION_SEMAPHORE = asyncio.Semaphore(5)
 
 # ─── Pydantic Models ───
+
+class IngestExistingRequest(BaseModel):
+    file_key: str
+    metadata: Optional[dict] = {}
 
 class UpdateResultRequest(BaseModel):
     updates: dict
@@ -48,10 +53,10 @@ async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional
                 result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id, job_id=job_id)
             elif ingest_type == "image":
                 from app.ingestion.image_ingest import ingest_image_from_s3
-                result_meta = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id, live_sid=x_live_sid)
+                result_meta = await ingest_image_from_s3(bucket, file_key, meta_dict, x_socket_id, live_sid=x_live_sid, job_id=job_id)
             elif ingest_type == "web":
                 from app.ingestion.web_ingest import ingest_web
-                chunks = await ingest_web(content, meta_dict, x_socket_id)
+                chunks = await ingest_web(content, meta_dict, x_socket_id, job_id=job_id)
                 result_meta = {"chunks": chunks, "pages": 0, "engine": "Scraper"}
             elif ingest_type == "pdf (url)":
                 result_meta = await ingest_pdf_from_s3(bucket, file_key, meta_dict, x_socket_id, job_id=job_id)
@@ -119,12 +124,12 @@ async def ingest_document(
     bucket = S3_BUCKET
     file_key = None
     
-    # Check global limit: max 5 running jobs across all admins
+    # Check global limit: max 15 running jobs across all admins
     running_jobs = list_jobs(status_filter="running")
-    if len(running_jobs) >= 5:
+    if len(running_jobs) >= 15:
         raise HTTPException(
             status_code=503, 
-            detail="Server is busy with other ingestion tasks. Please try again later."
+            detail="Server is saturated with other ingestion tasks. Please try again in a few minutes."
         )
 
     try:
@@ -137,14 +142,16 @@ async def ingest_document(
             if not file: raise HTTPException(400, "File required for PDF ingestion")
             meta_dict["source_type"] = "global"
             file_key = upload_to_s3(file, tags=s3_tags)
-            job_id = create_job(file_key, "pdf", x_socket_id, metadata=meta_dict)
+            # Pass admin ID for isolation
+            job_id = create_job(file_key, "pdf", x_socket_id, metadata=meta_dict, admin_id=admin.get("sub"))
             background_tasks.add_task(_run_admin_ingestion, "pdf", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id, job_id)
             
         elif type == "image":
             if not file: raise HTTPException(400, "File required for Image ingestion")
             meta_dict["source_type"] = "global"
             file_key = upload_to_s3(file, tags=s3_tags)
-            job_id = create_job(file_key, "image", x_socket_id, metadata=meta_dict)
+            # Pass admin ID for isolation
+            job_id = create_job(file_key, "image", x_socket_id, metadata=meta_dict, admin_id=admin.get("sub"))
             background_tasks.add_task(_run_admin_ingestion, "image", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id, job_id)
             
         elif type == "web":
@@ -164,14 +171,16 @@ async def ingest_document(
                     filename = content.split("/")[-1].split("?")[0]
                     file_key = upload_bytes_to_s3(resp.content, filename, "application/pdf", tags=s3_tags)
                     meta_dict["source_type"] = "global"
-                    job_id = create_job(file_key, "pdf (url)", x_socket_id, metadata=meta_dict)
+                    # Pass admin ID for isolation
+                    job_id = create_job(file_key, "pdf (url)", x_socket_id, metadata=meta_dict, admin_id=admin.get("sub"))
                     background_tasks.add_task(_run_admin_ingestion, "pdf (url)", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id, job_id)
                     type = "pdf (url)"
                 else:
                     raise HTTPException(400, f"Failed to download PDF from URL: {content}")
             else:
                 meta_dict["source_type"] = "global"
-                job_id = create_job(content, "web", x_socket_id)
+                # Pass admin ID for isolation
+                job_id = create_job(content, "web", x_socket_id, admin_id=admin.get("sub"))
                 background_tasks.add_task(_run_admin_ingestion, "web", bucket, None, content, meta_dict, x_socket_id, x_live_session_id, job_id)
             
         else:
@@ -188,46 +197,6 @@ async def ingest_document(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
         
-class IngestExistingRequest(BaseModel):
-    file_key: str
-    metadata: Optional[dict] = {}
-
-@router.post("/ingest/existing", status_code=202)
-async def ingest_existing_file(
-    request: IngestExistingRequest,
-    background_tasks: BackgroundTasks,
-    admin: dict = Depends(get_admin_user),
-    x_socket_id: Optional[str] = Header(None)
-):
-    """Admin-only endpoint. Process an existing file in S3 into vectors."""
-    bucket = S3_BUCKET
-    file_key = request.file_key
-    meta_dict = request.metadata or {}
-    meta_dict["source_type"] = "global"
-    
-    # Determine type based on extension
-    ingest_type = "pdf"
-    if file_key.lower().endswith((".png", ".jpg", ".jpeg")):
-        ingest_type = "image"
-        
-    job_id = create_job(file_key, ingest_type, x_socket_id)
-    background_tasks.add_task(
-        _run_admin_ingestion, 
-        ingest_type, 
-        bucket, 
-        file_key, 
-        None, 
-        meta_dict, 
-        x_socket_id, 
-        None, 
-        job_id
-    )
-    
-    return {
-        "message": f"Processing existing S3 file '{file_key}' in background",
-        "job_id": job_id
-    }
-
 # ═══════════════════════════════════════════════
 # JOB TRACKING
 # ═══════════════════════════════════════════════
@@ -237,8 +206,8 @@ async def get_jobs(
     status: Optional[str] = Query(None, description="Filter by status: running, completed, failed"),
     admin: dict = Depends(get_admin_user)
 ):
-    """List all ingestion jobs (active and recent)."""
-    return list_jobs(status_filter=status)
+    """List ingestion jobs for the current admin."""
+    return list_jobs(status_filter=status, admin_id=admin.get("sub"))
 
 @router.get("/jobs/{job_id}")
 async def get_job_status(
@@ -523,7 +492,8 @@ async def ingest_existing_file(
     if file_key.lower().endswith((".png", ".jpg", ".jpeg")):
         ingest_type = "image"
         
-    job_id = create_job(file_key, ingest_type, x_socket_id)
+    # Pass admin ID for isolation
+    job_id = create_job(file_key, ingest_type, x_socket_id, admin_id=admin.get("sub"))
     background_tasks.add_task(
         _run_admin_ingestion, 
         ingest_type, 

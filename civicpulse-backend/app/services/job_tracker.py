@@ -44,13 +44,14 @@ def ensure_job_table():
 ensure_job_table()
 
 
-def create_job(file_key: str, ingest_type: str, socket_id: Optional[str] = None, metadata: Optional[dict] = None) -> str:
+def create_job(file_key: str, ingest_type: str, socket_id: Optional[str] = None, metadata: Optional[dict] = None, admin_id: Optional[str] = None) -> str:
     """Create a new job and return its ID."""
     job_uuid = str(uuid.uuid4())
     job_id = job_uuid[:8]
     now = int(time.time())
     item = {
         "job_id": job_id,
+        "admin_id": admin_id or "system",  # Enable per-admin isolation
         "file_key": file_key or "unknown",
         "ingest_type": ingest_type,
         "status": "running",
@@ -65,7 +66,7 @@ def create_job(file_key: str, ingest_type: str, socket_id: Optional[str] = None,
         "updated_at": now,
     }
     _get_table().put_item(Item=item)
-    logger.info(f"Job {job_id} created for {file_key} ({ingest_type})")
+    logger.info(f"Job {job_id} created for {file_key} ({ingest_type}) by admin {admin_id}")
     return job_id
 
 
@@ -135,6 +136,30 @@ def fail_job(job_id: str, error: str):
     logger.error(f"Job {job_id} failed: {error}")
 
 
+def save_extraction_checkpoint(job_id: str, full_text: str):
+    """
+    Saves extracted text to S3 as a 'ROM' checkpoint.
+    Updates the job record with the S3 key.
+    """
+    from app.services.s3_service import upload_bytes_to_s3, S3_BUCKET
+    try:
+        # Save to a dedicated prefix in the same bucket
+        s3_key = f"checkpoints/{job_id}_extracted.txt"
+        upload_bytes_to_s3(
+            content=full_text.encode("utf-8"),
+            filename=f"{job_id}_extracted.txt",
+            content_type="text/plain",
+            tags={"job_id": job_id, "type": "checkpoint"}
+        )
+        # Update DynamoDB with the checkpoint key
+        update_job(job_id, detail={"extraction_checkpoint": s3_key}, message="Extraction checkpoint saved.")
+        logger.info(f"Checkpoint saved for job {job_id} at {s3_key}")
+        return s3_key
+    except Exception as e:
+        logger.error(f"Failed to save checkpoint for job {job_id}: {e}")
+        return None
+
+
 def cancel_job(job_id: str):
     """Request cancellation of a running job."""
     update_job(job_id, status="cancelled", message="Cancellation requested...")
@@ -162,14 +187,21 @@ def get_job(job_id: str) -> Optional[dict]:
     except Exception:
         return None
 
-def list_jobs(status_filter: Optional[str] = None) -> list:
-    """List all jobs, optionally filtered by status."""
+def list_jobs(status_filter: Optional[str] = None, admin_id: Optional[str] = None) -> list:
+    """List all jobs, optionally filtered by status and admin_id."""
     try:
+        from boto3.dynamodb.conditions import Attr
+        filter_expr = None
+        
         if status_filter:
-            # Note: For production with high volume, using Scan with FilterExpression is slow.
-            # But for admin job tracking, it's typically fine.
-            from boto3.dynamodb.conditions import Attr
-            response = _get_table().scan(FilterExpression=Attr("status").eq(status_filter))
+            filter_expr = Attr("status").eq(status_filter)
+        
+        if admin_id:
+            expr = Attr("admin_id").eq(admin_id)
+            filter_expr = filter_expr & expr if filter_expr else expr
+            
+        if filter_expr:
+            response = _get_table().scan(FilterExpression=filter_expr)
         else:
             response = _get_table().scan()
         

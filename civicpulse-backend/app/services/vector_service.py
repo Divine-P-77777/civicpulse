@@ -33,6 +33,28 @@ class VectorService:
         }
         return self.client.index(index=self.index_name, id=doc_id, body=body)
 
+    def bulk_store_vectors(self, documents: list[dict]):
+        """Store multiple vectors in a single request using helpers.bulk.
+        Each document in list should have: {'id': str, 'vector': list, 'metadata': dict}
+        """
+        from opensearchpy.helpers import bulk
+        
+        actions = [
+            {
+                "_index": self.index_name,
+                "_id": doc["id"],
+                "_source": {
+                    "vector": doc["vector"],
+                    "metadata": doc["metadata"]
+                }
+            }
+            for doc in documents
+        ]
+        
+        success, failed = bulk(self.client, actions)
+        logger.info(f"Bulk storage complete: {success} successes, {failed} failures")
+        return {"success": success, "failed": failed}
+
     # --- READ ---
     def similarity_search(self, query_vector: list, k: int = 5, user_id: str = None, filters: dict = None):
         search_query = {
