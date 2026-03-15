@@ -30,6 +30,10 @@ INGESTION_SEMAPHORE = asyncio.Semaphore(5)
 class UpdateResultRequest(BaseModel):
     updates: dict
 
+class UpdateS3TagsRequest(BaseModel):
+    key: str
+    tags: dict
+
 # ═══════════════════════════════════════════════
 # INGESTION
 # ═══════════════════════════════════════════════
@@ -124,18 +128,23 @@ async def ingest_document(
         )
 
     try:
+        # Prepare S3 tags from metadata
+        s3_tags = {}
+        if "type" in meta_dict: s3_tags["type"] = meta_dict["type"]
+        if "region" in meta_dict: s3_tags["region"] = meta_dict["region"]
+
         if type == "pdf":
             if not file: raise HTTPException(400, "File required for PDF ingestion")
             meta_dict["source_type"] = "global"
-            file_key = upload_to_s3(file)
-            job_id = create_job(file_key, "pdf", x_socket_id)
+            file_key = upload_to_s3(file, tags=s3_tags)
+            job_id = create_job(file_key, "pdf", x_socket_id, metadata=meta_dict)
             background_tasks.add_task(_run_admin_ingestion, "pdf", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id, job_id)
             
         elif type == "image":
             if not file: raise HTTPException(400, "File required for Image ingestion")
             meta_dict["source_type"] = "global"
-            file_key = upload_to_s3(file)
-            job_id = create_job(file_key, "image", x_socket_id)
+            file_key = upload_to_s3(file, tags=s3_tags)
+            job_id = create_job(file_key, "image", x_socket_id, metadata=meta_dict)
             background_tasks.add_task(_run_admin_ingestion, "image", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id, job_id)
             
         elif type == "web":
@@ -153,9 +162,9 @@ async def ingest_document(
                 resp = requests.get(content, timeout=30)
                 if resp.status_code == 200:
                     filename = content.split("/")[-1].split("?")[0]
-                    file_key = upload_bytes_to_s3(resp.content, filename, "application/pdf")
+                    file_key = upload_bytes_to_s3(resp.content, filename, "application/pdf", tags=s3_tags)
                     meta_dict["source_type"] = "global"
-                    job_id = create_job(file_key, "pdf (url)", x_socket_id)
+                    job_id = create_job(file_key, "pdf (url)", x_socket_id, metadata=meta_dict)
                     background_tasks.add_task(_run_admin_ingestion, "pdf (url)", bucket, file_key, None, meta_dict, x_socket_id, x_live_session_id, job_id)
                     type = "pdf (url)"
                 else:
@@ -438,6 +447,22 @@ async def download_s3_file(
 ):
     """Get a presigned download URL for an S3 file."""
     return get_presigned_url(key)
+
+@router.post("/s3/tags")
+async def update_s3_tags(
+    body: UpdateS3TagsRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """Update tags for an S3 file."""
+    from app.services.s3_service import set_file_tags
+    success = set_file_tags(body.key, body.tags)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update tags")
+    
+    # Sync to vectors - this is a non-blocking background update in OpenSearch
+    vector_service.update_metadata_by_source(body.key, body.tags)
+    
+    return {"message": "Tags updated successfully"}
 
 @router.delete("/s3/{key:path}")
 async def delete_s3_file(

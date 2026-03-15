@@ -34,6 +34,10 @@ interface ActiveJob {
     detail: IngestionDetail;
     started_at: number;
     cancelling?: boolean;
+    metadata?: {
+        type?: string;
+        region?: string;
+    };
 }
 
 const STAGES = ['upload', 'extraction', 'chunking', 'embedding', 'storing', 'done'] as const;
@@ -119,6 +123,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                         message: j.message || '',
                         detail: j.detail || {},
                         started_at: j.started_at,
+                        metadata: j.metadata || {},
                     }));
                     setActiveJobs(mapped);
                     setStatus({ type: 'info', message: `🔄 Reconnected to ${mapped.length} running job(s)` });
@@ -171,6 +176,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                                 message: j.message || '',
                                 detail: j.detail || {},
                                 started_at: j.started_at,
+                                metadata: j.metadata || {},
                             });
                         }
                     }
@@ -422,7 +428,13 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
                                         <span className="text-sm">📄</span>
                                         <span className={`text-xs font-semibold truncate ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                            {job.file_key.split('/').pop()}
+                                            {(() => {
+                                                const type = job.metadata?.type || "";
+                                                const region = job.metadata?.region || "";
+                                                if (!type && !region) return job.file_key.split('/').pop();
+                                                const combined = `${type}${region}`;
+                                                return combined.length > 30 ? combined.substring(0, 30) + "..." : combined;
+                                            })()}
                                         </span>
                                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                                             job.status === 'running' ? 'bg-[#2A6CF0]/10 text-[#2A6CF0]' :

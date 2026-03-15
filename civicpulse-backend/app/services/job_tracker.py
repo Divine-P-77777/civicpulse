@@ -44,7 +44,7 @@ def ensure_job_table():
 ensure_job_table()
 
 
-def create_job(file_key: str, ingest_type: str, socket_id: Optional[str] = None) -> str:
+def create_job(file_key: str, ingest_type: str, socket_id: Optional[str] = None, metadata: Optional[dict] = None) -> str:
     """Create a new job and return its ID."""
     job_uuid = str(uuid.uuid4())
     job_id = job_uuid[:8]
@@ -58,6 +58,7 @@ def create_job(file_key: str, ingest_type: str, socket_id: Optional[str] = None)
         "progress": 0,
         "message": "Starting...",
         "detail": {},
+        "metadata": metadata or {},
         "error": None,
         "socket_id": socket_id,
         "started_at": now,
