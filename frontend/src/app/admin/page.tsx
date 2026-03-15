@@ -3,6 +3,7 @@
 import { useUser, useAuth, UserButton, SignInButton } from '@clerk/nextjs';
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { LayoutDashboard, Database, HardDrive, FileArchive, UploadCloud, Moon, Sun, Menu, X as CloseIcon, Home } from 'lucide-react';
 
 import DashboardTab from './components/DashboardTab';
@@ -133,25 +134,40 @@ function AdminContent() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6">
 
                 {/* Header */}
-                <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex items-center gap-3">
+                <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 pb-2">
+                    <div className="flex items-center gap-4">
                         <button
-                            className="lg:hidden p-2.5 rounded-xl bg-white text-black border dark:border-slate-700 shadow-sm active:scale-95 transition-all"
+                            className="lg:hidden w-12 h-12 flex items-center justify-center rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 shadow-sm active:scale-95 transition-all text-slate-600 dark:text-slate-400"
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                         >
-                            {isMobileMenuOpen ? <CloseIcon size={20} /> : <Menu size={20} />}
+                            {isMobileMenuOpen ? <CloseIcon size={22} /> : <Menu size={22} />}
                         </button>
                         <div>
-                            <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Admin Panel</h2>
-                            <p className={isDarkMode ? 'text-slate-400 text-xs sm:text-sm' : 'text-slate-500 text-xs sm:text-sm'}>CivicPulse Data Pipeline & Storage</p>
+                            <div className="flex items-center gap-3 mb-1">
+                                <h2 className={`text-2xl sm:text-3xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Admin Panel</h2>
+                                <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                                    <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Live</span>
+                                </div>
+                            </div>
+                            <p className={isDarkMode ? 'text-slate-400 text-xs sm:text-sm font-medium' : 'text-slate-500 text-xs sm:text-sm font-medium'}>
+                                Managing CivicPulse Node & Vector Storage
+                            </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 ml-auto sm:ml-0">
-                        <button onClick={() => setIsDarkMode(!isDarkMode)} className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${isDarkMode ? 'bg-slate-800 text-yellow-400 border border-slate-700 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-gray-50 shadow-sm border border-slate-200'}`}>
-                            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-                        </button>
-                        <div className={`w-11 h-11 flex items-center justify-center rounded-2xl border transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-                            <UserButton appearance={{ elements: { userButtonAvatarBox: 'w-8 h-8' } }} />
+                    
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className={`flex-1 sm:flex-none flex items-center p-1.5 rounded-2xl border transition-all ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
+                            <button 
+                                onClick={() => setIsDarkMode(!isDarkMode)} 
+                                className={`flex-1 sm:w-11 h-11 flex items-center justify-center rounded-xl transition-all ${isDarkMode ? 'text-yellow-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                            >
+                                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                            </button>
+                            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
+                            <div className="flex-1 sm:w-11 h-11 flex items-center justify-center">
+                                <UserButton appearance={{ elements: { userButtonAvatarBox: 'w-8 h-8' } }} />
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -178,32 +194,69 @@ function AdminContent() {
                 )}
 
                 {/* Mobile Side Menu */}
-                <div className={`fixed inset-y-0 left-0 z-50 w-72 transform bg-white dark:bg-slate-900 shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <div className="p-6 space-y-8">
-                        <div className="flex items-center justify-between">
-                            <span className="font-bold text-xl dark:text-white">Admin Menu</span>
-                            <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 dark:text-slate-400"><CloseIcon size={20} /></button>
+                <div className={`fixed inset-y-0 left-0 z-50 w-80 transform bg-white/95 dark:bg-slate-900/98 backdrop-blur-xl shadow-2xl transition-all duration-500 ease-in-out lg:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                    <div className="flex flex-col h-full">
+                        {/* Menu Header */}
+                        <div className="p-8 border-b border-gray-100 dark:border-slate-800">
+                            <div className="flex items-center justify-between mb-8">
+                                <Link href="/" className="flex items-center gap-2 group">
+                                    <div className="w-8 h-8 bg-[#2A6CF0] rounded-lg flex items-center justify-center shadow-lg shadow-[#2A6CF0]/20 transition-transform group-hover:scale-105">
+                                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                    </div>
+                                    <span className="text-xl font-black dark:text-white tracking-tighter">CivicPulse</span>
+                                </Link>
+                                <button
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="p-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors"
+                                >
+                                    <CloseIcon size={20} />
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="p-1 rounded-full border-2 border-indigo-100 dark:border-indigo-900/30">
+                                    <UserButton appearance={{ elements: { userButtonAvatarBox: 'w-10 h-10' } }} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-0.5">Administrator</p>
+                                    <p className="text-sm font-bold dark:text-white truncate max-w-[140px]">{user?.fullName || 'Root Access'}</p>
+                                </div>
+                            </div>
                         </div>
-                        <nav className="space-y-2">
+
+                        {/* Menu Items */}
+                        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5">
+                            <p className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-slate-500 mb-4">Management</p>
                             {tabs.map(tab => (
                                 <button
                                     key={tab.key}
                                     onClick={() => handleTabChange(tab.key)}
-                                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-base font-medium transition-all ${activeTab === tab.key
-                                        ? 'bg-[#2A6CF0] text-white shadow-md'
-                                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                    className={`w-full flex items-center gap-3.5 px-4 py-4 rounded-2xl text-sm font-bold transition-all relative group ${activeTab === tab.key
+                                        ? 'bg-[#2A6CF0] text-white shadow-xl shadow-[#2A6CF0]/20'
+                                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:text-gray-900 dark:hover:text-white'
                                         }`}
                                 >
-                                    {tab.icon} {tab.label}
+                                    <span className={`${activeTab === tab.key ? 'text-white' : 'text-gray-400 dark:text-slate-500 group-hover:text-indigo-500 transition-colors'}`}>
+                                        {tab.icon}
+                                    </span>
+                                    {tab.label}
+                                    {activeTab === tab.key && (
+                                        <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_white]" />
+                                    )}
                                 </button>
                             ))}
-                        </nav>
-                        <button
-                            onClick={() => router.push('/')}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-base font-medium transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                        >
-                            <Home size={20} /> Back to Home
-                        </button>
+                        </div>
+
+                        {/* Menu Footer */}
+                        <div className="p-6 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/20">
+                            <button
+                                onClick={() => router.push('/')}
+                                className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-2xl text-sm font-bold transition-all bg-white dark:bg-slate-800 text-gray-700 dark:text-white shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-md active:scale-[0.98]"
+                            >
+                                <Home size={18} /> Back to Dashboard
+                            </button>
+                        </div>
                     </div>
                 </div>
 

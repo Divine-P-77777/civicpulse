@@ -83,7 +83,7 @@ export default function DraftSidebar({
             )}
 
             <aside
-                className={`fixed inset-y-0 left-0 z-40 bg-white border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col shadow-xl md:shadow-none ${isOpen ? 'w-full max-w-[280px] translate-x-0' : 'w-0 -translate-x-full md:w-20 md:translate-x-0'
+                className={`fixed inset-y-0 left-0 z-40 bg-white border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col shadow-xl md:shadow-none ${isOpen ? 'w-full max-w-[280px] translate-x-0' : 'w-80 -translate-x-full md:w-20 md:translate-x-0'
                     }`}
             >
                 {/* Header */}

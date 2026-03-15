@@ -1,4 +1,4 @@
-﻿aiofiles
+aiofiles
 aiohappyeyeballs
 aiohttp
 aiosignal
@@ -28,7 +28,7 @@ edge-tts
 elevenlabs
 emoji
 Events
-fastapi
+fastapi==0.111.0
 filelock
 filetype
 frozenlist
@@ -91,7 +91,7 @@ psutil
 pyasn1
 pyasn1_modules
 pycparser
-pydantic
+pydantic>=2.7.0,<3.0.0
 pydantic_core
 Pygments
 pyparsing
@@ -129,7 +129,7 @@ spacy-loggers
 srsly
 starlette
 tabulate
-tenacity
+tenacity>=8.3.0,<9.0.0
 thinc
 tiktoken
 tqdm

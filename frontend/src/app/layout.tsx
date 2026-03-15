@@ -10,6 +10,7 @@ import LenisProvider from '@/components/LenisProvider';
 import OnboardingModal from '@/components/OnboardingModal';
 import MobileFooter from '@/components/MobileFooter';
 import Navigation from '@/components/Navigation';
+import Footer from '@/components/Footer';
 import { PerformanceLogger } from '@/components/PerformanceLogger';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -38,8 +39,11 @@ export default function RootLayout({
           <Providers>
             <LenisProvider>
               <PerformanceLogger />
-              {!isDraftPage && <Navigation />}
-              <div id="root">{children}</div>
+              <div className="flex flex-col min-h-screen">
+                {!isDraftPage && <Navigation />}
+                <main id="root" className="flex-1">{children}</main>
+                {!isDraftPage && <Footer />}
+              </div>
               <OnboardingModal />
               {!isDraftPage && <MobileFooter />}
             </LenisProvider>
