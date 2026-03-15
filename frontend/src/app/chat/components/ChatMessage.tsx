@@ -3,6 +3,8 @@
 import React, { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Link from 'next/link';
+import { FiFileText, FiArrowRight } from 'react-icons/fi';
 
 interface ChatMessageProps {
     role: 'user' | 'assistant';
@@ -13,6 +15,21 @@ interface ChatMessageProps {
 
 const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStreaming }: ChatMessageProps) {
     const isUser = role === 'user';
+
+    // Parsing Draft Ready Taq
+    const draftReadyRegex = /<DRAFT_READY\s+type="([^"]+)"\s+topic="([^"]+)"\s+use_profile="([^"]+)"\s+initial_context="([^"]+)"\s*\/>/;
+    const draftMatch = content.match(draftReadyRegex);
+    
+    // Clean content of the tag for display
+    const cleanDisplayContent = content.replace(draftReadyRegex, '').trim();
+    
+    const draftData = draftMatch ? {
+        type: draftMatch[1],
+        topic: draftMatch[2],
+        useProfile: draftMatch[3] === 'true',
+        initialContext: draftMatch[4]
+    } : null;
+
 
     return (
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} message-slide-in w-full`}>
@@ -60,8 +77,43 @@ const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStre
                                     )
                                 }}
                             >
-                                {content}
+                                {cleanDisplayContent}
                             </ReactMarkdown>
+                            
+                            {draftData && !isStreaming && (
+                                <div className="mt-6 pt-6 border-t border-gray-100">
+                                    <div className="bg-gradient-to-br from-[#F0F7FF] to-[#FFFFFF] rounded-2xl p-5 border border-blue-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group">
+                                        {/* Subtle background pattern/glow */}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/5 blur-3xl rounded-full -mr-16 -mt-16" />
+                                        
+                                        <div className="flex items-start gap-4 mb-5 relative z-10">
+                                            <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-blue-50 flex items-center justify-center text-[#2A6CF0] shrink-0">
+                                                <FiFileText className="text-2xl" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-[15px] font-bold text-gray-900 mb-0.5">Ready to Draft</h4>
+                                                <p className="text-sm text-gray-600 leading-relaxed">
+                                                    I have gathered all the necessary details. We can now proceed to generate your professional 
+                                                    <span className="text-[#2A6CF0] font-semibold mx-1 lowercase">{draftData.type.replace('_', ' ')}</span>.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        
+                                        <Link 
+                                            href={`/draftcreation?type=${draftData.type}&topic=${encodeURIComponent(draftData.topic)}&useProfile=${draftData.useProfile}&initialContext=${encodeURIComponent(draftData.initialContext)}`}
+                                            className="w-full bg-[#1E293B] hover:bg-black text-white text-[15px] font-semibold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_8px_20px_rgba(30,41,59,0.2)] hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)] hover:-translate-y-1"
+                                        >
+                                            <FiFileText className="text-lg" />
+                                            Start Official Drafting
+                                            <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
+                                        </Link>
+                                        
+                                        <p className="mt-3 text-center text-[11px] text-gray-400 font-medium tracking-wide uppercase">
+                                            Validated context ready for pre-filling
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                     <p className={`text-xs mt-2 ${isUser ? 'text-blue-200' : 'text-gray-400'}`}>

@@ -7,9 +7,10 @@ import os
 # Load environment variables from .env file
 load_dotenv()
 
-from app.routes import upload, analyze, admin, live, drafts
+from app.routes import upload, analyze, admin, live, drafts, user
 from app.routes import chat
 from app.services.chat_service import ensure_table_exists
+from app.services.profile_service import ensure_profile_table
 import traceback
 
 app = FastAPI(
@@ -49,6 +50,7 @@ app.include_router(analyze.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(drafts.router, prefix="/api")
+app.include_router(user.router, prefix="/api")
 
 # ─── Mount Socket.IO ───
 # We need Socket.IO exclusively for Admin panel upload progress events
@@ -61,8 +63,9 @@ async def startup():
     """Ensure required DynamoDB tables exist on startup."""
     try:
         ensure_table_exists()
+        ensure_profile_table()
     except Exception as e:
-        print(f"⚠️  Could not auto-create chat table: {e}")
+        print(f"⚠️  Could not auto-create tables: {e}")
 
 # ─── Health Check ───
 @app.get("/")

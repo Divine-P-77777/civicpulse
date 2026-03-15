@@ -122,7 +122,6 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                         placeholder="Ask about your legal rights..."
                         rows={1}
-                        disabled={isStreaming}
                         className="flex-1 w-full min-w-0 bg-transparent text-gray-900 text-sm placeholder-gray-400 outline-none border-none resize-none max-h-36 min-h-[36px] py-1.5 leading-relaxed break-words focus:border-none"
                     />
 

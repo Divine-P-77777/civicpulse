@@ -30,6 +30,7 @@ class DraftRequest(BaseModel):
     topic: Optional[str] = "Legal Document"
     draft_type: Optional[str] = "complaint"
     type_label: Optional[str] = None
+    use_profile: Optional[bool] = True
 
 # ═══════════════════════════════════════════════
 # DRAFT SESSION MANAGEMENT
@@ -79,7 +80,8 @@ async def stream_draft(body: DraftRequest, current_user: dict = Depends(get_curr
                 chat_history=chat_history,
                 language=body.language,
                 stream=True,
-                mode="draft"  # Specialized Drafting Mode
+                mode="draft",  # Specialized Drafting Mode
+                use_profile=body.use_profile
             ):
                 collected.append(chunk)
                 # Uncomment the line below to log every chunk (noisy!)

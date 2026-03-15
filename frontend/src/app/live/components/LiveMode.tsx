@@ -7,6 +7,8 @@ import { useLiveWebSocket } from '@/hooks/useLiveWebSocket';
 import { useLiveCamera } from '@/hooks/useLiveCamera';
 import { useLiveAudio } from '@/hooks/useLiveAudio';
 import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
+import { FiFileText, FiArrowRight } from 'react-icons/fi';
+import Link from 'next/link';
 
 interface LiveModeProps {
     onClose: () => void;
@@ -70,7 +72,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     const audioQueueRef = useRef<string[]>([]);
 
     const { 
-        wsRef, status, setStatus, transcript, setTranscript, uploadProgress, 
+        wsRef, status, setStatus, transcript, setTranscript, uploadProgress, draftData, 
         connectWebSocket, closeWebSocket, trackedSend
     } = useLiveWebSocket({
         sessionId: sessionIdRef.current,
@@ -82,7 +84,8 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         audioQueueRef,
         startRecording: () => startRecording(),         // Linked below
         stopRecording: () => stopRecording(),           // Linked below
-        stopCamera: () => stopCamera()                  // Linked below
+        stopCamera: () => stopCamera(),                  // Linked below
+        setBackendDone: (done) => setBackendDone(done)  // Linked below
     });
 
     const {
@@ -94,7 +97,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     });
 
     const {
-        playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit
+        playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit, setBackendDone
     } = useLiveAudio({
         wsReadyState: wsRef.current?.readyState,
         sendUserText: (text) => {
@@ -341,6 +344,20 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                         </svg>
                         {language === 'hi' ? `${autoSubmitCountdown.toFixed(1)}s में भेज रहा... रद्द करें` : `Sending in ${autoSubmitCountdown.toFixed(1)}s — tap to cancel`}
                     </button>
+                )}
+
+                {/* Ready to Draft Button */}
+                {draftData && (
+                    <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500 w-full max-w-sm">
+                        <Link 
+                            href={`/draftcreation?type=${draftData.type}&topic=${encodeURIComponent(draftData.topic)}&useProfile=${draftData.use_profile || draftData.useProfile}&initialContext=${encodeURIComponent(draftData.initial_context || draftData.initialContext)}`}
+                            className="w-full bg-[#1E293B] hover:bg-black text-white text-sm font-semibold py-3 px-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-[0_12px_24px_rgba(30,41,59,0.3)] hover:-translate-y-1"
+                        >
+                            <FiFileText className="text-lg text-[#2A6CF0]" />
+                            {language === 'hi' ? 'दस्तावेज़ तैयार करना शुरू करें' : 'Start Official Drafting'}
+                            <FiArrowRight className="ml-1" />
+                        </Link>
+                    </div>
                 )}
             </div>
 

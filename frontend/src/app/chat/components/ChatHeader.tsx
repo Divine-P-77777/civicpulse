@@ -11,9 +11,10 @@ interface ChatHeaderProps {
     onHistoryClick: () => void;
     language: 'en' | 'hi';
     onLanguageChange: (lang: 'en' | 'hi') => void;
+    title?: string;
 }
 
-export default function ChatHeader({ showSidebar, onToggleSidebar, hasActiveSession, onShareClick, onHistoryClick, language, onLanguageChange }: ChatHeaderProps) {
+export default function ChatHeader({ showSidebar, onToggleSidebar, hasActiveSession, onShareClick, onHistoryClick, language, onLanguageChange, title }: ChatHeaderProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +42,7 @@ export default function ChatHeader({ showSidebar, onToggleSidebar, hasActiveSess
                     <span className="text-white text-sm md:text-base">⚖️</span>
                 </div>
                 <div>
-                    <h1 className="text-gray-900 font-semibold text-sm md:text-base line-clamp-1">CivicPulse AI</h1>
+                    <h1 className="text-gray-900 font-semibold text-sm md:text-base line-clamp-1">{title || "CivicPulse AI"}</h1>
                     <p className="text-gray-400 text-xs hidden md:block">Your Legal Rights Advisor</p>
                 </div>
             </div>

@@ -6,10 +6,12 @@ interface UseDraftGenerationProps {
     topic: string;
     draftType: string;
     additionalContext: string;
+    language?: string;
+    useProfile?: boolean;
     onSuccess: (content: string) => void;
 }
 
-export function useDraftGeneration({ topic, draftType, additionalContext, onSuccess }: UseDraftGenerationProps) {
+export function useDraftGeneration({ topic, draftType, additionalContext, language = 'en', useProfile = true, onSuccess }: UseDraftGenerationProps) {
     const { getToken, isSignedIn } = useAuth();
     const [isGenerating, setIsGenerating] = useState(false);
     const [streamingContent, setStreamingContent] = useState('');
@@ -62,10 +64,11 @@ export function useDraftGeneration({ topic, draftType, additionalContext, onSucc
                 body: JSON.stringify({
                     session_id: sessionId,
                     message: prompt,
-                    language: 'en',
+                    language: language,
                     topic: topic,
                     draft_type: draftType,
-                    type_label: DRAFT_TYPES.find(t => t.id === draftType)?.label || 'Draft'
+                    type_label: DRAFT_TYPES.find(t => t.id === draftType)?.label || 'Draft',
+                    use_profile: useProfile
                 }),
             });
 

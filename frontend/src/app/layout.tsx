@@ -23,7 +23,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isImmersivePage = pathname?.startsWith('/draftcreation') || pathname?.startsWith('/admin') || pathname?.startsWith('/architecture') || pathname?.startsWith('/live') || pathname?.startsWith('/chat');
+  const isImmersivePage = pathname?.startsWith('/draftcreation') || 
+                          pathname?.startsWith('/admin') || 
+                          pathname?.startsWith('/architecture') || 
+                          pathname?.startsWith('/live') || 
+                          pathname?.startsWith('/chat') ||
+                          pathname?.startsWith('/sign-in') ||
+                          pathname?.startsWith('/sign-up');
 
   return (
     <html lang="en" suppressHydrationWarning>

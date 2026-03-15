@@ -81,6 +81,8 @@ async def send_greeting(session_id: str, language: str = "en"):
                 return  # Connection died
 
         logger.info(f"Session {session_id}: Greeting sent successfully.")
+        # Signal that we are done sending chunks
+        await manager.send_json(session_id, {"type": "speaking_done"})
     except Exception as e:
         logger.error(f"Session {session_id}: Greeting failed: {e}")
         text = GREETING_TEXT_HI if language == "hi" else GREETING_TEXT
@@ -116,6 +118,8 @@ async def send_ai_voice_message(session_id: str, text: str, language: str = "en"
                 return  # Connection died
 
         logger.info(f"Session {session_id}: Custom voice message sent successfully.")
+        # Signal that we are done sending chunks
+        await manager.send_json(session_id, {"type": "speaking_done"})
     except Exception as e:
         logger.error(f"Session {session_id}: Custom voice message failed: {e}")
 
@@ -180,6 +184,8 @@ async def process_voice_turn(
             "type": "ai_transcript",
             "text": final_text
         })
+        # Signal that we are done sending chunks
+        await manager.send_json(session_id, {"type": "speaking_done"})
 
     except Exception as e:
         logger.error(f"Session {session_id}: Voice turn error: {e}")

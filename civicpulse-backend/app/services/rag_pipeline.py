@@ -7,6 +7,7 @@ from app.config import bedrock_client
 from app.services.embedding_service import generate_embedding
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import store_analysis_result
+from app.services.profile_service import get_user_profile
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,7 +26,7 @@ _bedrock_semaphore = asyncio.Semaphore(3)
 
 # Mode-specific config
 MODE_CONFIG = {
-    "live": {"top_k": 3, "chunk_chars": 500, "max_tokens": 300},
+    "live": {"top_k": 3, "chunk_chars": 500, "max_tokens": 512},
     "chat": {"top_k": 5, "chunk_chars": 1000, "max_tokens": 1024},
     "draft": {"top_k": 8, "chunk_chars": 2000, "max_tokens": 2048},
 }
@@ -127,7 +128,8 @@ class RagPipeline:
         chat_history: list = None,
         language: str = "en",
         stream: bool = False,
-        mode: str = "chat"
+        mode: str = "chat",
+        use_profile: bool = True
     ):
         """
         Optimized RAG pipeline:
@@ -137,6 +139,22 @@ class RagPipeline:
         4. LLM generation with mode-aware max_tokens
         """
         config = MODE_CONFIG.get(mode, MODE_CONFIG["chat"])
+
+        # ── Step 0: Junk Query Check (for Live Mode) ────────────────
+        if mode == "live":
+            q_lower = query.lower().strip()
+            # Heuristic for background noise interpreted as speech
+            is_junk = (
+                len(q_lower) < 3 or 
+                q_lower in ["toh toh", "to to", "um", "hmm", "ah", "oh"] or
+                all(c in " .,!?" for c in q_lower)
+            )
+            if is_junk:
+                logger.info(f"Session {session_id}: Junk query detected ('{query}'), bypassing LLM.")
+                # We return a generator for streaming compatibility
+                async def _silent_gen():
+                    yield "I'm listening. Please proceed." if language == "en" else "मैं सुन रही हूँ। कृपया आगे बढ़िए।"
+                return _silent_gen() if stream else ("I'm listening. Please proceed." if language == "en" else "मैं सुन रही हूँ। कृपया आगे बढ़िए।")
 
         # ── Step 1 & 2: Run in parallel ──────────────────────────
         # Conversation context (pure CPU — fast)
@@ -158,10 +176,21 @@ class RagPipeline:
             template = self.draft_prompt_template
         else:
             template = self.prompt_template
+        profile_context = ""
+        if mode == "draft" and user_id and use_profile:
+            profile = get_user_profile(user_id)
+            if profile:
+                profile_context = f"\n\n### USER PERSONAL DETAILS (For automated field filling):\
+\n- Name: {profile.get('full_name', '[YOUR NAME]')}\
+\n- Address: {profile.get('address', '[YOUR ADDRESS]')}\
+\n- Contact: {profile.get('contact_number', '[YOUR CONTACT]')}\
+\n- Email: {profile.get('email', '[YOUR EMAIL]')}"
+
         system_prompt = template.format(
             context=context_text,
             query=query,
-            chat_history=conversation_context
+            chat_history=conversation_context,
+            profile_context=profile_context
         )
 
         # Add language instruction to system prompt dynamically based on user selection
@@ -175,8 +204,7 @@ class RagPipeline:
             if mode == "live":
                 system_prompt += f"\nCRITICAL LIVE AUDIO RULE: This is an English-exclusive audio session. It is strictly forbidden to use any Hindi, Hinglish, or vernacular words. If the user accidentally spoke Hindi words, translate your response entirely to English."
 
-        if conversation_context:
-            system_prompt += f"\n\n[Conversation History]\n{conversation_context}"
+        # Bedrock Converse API uses separate system and messages params
 
         # Bedrock Converse API uses separate system and messages params
         messages = [{"role": "user", "content": [{"type": "text", "text": query}]}]
@@ -186,6 +214,22 @@ class RagPipeline:
             return self._stream_response(system_prompt, messages, query, user_id, session_id, config["max_tokens"])
         else:
             return self._execute_response(system_prompt, messages, query, user_id, session_id, config["max_tokens"])
+
+    def get_simple_completion(self, prompt: str, max_tokens: int = 64) -> str:
+        """Lightweight completion for simple tasks like title generation."""
+        try:
+            body = json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": max_tokens,
+                "temperature": 0.5,
+                "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+            })
+            response = bedrock_client.invoke_model(modelId=self.model, body=body)
+            result = json.loads(response['body'].read())
+            return result["content"][0]["text"].strip()
+        except Exception as e:
+            logger.error(f"Simple completion failed: {e}")
+            return ""
 
     def _execute_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
         """Non-streaming response via Bedrock invoke_model API."""

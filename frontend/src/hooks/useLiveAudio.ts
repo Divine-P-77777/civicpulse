@@ -23,6 +23,9 @@ export function useLiveAudio({
   const isListeningRef = useRef<boolean>(false);
   const finalTranscriptRef = useRef<string>('');
   const recognitionActiveRef = useRef<boolean>(false);
+  const isBackendDoneRef = useRef<boolean>(true); // Track if backend finished sending chunks
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const autoSubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const AUTO_SUBMIT_DELAY = 2500; // ms of silence before auto-submit
 
@@ -44,10 +47,10 @@ export function useLiveAudio({
         recognitionRef.current.stop();
       }
     } catch (e) { /* ignore - may not be started */ }
-    
+
     // Pause Deepgram MediaRecorder if active
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        try { mediaRecorderRef.current.pause(); } catch(e) {}
+      try { mediaRecorderRef.current.pause(); } catch (e) { }
     }
   }, []);
 
@@ -64,11 +67,11 @@ export function useLiveAudio({
     } catch (e) {
       console.warn("[Audio] Resume failed (may already be running):", e);
     }
-    
+
     // Resume Deepgram MediaRecorder if paused
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
-         try { mediaRecorderRef.current.resume(); } catch(e) {}
-         console.log("[Audio] Deepgram media recorder resumed");
+      try { mediaRecorderRef.current.resume(); } catch (e) { }
+      console.log("[Audio] Deepgram media recorder resumed");
     }
   }, []);
 
@@ -92,7 +95,13 @@ export function useLiveAudio({
 
   // ─── Audio Playback ────────────────────────────────────
   const onAudioFinished = useCallback(() => {
-    console.log("[Audio] All audio finished playing, transitioning to listening");
+    // Only transition if the queue is empty AND backend confirmed it's done
+    if (audioQueueRef.current.length > 0 || !isBackendDoneRef.current) {
+      console.log("[Audio] Waiting for more chunks or backend done signal...");
+      return;
+    }
+
+    console.log("[Audio] All audio finished and backend done, transitioning to listening");
     isPlayingRef.current = false;
     setStatus('listening');
     setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
@@ -127,25 +136,58 @@ export function useLiveAudio({
     const byteCharacters = atob(base64Audio);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
     const byteArray = new Uint8Array(byteNumbers);
-    
+
+
     // Explicitly define proper mime type for MP3 files to prevent NotSupportedError
     const blob = new Blob([byteArray], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(blob);
-    
+
+    // Initialize Web Audio API if needed (for volume boost)
+    if (!audioCtxRef.current) {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const newCtx = new AudioCtx();
+        const newGain = newCtx.createGain();
+        newGain.connect(newCtx.destination);
+
+        audioCtxRef.current = newCtx;
+        gainNodeRef.current = newGain;
+      }
+    }
+
+    const ctx = audioCtxRef.current;
+    const gainNode = gainNodeRef.current;
+    if (ctx && gainNode && audioElementRef.current) {
+      // Boost volume for Sarvam (Hindi) which is notoriously low
+      // Normal ElevenLabs is fine at 1.0, Sarvam usually needs 2.5x to match perceived loudness
+      gainNode.gain.value = language === 'hi' ? 2.5 : 1.0;
+
+      // Connect element to gain node if not already connected
+      if (!(audioElementRef.current as any)._connected) {
+        const source = ctx.createMediaElementSource(audioElementRef.current);
+        source.connect(gainNode);
+        (audioElementRef.current as any)._connected = true;
+      }
+    }
+
     // Reset audio element before loading new source
     audioElementRef.current.pause();
     audioElementRef.current.src = url;
+
+    // Increase pace as requested (1.15x feels snappy but legible)
+    audioElementRef.current.playbackRate = 1.3;
+
     audioElementRef.current.load(); // Force load the new blob
-    
+
     audioElementRef.current.play().catch(e => {
-        console.error("[Audio] Play error:", e);
-        isPlayingRef.current = false;
-        setTimeout(() => playNextAudioChunk(), 100);
+      console.error("[Audio] Play error:", e);
+      isPlayingRef.current = false;
+      setTimeout(() => playNextAudioChunk(), 100);
     });
-  }, [pauseRecognition]);
+  }, [pauseRecognition, language]);
 
   // Setup audio element with onended handler
   useEffect(() => {
@@ -155,7 +197,7 @@ export function useLiveAudio({
     audio.onended = () => {
       console.log("[Audio] Chunk finished playing, queue length:", audioQueueRef.current.length);
       isPlayingRef.current = false;
-      
+
       if (audioQueueRef.current.length > 0) {
         // More chunks to play
         playNextAudioChunk();
@@ -284,8 +326,8 @@ export function useLiveAudio({
       setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
 
       if (!greetingRequestedRef.current) {
-          greetingRequestedRef.current = true;
-          requestGreeting();
+        greetingRequestedRef.current = true;
+        requestGreeting();
       }
     } catch (err) {
       console.error("[STT] Failed to start native STT:", err);
@@ -295,135 +337,135 @@ export function useLiveAudio({
   };
 
   const startDeepgramRecognition = async () => {
-      console.log("[Deepgram] Starting Deepgram streaming...");
-      const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
-      if (!apiKey) {
-          console.warn("[Deepgram] No API key found in .env, falling back directly to native...");
+    console.log("[Deepgram] Starting Deepgram streaming...");
+    const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
+    if (!apiKey) {
+      console.warn("[Deepgram] No API key found in .env, falling back directly to native...");
+      deepgramFailedRef.current = true;
+      startNativeRecognition();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      const langCode = language === 'hi' ? 'hi' : 'en';
+      const wsUrl = `wss://api.deepgram.com/v1/listen?language=${langCode}&interim_results=true&smart_format=true`;
+
+      const socket = new WebSocket(wsUrl, ["token", apiKey]);
+      deepgramWsRef.current = socket;
+
+      // Deepgram requires a KeepAlive to stay open during AI playing
+      let keepAliveInterval: any;
+
+      socket.onopen = () => {
+        console.log("[Deepgram] WebSocket connected!");
+        recognitionActiveRef.current = true;
+        finalTranscriptRef.current = '';
+
+        setStatus('listening');
+        setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
+
+        mediaRecorder.addEventListener('dataavailable', (event) => {
+          if (event.data.size > 0 && socket.readyState === 1 && recognitionActiveRef.current) {
+            socket.send(event.data);
+          }
+        });
+        mediaRecorder.start(250);
+
+        keepAliveInterval = setInterval(() => {
+          if (socket.readyState === 1) {
+            socket.send(JSON.stringify({ type: "KeepAlive" }));
+          }
+        }, 10000);
+
+        if (!greetingRequestedRef.current) {
+          greetingRequestedRef.current = true;
+          requestGreeting();
+        }
+      };
+
+      socket.onmessage = (message) => {
+        const received = JSON.parse(message.data);
+        if (!received.channel?.alternatives?.[0]) return;
+
+        const transcript = received.channel.alternatives[0].transcript;
+
+        if (transcript || received.is_final) {
+          if (received.is_final && transcript) {
+            finalTranscriptRef.current += transcript + " ";
+            console.log("[Deepgram] Final:", transcript);
+
+            if (autoSubmitTimerRef.current) clearTimeout(autoSubmitTimerRef.current);
+            onAutoSubmitStart?.(AUTO_SUBMIT_DELAY / 1000);
+            autoSubmitTimerRef.current = setTimeout(() => {
+              const text = finalTranscriptRef.current.trim();
+              if (text && recognitionActiveRef.current && !isPlayingRef.current) {
+                console.log("[Auto-Submit] Deepgram auto-sending:", text);
+                sendCurrentTranscriptAuto();
+              }
+              onAutoSubmitCancel?.();
+            }, AUTO_SUBMIT_DELAY);
+
+          } else if (transcript) {
+            if (autoSubmitTimerRef.current) {
+              clearTimeout(autoSubmitTimerRef.current);
+              onAutoSubmitCancel?.();
+              autoSubmitTimerRef.current = setTimeout(() => {
+                const text = finalTranscriptRef.current.trim();
+                if (text && recognitionActiveRef.current && !isPlayingRef.current) {
+                  sendCurrentTranscriptAuto();
+                }
+                onAutoSubmitCancel?.();
+              }, AUTO_SUBMIT_DELAY);
+            }
+          }
+
+          const display = finalTranscriptRef.current + (!received.is_final ? transcript : "");
+          if (display.trim() && recognitionActiveRef.current && !isPlayingRef.current) {
+            setTranscript(`You: "${display.trim()}"`);
+          }
+        }
+      };
+
+      socket.onclose = () => {
+        console.log("[Deepgram] WebSocket closed.");
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
+        try { mediaRecorder.stop(); } catch (e) { }
+
+        if (!deepgramFailedRef.current && recognitionActiveRef.current) {
+          console.log("[Deepgram] Connection closed prematurely, failing over to native...");
           deepgramFailedRef.current = true;
           startNativeRecognition();
-          return;
-      }
+        }
+      };
 
-      try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const mediaRecorder = new MediaRecorder(stream);
-          mediaRecorderRef.current = mediaRecorder;
+      socket.onerror = (error) => {
+        console.error("[Deepgram] WebSocket error:", error);
+        deepgramFailedRef.current = true;
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
+        try { mediaRecorder.stop(); } catch (e) { }
+        try { socket.close(); } catch (e) { }
+        console.log("[STT] Falling back to native recognition...");
+        startNativeRecognition();
+      };
 
-          const langCode = language === 'hi' ? 'hi' : 'en';
-          const wsUrl = `wss://api.deepgram.com/v1/listen?language=${langCode}&interim_results=true&smart_format=true`;
-
-          const socket = new WebSocket(wsUrl, ["token", apiKey]);
-          deepgramWsRef.current = socket;
-
-          // Deepgram requires a KeepAlive to stay open during AI playing
-          let keepAliveInterval: any;
-
-          socket.onopen = () => {
-              console.log("[Deepgram] WebSocket connected!");
-              recognitionActiveRef.current = true;
-              finalTranscriptRef.current = '';
-              
-              setStatus('listening');
-              setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
-
-              mediaRecorder.addEventListener('dataavailable', (event) => {
-                  if (event.data.size > 0 && socket.readyState === 1 && recognitionActiveRef.current) {
-                      socket.send(event.data);
-                  }
-              });
-              mediaRecorder.start(250);
-
-              keepAliveInterval = setInterval(() => {
-                  if (socket.readyState === 1) {
-                       socket.send(JSON.stringify({ type: "KeepAlive" }));
-                  }
-              }, 10000);
-
-              if (!greetingRequestedRef.current) {
-                  greetingRequestedRef.current = true;
-                  requestGreeting();
-              }
-          };
-
-          socket.onmessage = (message) => {
-              const received = JSON.parse(message.data);
-              if (!received.channel?.alternatives?.[0]) return;
-              
-              const transcript = received.channel.alternatives[0].transcript;
-              
-              if (transcript || received.is_final) {
-                  if (received.is_final && transcript) {
-                      finalTranscriptRef.current += transcript + " ";
-                      console.log("[Deepgram] Final:", transcript);
-
-                      if (autoSubmitTimerRef.current) clearTimeout(autoSubmitTimerRef.current);
-                      onAutoSubmitStart?.(AUTO_SUBMIT_DELAY / 1000);
-                      autoSubmitTimerRef.current = setTimeout(() => {
-                          const text = finalTranscriptRef.current.trim();
-                          if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-                              console.log("[Auto-Submit] Deepgram auto-sending:", text);
-                              sendCurrentTranscriptAuto();
-                          }
-                          onAutoSubmitCancel?.();
-                      }, AUTO_SUBMIT_DELAY);
-
-                  } else if (transcript) {
-                      if (autoSubmitTimerRef.current) {
-                          clearTimeout(autoSubmitTimerRef.current);
-                          onAutoSubmitCancel?.();
-                          autoSubmitTimerRef.current = setTimeout(() => {
-                              const text = finalTranscriptRef.current.trim();
-                              if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-                                  sendCurrentTranscriptAuto();
-                              }
-                              onAutoSubmitCancel?.();
-                          }, AUTO_SUBMIT_DELAY);
-                      }
-                  }
-                  
-                  const display = finalTranscriptRef.current + (!received.is_final ? transcript : "");
-                  if (display.trim() && recognitionActiveRef.current && !isPlayingRef.current) {
-                      setTranscript(`You: "${display.trim()}"`);
-                  }
-              }
-          };
-
-          socket.onclose = () => {
-              console.log("[Deepgram] WebSocket closed.");
-              if (keepAliveInterval) clearInterval(keepAliveInterval);
-              try { mediaRecorder.stop(); } catch(e){}
-              
-              if (!deepgramFailedRef.current && recognitionActiveRef.current) {
-                   console.log("[Deepgram] Connection closed prematurely, failing over to native...");
-                   deepgramFailedRef.current = true;
-                   startNativeRecognition();
-              }
-          };
-
-          socket.onerror = (error) => {
-              console.error("[Deepgram] WebSocket error:", error);
-              deepgramFailedRef.current = true;
-              if (keepAliveInterval) clearInterval(keepAliveInterval);
-              try { mediaRecorder.stop(); } catch(e){}
-              try { socket.close(); } catch(e){}
-              console.log("[STT] Falling back to native recognition...");
-              startNativeRecognition();
-          };
-
-      } catch (err) {
-          console.error("[Deepgram] Media/setup failed:", err);
-          deepgramFailedRef.current = true;
-          startNativeRecognition();
-      }
+    } catch (err) {
+      console.error("[Deepgram] Media/setup failed:", err);
+      deepgramFailedRef.current = true;
+      startNativeRecognition();
+    }
   };
 
   const startRecording = async () => {
-      greetingRequestedRef.current = false; // Reset on initial start
-      if (!deepgramFailedRef.current && process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY) {
-          startDeepgramRecognition();
-      } else {
-          startNativeRecognition();
-      }
+    greetingRequestedRef.current = false; // Reset on initial start
+    if (!deepgramFailedRef.current && process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY) {
+      startDeepgramRecognition();
+    } else {
+      startNativeRecognition();
+    }
   };
 
   const stopRecording = () => {
@@ -437,31 +479,49 @@ export function useLiveAudio({
 
     // Deepgram cleanup
     if (deepgramWsRef.current) {
-        try { deepgramWsRef.current.close(); } catch(e){}
-        deepgramWsRef.current = null;
+      try { deepgramWsRef.current.close(); } catch (e) { }
+      deepgramWsRef.current = null;
     }
     if (mediaRecorderRef.current) {
-        try { mediaRecorderRef.current.stop(); } catch(e){}
-        mediaRecorderRef.current = null;
+      try { mediaRecorderRef.current.stop(); } catch (e) { }
+      mediaRecorderRef.current = null;
     }
+  };
+
+  /**
+   * Strips common noise tokens from the end/start of text.
+   */
+  const stripNoiseTokens = (text: string) => {
+    // Noise tokens: toh, to, huh, umm, hmm, ah, oh, तो, जी, भाई, यार
+    const noiseRegex = /\b(toh|to|huh|umm|hmm|ah|oh|तो|तो तो|जी|जी जी|भाई|यार)\b/gi;
+    return text.replace(noiseRegex, '').replace(/\s+/g, ' ').trim();
   };
 
   /**
    * Internal auto-submit — same as sendCurrentTranscript but doesn't need user tap.
    */
   const sendCurrentTranscriptAuto = () => {
-    const text = finalTranscriptRef.current.trim();
-    if (text) {
-      console.log("[Live] Auto-sending user text to backend:", text);
-      sendUserText(text);
+    const rawText = finalTranscriptRef.current.trim();
+    if (!rawText) return;
+
+    const cleanedText = stripNoiseTokens(rawText);
+    
+    // Junk Filter: Ignore if cleaned text is too short or pure noise
+    const isJunk = cleanedText.length < 2 || /^[^a-z0-9\u0900-\u097F]+$/i.test(cleanedText);
+
+    if (cleanedText && !isJunk) {
+      console.log("[Live] Auto-sending cleaned text:", cleanedText);
+      sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
-      setTranscript(`You: "${text}"`);
+      setTranscript(`You: "${cleanedText}"`);
       pauseRecognition();
       if (autoSubmitTimerRef.current) {
         clearTimeout(autoSubmitTimerRef.current);
         autoSubmitTimerRef.current = null;
       }
+        finalTranscriptRef.current = '';
+        // Don't change status, just clear and keep listening
     }
   };
 
@@ -477,18 +537,24 @@ export function useLiveAudio({
       onAutoSubmitCancel?.();
     }
 
-    const text = finalTranscriptRef.current.trim();
-    if (text) {
-      console.log("[Live] Sending user text to backend:", text);
-      sendUserText(text);
+    const rawText = finalTranscriptRef.current.trim();
+    if (!rawText) return;
+
+    const cleanedText = stripNoiseTokens(rawText);
+    const isJunk = cleanedText.length < 2 && !/^[\u0900-\u097F]+$/.test(cleanedText);
+
+    if (cleanedText && !isJunk) {
+      console.log("[Live] Sending cleaned text to backend:", cleanedText);
+      sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
-      setTranscript(`You: "${text}"`);
+      setTranscript(`You: "${cleanedText}"`);
       // Pause recognition while we wait for AI response
       pauseRecognition();
     } else {
       // No transcript accumulated, just resume listening
       setTranscript(language === 'hi' ? 'कोई आवाज़ नहीं सुनी। फिर से बोलिए।' : 'No speech detected. Try again.');
+      finalTranscriptRef.current = '';
       setTimeout(() => {
         setStatus('listening');
         setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
@@ -524,5 +590,12 @@ export function useLiveAudio({
     }
   };
 
-  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit };
+  const setBackendDone = useCallback((done: boolean) => {
+    isBackendDoneRef.current = done;
+    if (done && !isPlayingRef.current && status === 'speaking') {
+      onAudioFinished();
+    }
+  }, [status, onAudioFinished]);
+
+  return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit, setBackendDone };
 }

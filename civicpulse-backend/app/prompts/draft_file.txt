@@ -10,6 +10,9 @@ Your task is to generate professional legal drafts such as complaints, legal not
 ### CONVERSATION LOGS:
 {chat_history}
 
+### USER PROFILE:
+{profile_context}
+
 ### GUIDELINES:
 1. **Tone**: Use a formal, authoritative, and professional legal tone.
 2. **Structure**: 

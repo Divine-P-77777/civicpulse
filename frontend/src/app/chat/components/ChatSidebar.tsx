@@ -50,7 +50,7 @@ export default function ChatSidebar({
                     ✚ New Conversation
                 </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1" data-lenis-prevent="true">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-200/50 hover:scrollbar-thumb-gray-300 transition-colors" data-lenis-prevent="true">
                 {sessions.map(s => (
                     <div key={s.SessionId}
                         onClick={() => onLoadSession(s.SessionId)}

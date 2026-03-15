@@ -6,6 +6,8 @@ import { DRAFT_TYPES } from '../constants';
 
 interface DoneStepProps {
     generatedContent: string;
+    editableContent: string;
+    onContentChange: (content: string) => void;
     draftType: string;
     onCopy: () => void;
     onExportPDF: () => void;
@@ -16,6 +18,8 @@ interface DoneStepProps {
 
 export function DoneStep({
     generatedContent,
+    editableContent,
+    onContentChange,
     draftType,
     onCopy,
     onExportPDF,
@@ -23,6 +27,7 @@ export function DoneStep({
     isExportingPDF,
     copied
 }: DoneStepProps) {
+    const [isEditing, setIsEditing] = useState(false);
     const selectedType = DRAFT_TYPES.find(t => t.id === draftType);
 
     return (
@@ -56,10 +61,27 @@ export function DoneStep({
 
             {/* Document viewer */}
             <div className="bg-white rounded-3xl shadow-[0_4px_24px_rgba(42,108,240,0.08)] border border-white overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-bold text-slate-700">Document Preview</span>
+                <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-slate-400" />
+                            <span className="text-sm font-bold text-slate-700">Document Preview</span>
+                        </div>
+                        <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+                        <div className="flex bg-slate-200/50 p-1 rounded-lg">
+                            <button 
+                                onClick={() => setIsEditing(false)}
+                                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${!isEditing ? 'bg-white text-[#2A6CF0] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                PREVIEW
+                            </button>
+                            <button 
+                                onClick={() => setIsEditing(true)}
+                                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${isEditing ? 'bg-white text-[#2A6CF0] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                EDIT
+                            </button>
+                        </div>
                     </div>
                     <button
                         onClick={onStartOver}
@@ -70,12 +92,22 @@ export function DoneStep({
                     </button>
                 </div>
 
-                <div className="p-6 h-[60vh] overflow-y-auto overscroll-contain custom-scrollbar">
-                    <div className="prose prose-slate prose-sm max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {generatedContent}
-                        </ReactMarkdown>
-                    </div>
+                <div className="p-6 h-[60vh] overflow-y-auto overscroll-contain custom-scrollbar bg-white scrollbar-thin scrollbar-thumb-slate-200">
+                    {isEditing ? (
+                        <textarea
+                            value={editableContent}
+                            onChange={(e) => onContentChange(e.target.value)}
+                            className="w-full h-full p-4 border-none focus:ring-0 text-slate-700 font-mono text-sm resize-none outline-none leading-relaxed"
+                            placeholder="Edit your document here..."
+                            spellCheck={false}
+                        />
+                    ) : (
+                        <div className="prose prose-slate prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {editableContent || generatedContent}
+                            </ReactMarkdown>
+                        </div>
+                    )}
                 </div>
             </div>
 
