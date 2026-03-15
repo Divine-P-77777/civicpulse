@@ -114,7 +114,7 @@ export default function ChatPage() {
     const onDropPage = (e: React.DragEvent) => { e.preventDefault(); dragCounter.current = 0; setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) chatInputRef.current?.setPendingFile(f); };
 
     return (
-        <div className="h-[100dvh] flex overflow-hidden"
+        <div className="h-screen flex overflow-hidden"
             style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}
             onDragEnter={onDragEnter} onDragOver={onDragOverPage} onDragLeave={onDragLeave} onDrop={onDropPage}>
 

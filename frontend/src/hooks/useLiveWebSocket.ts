@@ -13,11 +13,12 @@ interface UseLiveWebSocketParams {
   startRecording: () => void;
   stopRecording: () => void;
   stopCamera: () => void;
+  setBackendDone: (done: boolean) => void;
 }
 
 export function useLiveWebSocket({
   sessionId, language, getToken, clerk, onClose,
-  playNextAudioChunk, audioQueueRef, startRecording, stopRecording, stopCamera
+  playNextAudioChunk, audioQueueRef, startRecording, stopRecording, stopCamera, setBackendDone
 }: UseLiveWebSocketParams) {
   const [status, setStatus] = useState<LiveStatus>('idle');
   const [transcript, setTranscript] = useState<string>('Ready. Tap the button to connect.');
@@ -95,8 +96,12 @@ export function useLiveWebSocket({
             setStatus('processing');
           } else if (message.type === 'audio_stream') {
             setStatus('speaking');
+            setBackendDone(false); // New stream started
             audioQueueRef.current.push(message.data);
             playNextAudioChunk();
+          } else if (message.type === 'speaking_done') {
+            console.log("[WS] Received speaking_done signal");
+            setBackendDone(true);
           } else if (message.type === 'ai_transcript') {
             setTranscript(`AI: "${message.text}"`);
           } else if (message.type === 'ingestion_progress') {

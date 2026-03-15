@@ -1,10 +1,77 @@
-export async function exportToPDF(content: string, topic: string, draftType: string) {
+export async function exportToPDF(content: string, topic: string, draftType: string, language: string = 'en') {
     const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+    const fontkit = await import('@pdf-lib/fontkit');
 
     const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
+
+    // Standard fonts for English
     const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const timesItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+
+    // --- Unicode Detection Helper ---
+    const hasUnicode = (str: string) => /[^\x00-\x7F]/.test(str);
+    const needsUnicode = language !== 'en' || hasUnicode(content) || hasUnicode(topic);
+
+    let unicodeFont: any = null;
+    let unicodeFontBold: any = null;
+
+    if (needsUnicode) {
+        try {
+            const FONT_URLS: Record<string, { regular: string, bold: string }> = {
+                hi: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Bold.ttf'
+                },
+                bn: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansBengali/NotoSansBengali-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansBengali/NotoSansBengali-Bold.ttf'
+                },
+                ta: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansTamil/NotoSansTamil-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansTamil/NotoSansTamil-Bold.ttf'
+                },
+                te: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansTelugu/NotoSansTelugu-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansTelugu/NotoSansTelugu-Bold.ttf'
+                },
+                mr: { // Marathi uses Devanagari
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Bold.ttf'
+                },
+                gu: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansGujarati/NotoSansGujarati-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansGujarati/NotoSansGujarati-Bold.ttf'
+                },
+                kn: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansKannada/NotoSansKannada-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansKannada/NotoSansKannada-Bold.ttf'
+                },
+                ml: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansMalayalam/NotoSansMalayalam-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansMalayalam/NotoSansMalayalam-Bold.ttf'
+                },
+                pa: {
+                    regular: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansGurmukhi/NotoSansGurmukhi-Regular.ttf',
+                    bold: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansGurmukhi/NotoSansGurmukhi-Bold.ttf'
+                }
+            };
+            
+            // Fallback to Devanagari for others for now or extend mapping
+            const urls = FONT_URLS[language] || FONT_URLS.hi;
+            
+            const [regBytes, boldBytes] = await Promise.all([
+                fetch(urls.regular).then(res => res.arrayBuffer()),
+                fetch(urls.bold).then(res => res.arrayBuffer())
+            ]);
+
+            unicodeFont = await pdfDoc.embedFont(regBytes);
+            unicodeFontBold = await pdfDoc.embedFont(boldBytes);
+        } catch (err) {
+            console.warn("Failed to load Unicode fonts, falling back to standard fonts:", err);
+        }
+    }
 
     const margin = 60;
     const pageWidth = 595;
@@ -49,14 +116,19 @@ export async function exportToPDF(content: string, topic: string, draftType: str
         // until we have a full rich text layout engine.
         
         const cleanLine = text.replace(/\*\*([^*]+)\*\*/g, '$1')
-                             .replace(/₹/g, 'Rs. ')
-                             .replace(/[^\x00-\x7F]/g, char => {
-                                 const map: any = { '—': '-', '–': '-', '“': '"', '”': '"', '‘': "'", '’': "'" };
-                                 return map[char] || '';
-                             });
+                             .replace(/₹/g, 'Rs. ');
 
-        const font = isTitle ? timesBold : timesRoman;
-        const words = cleanLine.split(' ');
+        const font = isTitle 
+            ? (unicodeFontBold || timesBold) 
+            : (unicodeFont || timesRoman);
+        
+        // Final safety check: if font is standard and text has unicode, it will crash.
+        // If we don't have unicodeFont but text has unicode, we must sanitize.
+        const printableLine = (!unicodeFont && hasUnicode(cleanLine))
+            ? cleanLine.replace(/[^\x00-\x7F]/g, '') // Strip if we failed to load font
+            : cleanLine;
+
+        const words = printableLine.split(' ');
         let currentLine = '';
 
         for (const word of words) {
@@ -125,12 +197,19 @@ export async function exportToPDF(content: string, topic: string, draftType: str
     page.drawText('RE: ', { x: margin, y, font: timesBold, size: 11, color: rgb(0.4, 0.4, 0.4) });
     
     // Wrap topic
-    const topicWords = sanitizedTopic.split(' ');
+    // Safety check for topic
+    const printableTopic = (!unicodeFontBold && hasUnicode(sanitizedTopic))
+        ? sanitizedTopic.replace(/[^\x00-\x7F]/g, '')
+        : sanitizedTopic;
+
+    const topicWords = printableTopic.split(' ');
     let currentTopicLine = '';
+    const topicFont = unicodeFontBold || timesBold;
+
     for (const word of topicWords) {
         const testLine = currentTopicLine ? `${currentTopicLine} ${word}` : word;
-        if (timesBold.widthOfTextAtSize(testLine, 11) > textWidth - 25) {
-            page.drawText(currentTopicLine, { x: margin + 25, y, font: timesBold, size: 11, color: rgb(0.2, 0.2, 0.2) });
+        if (topicFont.widthOfTextAtSize(testLine, 11) > textWidth - 25) {
+            page.drawText(currentTopicLine, { x: margin + 25, y, font: topicFont, size: 11, color: rgb(0.2, 0.2, 0.2) });
             y -= 14;
             currentTopicLine = word;
         } else {
@@ -138,7 +217,7 @@ export async function exportToPDF(content: string, topic: string, draftType: str
         }
     }
     if (currentTopicLine) {
-        page.drawText(currentTopicLine, { x: margin + 25, y, font: timesBold, size: 11, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(currentTopicLine, { x: margin + 25, y, font: topicFont, size: 11, color: rgb(0.2, 0.2, 0.2) });
         y -= 25;
     }
 

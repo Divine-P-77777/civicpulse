@@ -156,22 +156,23 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
         # Auto-generate title from first user message
         if is_first_message:
             try:
-                from openai import OpenAI
-                title_client = OpenAI()
-                title_resp = title_client.chat.completions.create(
-                    model=os.getenv("RAG_MODEL", "openai.gpt-oss-120b"),
-                    messages=[{
-                        "role": "user",
-                        "content": f"Generate a short chat title (max 6 words, no quotes) for this user query: \"{body.message[:200]}\""
-                    }],
-                    max_tokens=20
-                )
-                auto_title = (title_resp.choices[0].message.content or "").strip().strip('"\'')[:50]
-                if not auto_title:
-                    auto_title = body.message[:40].strip()
+                # Use a simplified prompt for title generation
+                title_prompt = f"Generate a short, descriptive chat title (max 5 words) for this legal query: \"{body.message[:100]}\". No quotes, no intro text, just the title."
+                
+                # Attempt to use the same analysis pipeline for title generation (non-streaming)
+                # This ensures we use the same credentials/model configured for the app
+                auto_title = rag_pipeline.get_simple_completion(title_prompt)
+                
+                if not auto_title or len(auto_title) > 60:
+                    auto_title = body.message[:40].strip() + "..."
+                
                 update_session_title(user_id, body.session_id, auto_title)
             except Exception as e:
                 logger.warning(f"Auto-title generation failed: {e}")
+                # Fallback to message snippet
+                fallback_title = body.message[:40].strip()
+                if len(body.message) > 40: fallback_title += "..."
+                update_session_title(user_id, body.session_id, fallback_title)
 
         yield f"data: {json.dumps({'done': True})}\n\n"
 

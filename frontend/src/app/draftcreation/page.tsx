@@ -25,14 +25,20 @@ function DraftCreationPageInner() {
 
     const topicFromURL = searchParams.get('topic') || '';
     const sourceFromURL = searchParams.get('source') || 'direct';
+    const contextFromURL = searchParams.get('initialContext') || '';
+    const typeFromURL = searchParams.get('type') || '';
+    const useProfileFromURL = searchParams.get('useProfile') === 'true';
 
     const [step, setStep] = useState<'confirm' | 'form' | 'generating' | 'done'>(
-        topicFromURL ? 'confirm' : 'form'
+        contextFromURL ? 'generating' : (topicFromURL ? 'confirm' : 'form')
     );
     const [topic, setTopic] = useState(topicFromURL);
-    const [draftType, setDraftType] = useState<string>('complaint');
-    const [additionalContext, setAdditionalContext] = useState('');
+    const [draftType, setDraftType] = useState<string>(typeFromURL || 'complaint');
+    const [additionalContext, setAdditionalContext] = useState(contextFromURL);
+    const [language, setLanguage] = useState('en');
     const [generatedContent, setGeneratedContent] = useState('');
+    const [editableContent, setEditableContent] = useState('');
+    const [useProfile, setUseProfile] = useState<boolean>(useProfileFromURL || true);
     const [copied, setCopied] = useState(false);
     const [isExportingPDF, setIsExportingPDF] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -65,22 +71,32 @@ function DraftCreationPageInner() {
         topic,
         draftType,
         additionalContext,
+        language,
+        useProfile,
         onSuccess: (content) => {
             setGeneratedContent(content);
+            setEditableContent(content);
             setStep('done');
         }
     });
 
-    // Infer draft type from topic URL
+    // Auto-generate if coming from Chat with context
     useEffect(() => {
-        if (!topicFromURL) return;
+        if (contextFromURL && !generatedContent && !isGenerating && !error && isLoaded) {
+            generateDraft();
+        }
+    }, [contextFromURL, isLoaded]);
+
+    // Infer draft type from topic URL if not explicitly provided
+    useEffect(() => {
+        if (!topicFromURL || typeFromURL) return;
         const t = topicFromURL.toLowerCase();
         if (t.includes('complaint')) setDraftType('complaint');
         else if (t.includes('notice')) setDraftType('legal_notice');
         else if (t.includes('appeal')) setDraftType('appeal');
         else if (t.includes('affidavit')) setDraftType('affidavit');
         else if (t.includes('rti')) setDraftType('rti');
-    }, [topicFromURL]);
+    }, [topicFromURL, typeFromURL]);
 
     // Handle transition to generating
     useEffect(() => {
@@ -90,7 +106,7 @@ function DraftCreationPageInner() {
     }, [isGenerating, step]);
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(generatedContent);
+        await navigator.clipboard.writeText(editableContent || generatedContent);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -98,7 +114,7 @@ function DraftCreationPageInner() {
     const handleExportPDF = async () => {
         setIsExportingPDF(true);
         try {
-            await exportToPDF(generatedContent, topic, draftType);
+            await exportToPDF(editableContent || generatedContent, topic, draftType, language);
         } finally {
             setIsExportingPDF(false);
         }
@@ -128,7 +144,7 @@ function DraftCreationPageInner() {
     }
 
     return (
-        <div className="min-h-screen flex flex-row" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
+        <div className="h-screen flex flex-row overflow-hidden" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
             <DraftSidebar 
                 isOpen={isSidebarOpen}
                 onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -144,7 +160,8 @@ function DraftCreationPageInner() {
                     onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
                 />
 
-                <div className="max-w-3xl mx-auto w-full px-4 py-8 space-y-6 flex-1">
+                <div className="flex-1 overflow-y-auto overscroll-contain">
+                    <div className="max-w-3xl mx-auto w-full px-4 py-8 space-y-6">
                     {/* Global Error Banner */}
                     {error && (
                         <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
@@ -184,6 +201,10 @@ function DraftCreationPageInner() {
                             onDraftTypeChange={setDraftType}
                             onAdditionalContextChange={setAdditionalContext}
                             onGenerate={generateDraft}
+                            language={language}
+                            onLanguageChange={setLanguage}
+                            useProfile={useProfile}
+                            onUseProfileChange={setUseProfile}
                         />
                     )}
 
@@ -197,6 +218,8 @@ function DraftCreationPageInner() {
                     {step === 'done' && !error && (
                         <DoneStep
                             generatedContent={generatedContent}
+                            editableContent={editableContent}
+                            onContentChange={setEditableContent}
                             draftType={draftType}
                             onCopy={handleCopy}
                             onExportPDF={handleExportPDF}
@@ -205,6 +228,7 @@ function DraftCreationPageInner() {
                             copied={copied}
                         />
                     )}
+                    </div>
                 </div>
             </div>
         </div>

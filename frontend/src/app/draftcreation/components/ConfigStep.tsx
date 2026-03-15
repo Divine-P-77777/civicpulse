@@ -9,6 +9,10 @@ interface ConfigStepProps {
     onTopicChange: (val: string) => void;
     onDraftTypeChange: (type: string) => void;
     onAdditionalContextChange: (val: string) => void;
+    language: string;
+    onLanguageChange: (lang: string) => void;
+    useProfile: boolean;
+    onUseProfileChange: (val: boolean) => void;
     onGenerate: () => void;
 }
 
@@ -19,8 +23,19 @@ export function ConfigStep({
     onTopicChange,
     onDraftTypeChange,
     onAdditionalContextChange,
+    language,
+    onLanguageChange,
+    useProfile,
+    onUseProfileChange,
     onGenerate
 }: ConfigStepProps) {
+    const languages = [
+        { id: 'en', label: 'English' },
+        { id: 'hi', label: 'Hindi' },
+        { id: 'bn', label: 'Bengali' },
+        { id: 'ta', label: 'Tamil' },
+        { id: 'te', label: 'Telugu' },
+    ];
     return (
         <div className="space-y-5">
             <div className="text-center pb-2">
@@ -57,6 +72,43 @@ export function ConfigStep({
                         placeholder="Parties involved, specific dates, clauses, desired outcome…"
                         className="mt-2 w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:border-[#2A6CF0] focus:ring-2 focus:ring-[#2A6CF0]/10 resize-none transition-all"
                     />
+                </div>
+
+                <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Output Language</label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {languages.map(lang => (
+                            <button
+                                key={lang.id}
+                                onClick={() => onLanguageChange(lang.id)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                                    language === lang.id 
+                                    ? 'bg-[#2A6CF0] text-white border-[#2A6CF0] shadow-md shadow-[#2A6CF0]/20' 
+                                    : 'bg-slate-50 text-slate-600 border-slate-100 hover:border-slate-300'
+                                }`}
+                            >
+                                {lang.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex items-center justify-between group hover:bg-slate-100 transition-all">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${useProfile ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                            <Sparkles className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-slate-800">Use My Personalized Data</p>
+                            <p className="text-[10px] text-slate-500">Auto-fill my name, address, and contact info</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => onUseProfileChange(!useProfile)}
+                        className={`w-12 h-6 rounded-full relative transition-all duration-300 ${useProfile ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${useProfile ? 'left-7' : 'left-1'}`} />
+                    </button>
                 </div>
 
                 <button

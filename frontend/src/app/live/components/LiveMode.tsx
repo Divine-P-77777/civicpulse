@@ -82,7 +82,8 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         audioQueueRef,
         startRecording: () => startRecording(),         // Linked below
         stopRecording: () => stopRecording(),           // Linked below
-        stopCamera: () => stopCamera()                  // Linked below
+        stopCamera: () => stopCamera(),                  // Linked below
+        setBackendDone: (done) => setBackendDone(done)  // Linked below
     });
 
     const {
@@ -94,7 +95,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     });
 
     const {
-        playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit
+        playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit, setBackendDone
     } = useLiveAudio({
         wsReadyState: wsRef.current?.readyState,
         sendUserText: (text) => {

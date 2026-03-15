@@ -7,6 +7,7 @@ from app.config import bedrock_client
 from app.services.embedding_service import generate_embedding
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import store_analysis_result
+from app.services.profile_service import get_user_profile
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -127,7 +128,8 @@ class RagPipeline:
         chat_history: list = None,
         language: str = "en",
         stream: bool = False,
-        mode: str = "chat"
+        mode: str = "chat",
+        use_profile: bool = True
     ):
         """
         Optimized RAG pipeline:
@@ -158,10 +160,21 @@ class RagPipeline:
             template = self.draft_prompt_template
         else:
             template = self.prompt_template
+        profile_context = ""
+        if mode == "draft" and user_id and use_profile:
+            profile = get_user_profile(user_id)
+            if profile:
+                profile_context = f"\n\n### USER PERSONAL DETAILS (For automated field filling):\
+\n- Name: {profile.get('full_name', '[YOUR NAME]')}\
+\n- Address: {profile.get('address', '[YOUR ADDRESS]')}\
+\n- Contact: {profile.get('contact_number', '[YOUR CONTACT]')}\
+\n- Email: {profile.get('email', '[YOUR EMAIL]')}"
+
         system_prompt = template.format(
             context=context_text,
             query=query,
-            chat_history=conversation_context
+            chat_history=conversation_context,
+            profile_context=profile_context
         )
 
         # Add language instruction to system prompt dynamically based on user selection
@@ -175,8 +188,7 @@ class RagPipeline:
             if mode == "live":
                 system_prompt += f"\nCRITICAL LIVE AUDIO RULE: This is an English-exclusive audio session. It is strictly forbidden to use any Hindi, Hinglish, or vernacular words. If the user accidentally spoke Hindi words, translate your response entirely to English."
 
-        if conversation_context:
-            system_prompt += f"\n\n[Conversation History]\n{conversation_context}"
+        # Bedrock Converse API uses separate system and messages params
 
         # Bedrock Converse API uses separate system and messages params
         messages = [{"role": "user", "content": [{"type": "text", "text": query}]}]
@@ -186,6 +198,22 @@ class RagPipeline:
             return self._stream_response(system_prompt, messages, query, user_id, session_id, config["max_tokens"])
         else:
             return self._execute_response(system_prompt, messages, query, user_id, session_id, config["max_tokens"])
+
+    def get_simple_completion(self, prompt: str, max_tokens: int = 64) -> str:
+        """Lightweight completion for simple tasks like title generation."""
+        try:
+            body = json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": max_tokens,
+                "temperature": 0.5,
+                "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+            })
+            response = bedrock_client.invoke_model(modelId=self.model, body=body)
+            result = json.loads(response['body'].read())
+            return result["content"][0]["text"].strip()
+        except Exception as e:
+            logger.error(f"Simple completion failed: {e}")
+            return ""
 
     def _execute_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
         """Non-streaming response via Bedrock invoke_model API."""

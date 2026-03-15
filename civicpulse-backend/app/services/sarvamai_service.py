@@ -32,20 +32,27 @@ class SarvamService:
         global _sarvam_unhealthy
         import re
         buffer = ""
-        # Simple sentence split heuristic
-        sentence_endings = re.compile(r'(?<=[.!?|।])\s+') # Includes purna viram (।) for Hindi
+        # Improved sentence split heuristic: split on punctuation even if no space follows
+        # This helps with LLMs that don't always put spaces after punctuation.
+        sentence_endings = re.compile(r'([.!?|।])')
 
         async def process_sentence(sentence):
             global _sarvam_unhealthy
             if not sentence: return
             
+            # Normalize text for Sarvam AI
+            # Replacing Hindi | and । with . often gives better phrasing/prosody in Indian TTS engines
+            normalized_sentence = sentence.replace('।', '.').replace('|', '.')
+            # Remove any non-speech characters if they snuck in
+            normalized_sentence = re.sub(r'[*_#`~]', '', normalized_sentence)
+            
             if self.client and not _sarvam_unhealthy:
                 try:
                     # Run Sarvam blocking call in a background thread to prevent blocking WebSocket
                     def _call_sarvam():
-                        print(f"[Sarvam Debug] Calling text_to_speech.convert for: {sentence}")
+                        print(f"[Sarvam Debug] Calling text_to_speech.convert for: {normalized_sentence}")
                         response = self.client.text_to_speech.convert(
-                            text=sentence,
+                            text=normalized_sentence,
                             target_language_code="hi-IN",
                             speaker="ritu", # As requested by user
                         )
@@ -66,21 +73,25 @@ class SarvamService:
                     print("Marking Sarvam as unhealthy. Switching to Edge TTS fallback permanently.")
                     _sarvam_unhealthy = True
                     
-            # Fallback to Edge TTS
+            # Fallback to Edge TTS (using normalized sentence)
             edge_audio = b""
-            async for chunk in self.generate_edge_tts_fallback(sentence):
+            async for chunk in self.generate_edge_tts_fallback(normalized_sentence):
                 edge_audio += chunk
             if edge_audio:
                 yield edge_audio
 
         for chunk in text_iterator:
             buffer += chunk
-            if sentence_endings.search(buffer) or "\n" in buffer:
-                sentence = buffer.strip()
+            # Split by punctuation
+            parts = sentence_endings.split(buffer)
+            # parts will be [text, punct, text, punct, ...]
+            # We process pairs till the last part
+            while len(parts) > 1:
+                sentence = (parts.pop(0) + parts.pop(0)).strip()
                 if sentence:
                     async for audio_chunk in process_sentence(sentence):
                         yield audio_chunk
-                buffer = ""
+            buffer = parts[0]
                 
         # Flush whatever remains
         sentence = buffer.strip()
