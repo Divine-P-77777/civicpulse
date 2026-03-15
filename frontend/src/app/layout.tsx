@@ -33,6 +33,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="CivicPulse" />
+        <meta name="google-site-verification" content="TYc7oU50kCRvacQe4ygPnBN_v_-VT4Usuvd9xzw11VM" />
       </head>
       <body className={`${inter.className} ${notoDevanagari.variable} font-sans`} suppressHydrationWarning>
         <ClerkProvider>

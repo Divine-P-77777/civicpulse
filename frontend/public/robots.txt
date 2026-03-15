@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /_next
+Disallow: /static
+
+Sitemap: https://civicpulse-pro.vercel.app/sitemap.xml
