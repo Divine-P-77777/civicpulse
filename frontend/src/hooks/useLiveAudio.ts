@@ -489,21 +489,39 @@ export function useLiveAudio({
   };
 
   /**
+   * Strips common noise tokens from the end/start of text.
+   */
+  const stripNoiseTokens = (text: string) => {
+    // Noise tokens: toh, to, huh, umm, hmm, ah, oh, तो, जी, भाई, यार
+    const noiseRegex = /\b(toh|to|huh|umm|hmm|ah|oh|तो|तो तो|जी|जी जी|भाई|यार)\b/gi;
+    return text.replace(noiseRegex, '').replace(/\s+/g, ' ').trim();
+  };
+
+  /**
    * Internal auto-submit — same as sendCurrentTranscript but doesn't need user tap.
    */
   const sendCurrentTranscriptAuto = () => {
-    const text = finalTranscriptRef.current.trim();
-    if (text) {
-      console.log("[Live] Auto-sending user text to backend:", text);
-      sendUserText(text);
+    const rawText = finalTranscriptRef.current.trim();
+    if (!rawText) return;
+
+    const cleanedText = stripNoiseTokens(rawText);
+    
+    // Junk Filter: Ignore if cleaned text is too short or pure noise
+    const isJunk = cleanedText.length < 2 || /^[^a-z0-9\u0900-\u097F]+$/i.test(cleanedText);
+
+    if (cleanedText && !isJunk) {
+      console.log("[Live] Auto-sending cleaned text:", cleanedText);
+      sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
-      setTranscript(`You: "${text}"`);
+      setTranscript(`You: "${cleanedText}"`);
       pauseRecognition();
       if (autoSubmitTimerRef.current) {
         clearTimeout(autoSubmitTimerRef.current);
         autoSubmitTimerRef.current = null;
       }
+        finalTranscriptRef.current = '';
+        // Don't change status, just clear and keep listening
     }
   };
 
@@ -519,18 +537,24 @@ export function useLiveAudio({
       onAutoSubmitCancel?.();
     }
 
-    const text = finalTranscriptRef.current.trim();
-    if (text) {
-      console.log("[Live] Sending user text to backend:", text);
-      sendUserText(text);
+    const rawText = finalTranscriptRef.current.trim();
+    if (!rawText) return;
+
+    const cleanedText = stripNoiseTokens(rawText);
+    const isJunk = cleanedText.length < 2 && !/^[\u0900-\u097F]+$/.test(cleanedText);
+
+    if (cleanedText && !isJunk) {
+      console.log("[Live] Sending cleaned text to backend:", cleanedText);
+      sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
-      setTranscript(`You: "${text}"`);
+      setTranscript(`You: "${cleanedText}"`);
       // Pause recognition while we wait for AI response
       pauseRecognition();
     } else {
       // No transcript accumulated, just resume listening
       setTranscript(language === 'hi' ? 'कोई आवाज़ नहीं सुनी। फिर से बोलिए।' : 'No speech detected. Try again.');
+      finalTranscriptRef.current = '';
       setTimeout(() => {
         setStatus('listening');
         setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');

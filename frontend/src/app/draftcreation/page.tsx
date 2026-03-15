@@ -160,7 +160,7 @@ function DraftCreationPageInner() {
                     onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
                 />
 
-                <div className="flex-1 overflow-y-auto overscroll-contain">
+                <div className="flex-1 overflow-y-auto overscroll-contain" data-lenis-prevent="true">
                     <div className="max-w-3xl mx-auto w-full px-4 py-8 space-y-6">
                     {/* Global Error Banner */}
                     {error && (

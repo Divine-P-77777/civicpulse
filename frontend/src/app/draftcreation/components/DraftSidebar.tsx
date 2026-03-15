@@ -213,7 +213,7 @@ export default function DraftSidebar({
                 </div>
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-4 space-y-1 scrollbar-thin scrollbar-thumb-gray-200">
+                <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-4 space-y-1 scrollbar-none hover:scrollbar-thin scrollbar-thumb-gray-200" data-lenis-prevent="true">
                     {isOpen ? (
                         loading ? (
                             Array(5).fill(0).map((_, i) => (

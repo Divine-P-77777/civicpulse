@@ -142,7 +142,8 @@ export default function ChatPage() {
                 <ChatHeader showSidebar={showSidebar} onToggleSidebar={() => setShowSidebar(!showSidebar)}
                     hasActiveSession={!!activeSessionId} onShareClick={() => setShowShareModal(true)}
                     onHistoryClick={() => setShowHistoryModal(true)}
-                    language={language} onLanguageChange={setLanguage} />
+                    language={language} onLanguageChange={setLanguage}
+                    title={sessions.find(s => s.SessionId === activeSessionId)?.Title} />
 
                 <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-6" data-lenis-prevent="true">
                     <div className="max-w-3xl mx-auto space-y-5">

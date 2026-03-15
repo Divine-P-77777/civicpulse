@@ -23,6 +23,7 @@ export function useLiveWebSocket({
   const [status, setStatus] = useState<LiveStatus>('idle');
   const [transcript, setTranscript] = useState<string>('Ready. Tap the button to connect.');
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [draftData, setDraftData] = useState<any>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef<number>(0);
@@ -103,7 +104,27 @@ export function useLiveWebSocket({
             console.log("[WS] Received speaking_done signal");
             setBackendDone(true);
           } else if (message.type === 'ai_transcript') {
-            setTranscript(`AI: "${message.text}"`);
+            let aiText = message.text;
+            
+            // Parse Draft Ready Tag if present
+            const draftMatch = aiText.match(/<DRAFT_READY\s+([^>]+)\s*\/>/);
+            if (draftMatch) {
+                try {
+                    const attrString = draftMatch[1];
+                    const data: any = {};
+                    const attrMatches = attrString.matchAll(/(\w+)="([^"]*)"/g);
+                    for (const m of attrMatches) {
+                        data[m[1]] = m[2];
+                    }
+                    console.log("[Live] Found Draft Ready data:", data);
+                    setDraftData(data);
+                    // Remove the tag from visible transcript
+                    aiText = aiText.replace(/<DRAFT_READY\s+[^>]+\s*\/>/, '').trim();
+                } catch (e) {
+                    console.error("Failed to parse draft tag", e);
+                }
+            }
+            setTranscript(`AI: "${aiText}"`);
           } else if (message.type === 'ingestion_progress') {
             setStatus('uploading');
             setUploadProgress(message.progress);
@@ -181,5 +202,5 @@ export function useLiveWebSocket({
     }
   };
 
-  return { wsRef, status, setStatus, transcript, setTranscript, uploadProgress, setUploadProgress, connectWebSocket, closeWebSocket, trackedSend };
+  return { wsRef, status, setStatus, transcript, setTranscript, uploadProgress, setUploadProgress, draftData, connectWebSocket, closeWebSocket, trackedSend };
 }

@@ -26,7 +26,7 @@ _bedrock_semaphore = asyncio.Semaphore(3)
 
 # Mode-specific config
 MODE_CONFIG = {
-    "live": {"top_k": 3, "chunk_chars": 500, "max_tokens": 300},
+    "live": {"top_k": 3, "chunk_chars": 500, "max_tokens": 512},
     "chat": {"top_k": 5, "chunk_chars": 1000, "max_tokens": 1024},
     "draft": {"top_k": 8, "chunk_chars": 2000, "max_tokens": 2048},
 }
@@ -139,6 +139,22 @@ class RagPipeline:
         4. LLM generation with mode-aware max_tokens
         """
         config = MODE_CONFIG.get(mode, MODE_CONFIG["chat"])
+
+        # ── Step 0: Junk Query Check (for Live Mode) ────────────────
+        if mode == "live":
+            q_lower = query.lower().strip()
+            # Heuristic for background noise interpreted as speech
+            is_junk = (
+                len(q_lower) < 3 or 
+                q_lower in ["toh toh", "to to", "um", "hmm", "ah", "oh"] or
+                all(c in " .,!?" for c in q_lower)
+            )
+            if is_junk:
+                logger.info(f"Session {session_id}: Junk query detected ('{query}'), bypassing LLM.")
+                # We return a generator for streaming compatibility
+                async def _silent_gen():
+                    yield "I'm listening. Please proceed." if language == "en" else "मैं सुन रही हूँ। कृपया आगे बढ़िए।"
+                return _silent_gen() if stream else ("I'm listening. Please proceed." if language == "en" else "मैं सुन रही हूँ। कृपया आगे बढ़िए।")
 
         # ── Step 1 & 2: Run in parallel ──────────────────────────
         # Conversation context (pure CPU — fast)

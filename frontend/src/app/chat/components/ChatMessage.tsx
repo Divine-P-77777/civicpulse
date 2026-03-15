@@ -101,9 +101,10 @@ const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStre
                                         
                                         <Link 
                                             href={`/draftcreation?type=${draftData.type}&topic=${encodeURIComponent(draftData.topic)}&useProfile=${draftData.useProfile}&initialContext=${encodeURIComponent(draftData.initialContext)}`}
-                                            className="w-full bg-[#2A6CF0] hover:bg-[#1E5AD8] text-white text-[15px] font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_14px_rgba(42,108,240,0.25)] hover:shadow-[0_6px_20px_rgba(42,108,240,0.3)] hover:-translate-y-0.5"
+                                            className="w-full bg-[#1E293B] hover:bg-black text-white text-[15px] font-semibold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_8px_20px_rgba(30,41,59,0.2)] hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)] hover:-translate-y-1"
                                         >
-                                            Proceed to Draft Creation
+                                            <FiFileText className="text-lg" />
+                                            Start Official Drafting
                                             <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
                                         </Link>
                                         
