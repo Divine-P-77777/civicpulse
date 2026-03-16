@@ -352,7 +352,16 @@ export function useLiveAudio({
       mediaRecorderRef.current = mediaRecorder;
 
       const langCode = language === 'hi' ? 'hi' : 'en';
-      const wsUrl = `wss://api.deepgram.com/v1/listen?language=${langCode}&interim_results=true&smart_format=true`;
+      
+      let wsUrl: string;
+      if (language === 'hi') {
+        // Fallback or use standard Nova-2 for Hindi as Flux is English-only
+        wsUrl = `wss://api.deepgram.com/v1/listen?language=hi&interim_results=true&smart_format=true`;
+      } else {
+        // Migration to Deepgram Flux (v2) with optimization for "Dhoury"
+        // Added multiple keyword variations and preserved smart_format
+        wsUrl = `wss://api.deepgram.com/v2/listen?model=flux-general-en&interim_results=true&smart_format=true&eot_threshold=0.7&eot_timeout_ms=5000&keywords=Dhoury:2.0&keywords=dhoury:2.0&keywords=Dhourie:1.5`;
+      }
 
       const socket = new WebSocket(wsUrl, ["token", apiKey]);
       deepgramWsRef.current = socket;
@@ -373,7 +382,8 @@ export function useLiveAudio({
             socket.send(event.data);
           }
         });
-        mediaRecorder.start(250);
+        // 80ms audio chunks strongly recommended for Flux
+        mediaRecorder.start(80);
 
         keepAliveInterval = setInterval(() => {
           if (socket.readyState === 1) {
@@ -389,6 +399,18 @@ export function useLiveAudio({
 
       socket.onmessage = (message) => {
         const received = JSON.parse(message.data);
+
+        // Handle Flux Turn Detection Events
+        if (received.type === "EndOfTurn") {
+          console.log("[Deepgram] EndOfTurn detected");
+          const text = finalTranscriptRef.current.trim();
+          if (text && recognitionActiveRef.current && !isPlayingRef.current) {
+            console.log("[Flux] Auto-sending on EndOfTurn:", text);
+            sendCurrentTranscriptAuto();
+          }
+          return;
+        }
+
         if (!received.channel?.alternatives?.[0]) return;
 
         const transcript = received.channel.alternatives[0].transcript;
@@ -398,18 +420,21 @@ export function useLiveAudio({
             finalTranscriptRef.current += transcript + " ";
             console.log("[Deepgram] Final:", transcript);
 
+            // With Flux EndOfTurn, we might not need the long silence timer, 
+            // but keeping it as a fallback with a shorter duration might be safer.
             if (autoSubmitTimerRef.current) clearTimeout(autoSubmitTimerRef.current);
             onAutoSubmitStart?.(AUTO_SUBMIT_DELAY / 1000);
             autoSubmitTimerRef.current = setTimeout(() => {
               const text = finalTranscriptRef.current.trim();
               if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-                console.log("[Auto-Submit] Deepgram auto-sending:", text);
+                console.log("[Auto-Submit] Deepgram auto-sending (timer):", text);
                 sendCurrentTranscriptAuto();
               }
               onAutoSubmitCancel?.();
             }, AUTO_SUBMIT_DELAY);
 
           } else if (transcript) {
+            // Reset timer on any new speech
             if (autoSubmitTimerRef.current) {
               clearTimeout(autoSubmitTimerRef.current);
               onAutoSubmitCancel?.();

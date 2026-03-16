@@ -1,6 +1,7 @@
 import uuid
 import asyncio
 import logging
+import gc
 from typing import Optional
 
 from app.services.textract_service import extract_text_from_s3, get_text_from_job_async
@@ -231,6 +232,9 @@ async def _ingest_pdf_orchestrator(bucket: str, key: str, metadata: dict = None,
         # Save to ROM Checkpoint after successful extraction
         if job_id:
             save_extraction_checkpoint(job_id, full_text)
+        
+        # Aggressively clear memory after extraction
+        gc.collect()
 
     detail["pages_extracted"] = pages_processed
     detail["total_pages"] = pages_processed
@@ -322,6 +326,9 @@ async def _ingest_pdf_orchestrator(bucket: str, key: str, metadata: dict = None,
         if sid:
             await socket_manager.emit_progress(pct, msg, sid, stage="embedding", detail=detail, job_id=job_id)
         _sync_job(stage="embedding", progress=pct, message=msg)
+        
+        # Aggressively clear memory after each batch storage
+        gc.collect()
 
     if sid:
         await socket_manager.emit_progress(

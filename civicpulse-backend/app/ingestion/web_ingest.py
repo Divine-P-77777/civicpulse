@@ -1,6 +1,7 @@
 import uuid
 import asyncio
 import logging
+import gc
 import re
 from urllib.parse import urlparse
 from typing import Optional
@@ -168,6 +169,9 @@ async def _ingest_web_orchestrator(content: str, metadata: dict = None, sid: str
         # Save to ROM Checkpoint
         if job_id:
             save_extraction_checkpoint(job_id, extracted_text)
+        
+        # Aggressively clear memory after extraction
+        gc.collect()
 
     # ─── Guard: must have text ────────────────────────────
     if not extracted_text.strip():
@@ -220,6 +224,9 @@ async def _ingest_web_orchestrator(content: str, metadata: dict = None, sid: str
 
     if docs_to_store:
         await asyncio.to_thread(vector_service.bulk_store_vectors, docs_to_store)
+    
+    # Aggressively clear memory after bulk storage
+    gc.collect()
 
     stored = len(docs_to_store)
 

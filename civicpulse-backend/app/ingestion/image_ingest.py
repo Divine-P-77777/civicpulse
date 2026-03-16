@@ -3,6 +3,7 @@ import uuid
 import tempfile
 import asyncio
 import logging
+import gc
 from typing import Optional, Dict
 
 from app.services.textract_service import extract_text_from_s3, get_text_from_job
@@ -110,6 +111,9 @@ async def _ingest_image_orchestrator(bucket: str, file_key: str, metadata: Dict 
             # Save to ROM Checkpoint
             if job_id:
                 save_extraction_checkpoint(job_id, full_text)
+            
+            # Aggressively clear memory after extraction
+            gc.collect()
         finally:
             if os.path.exists(local_path):
                 os.remove(local_path)
@@ -159,6 +163,9 @@ async def _ingest_image_orchestrator(bucket: str, file_key: str, metadata: Dict 
     detail["chunks_stored"] = total_chunks
     
     await emit_status(100, f"✅ Image ingested successfully! ({total_chunks} chunks)")
+    
+    # Aggressively clear memory after bulk storage
+    gc.collect()
     
     if live_sid:
         from app.routes.live import send_ai_voice_message
