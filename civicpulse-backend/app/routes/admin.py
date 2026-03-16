@@ -22,9 +22,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Concurrency Semaphore: Limits heavy background tasks (OCR/Chunking) 
-# to protect small EC2 instances (e.g. 2GB RAM micro instances).
-# Increased for production level.
-INGESTION_SEMAPHORE = asyncio.Semaphore(5)
+# to protect small EC2 instances (e.g. 1GB RAM micro instances).
+INGESTION_SEMAPHORE = asyncio.Semaphore(2)
 
 # ─── Pydantic Models ───
 
