@@ -8,15 +8,16 @@ from app.services.embedding_service import generate_embedding
 from app.services.vector_service import vector_service
 from app.services.dynamodb_service import store_analysis_result
 from app.services.profile_service import get_user_profile
+from app.services.rerank_service import rerank_service
 from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 # How many recent messages to keep verbatim (the rest get truncated)
-RECENT_MESSAGES_LIMIT = 6
+RECENT_MESSAGES_LIMIT = 8
 # Max messages before we start trimming older ones
-TRIM_THRESHOLD = 10
+TRIM_THRESHOLD = 12
 
 # Thread pool for parallel I/O (embedding + vector search)
 _executor = ThreadPoolExecutor(max_workers=2)
@@ -86,9 +87,9 @@ class RagPipeline:
 
         # Extract just user queries from older messages (no LLM call!)
         older_summary = "\n".join([
-            f"- {m.get('content', '')[:120]}"
+            f"- {m.get('content', '')[:250]}"
             for m in older if m.get("role") == "user"
-        ][-5:])  # Keep at most 5 older user queries
+        ][-7:])  # Keep at most 7 older user queries
 
         recent_text = "\n".join([
             f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')[:400]}"
@@ -183,9 +184,20 @@ class RagPipeline:
 
         # Embedding + Vector search (I/O bound — benefits from threading)
         query_embedding = generate_embedding(query)
+        
+        # INCREASE top_k for initial search to give reranker more to work with
+        # fetching 3x more than needed is a good heuristic
+        initial_k = config["top_k"] * 3 if rerank_service.co_client else config["top_k"]
+        
         context_chunks = vector_service.similarity_search(
-            query_embedding, k=config["top_k"], user_id=user_id, filters=metadata_filters
+            query_embedding, k=initial_k, user_id=user_id, filters=metadata_filters
         )
+
+        # ── Step 2.5: Reranking (Conditional & Fail-safe) ──
+        if rerank_service.co_client and len(context_chunks) > 1:
+            context_chunks = rerank_service.rerank_chunks(query, context_chunks, config["top_k"])
+        else:
+            context_chunks = context_chunks[:config["top_k"]]
 
         # ── Step 3: Direct context (replaces summarize_service — saves 3-8s) ──
         context_text = self._build_context_text(context_chunks, config["chunk_chars"])

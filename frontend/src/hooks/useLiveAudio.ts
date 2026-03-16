@@ -358,11 +358,12 @@ export function useLiveAudio({
         // Fallback or use standard Nova-2 for Hindi as Flux is English-only
         wsUrl = `wss://api.deepgram.com/v1/listen?language=hi&interim_results=true&smart_format=true`;
       } else {
-        // Migration to Deepgram Flux (v2) with optimization for "Dhoury"
-        // Added multiple keyword variations and preserved smart_format
-        wsUrl = `wss://api.deepgram.com/v2/listen?model=flux-general-en&interim_results=true&smart_format=true&eot_threshold=0.7&eot_timeout_ms=5000&keywords=Dhoury:2.0&keywords=dhoury:2.0&keywords=Dhourie:1.5`;
+        // Migration to Deepgram Flux (v2) - Simplified for troubleshooting
+        // We use one keyword param and standard Flux params
+        wsUrl = `wss://api.deepgram.com/v2/listen?model=flux-general-en&eot_threshold=0.7&eot_timeout_ms=5000&keywords=Dhoury:2&keywords=dhoury:2`;
       }
 
+      console.log("[Deepgram] Connecting to URL:", wsUrl.split('?')[0], "with params:", wsUrl.split('?')[1]);
       const socket = new WebSocket(wsUrl, ["token", apiKey]);
       deepgramWsRef.current = socket;
 
