@@ -33,11 +33,11 @@ export const DraftingFlowData = {
             type: 'architecture',
             position: { x: 550, y: 150 }, 
             data: { 
-                label: 'Bedrock (Sonnet)', 
+                label: 'Bedrock (Haiku)', 
                 type: 'LLM', 
                 icon: <Zap />, 
                 color: 'purple', 
-                description: 'Powered by Claude-3 Sonnet. Utilizes complex prompt engineering for high-precision legal drafting, ensuring document adherence to strict regulatory formats.' 
+                description: 'Powered by Claude-3 Haiku. Utilizes complex prompt engineering for high-precision legal drafting, ensuring document adherence to strict regulatory formats.' 
             } 
         },
         { 
@@ -78,7 +78,7 @@ export const DraftingFlowData = {
         features: [
             { icon: <FileText size={14}/>, text: "Output: Print-ready professional PDFs" },
             { icon: <Database size={14}/>, text: "Logic: State-persistent drafting" },
-            { icon: <Zap size={14}/>, text: "Model: High-precision Claude Sonnet" }
+            { icon: <Zap size={14}/>, text: "Model: High-precision Claude Haiku" }
         ]
     },
     hoverContent: {

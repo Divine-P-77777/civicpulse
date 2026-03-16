@@ -93,7 +93,6 @@ const ArchitecturePresentation = () => {
                         <TechBadge name="NEXT.JS 15" />
                         <TechBadge name="FASTAPI" />
                         <TechBadge name="REDUX" />
-                        <TechBadge name="UPSTASH" />
                         <TechBadge name="CLERK" />
                     </div>
                 </div>
