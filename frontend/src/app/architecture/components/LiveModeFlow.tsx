@@ -45,17 +45,29 @@ export const LiveModeFlowData = {
             type: 'architecture',
             position: { x: 750, y: 150 }, 
             data: { 
-                label: 'Live RAG', 
-                type: 'Context', 
+                label: 'Retrieval (Top 15)', 
+                type: 'Search', 
                 icon: <Search />, 
                 color: 'blue', 
-                description: 'Performs sub-millisecond similarity search to fetch relevant law clauses. Matches context + query + prompt based on detected language.' 
+                description: 'Fetches the top 15 most relevant legal candidates from OpenSearch using vector similarity. Ensures broad coverage for legal lookup.' 
+            } 
+        },
+        { 
+            id: 'rerank', 
+            type: 'architecture',
+            position: { x: 925, y: 150 }, 
+            data: { 
+                label: 'Cohere Rerank', 
+                type: 'Refinement', 
+                icon: <Zap />, 
+                color: 'orange', 
+                description: 'Refines the 15 candidates down to the top 5 highly-relevant segments using multilingual-v3.0. Minimizes hallucinations in the voice response.' 
             } 
         },
         { 
             id: 'bedrock', 
             type: 'architecture',
-            position: { x: 1000, y: 150 }, 
+            position: { x: 1125, y: 150 }, 
             data: { 
                 label: 'Bedrock (Haiku)', 
                 type: 'LLM', 
@@ -67,7 +79,7 @@ export const LiveModeFlowData = {
         { 
             id: 'tts_selector', 
             type: 'architecture',
-            position: { x: 1250, y: 150 }, 
+            position: { x: 1325, y: 150 }, 
             data: { 
                 label: 'TTS Router', 
                 type: 'Logic', 
@@ -79,7 +91,7 @@ export const LiveModeFlowData = {
         { 
             id: 'output', 
             type: 'architecture',
-            position: { x: 1500, y: 150 }, 
+            position: { x: 1575, y: 150 }, 
             data: { 
                 label: 'Live Stream', 
                 type: 'Streaming', 
@@ -93,7 +105,8 @@ export const LiveModeFlowData = {
         { id: 'e-voice-stt', source: 'voice_input', target: 'stt', animated: true, label: 'Analog' },
         { id: 'e-stt-fastapi', source: 'stt', target: 'fastapi', animated: true, label: 'Text/Lang' },
         { id: 'e-fastapi-rag', source: 'fastapi', target: 'rag', animated: true },
-        { id: 'e-rag-bedrock', source: 'rag', target: 'bedrock', animated: true },
+        { id: 'e-rag-rerank', source: 'rag', target: 'rerank', animated: true, label: 'Top 15' },
+        { id: 'e-rerank-bedrock', source: 'rerank', target: 'bedrock', animated: true, label: 'Top 5' },
         { id: 'e-bedrock-tts', source: 'bedrock', target: 'tts_selector', animated: true },
         { id: 'e-tts-output', source: 'tts_selector', target: 'output', animated: true, label: 'Binary' },
         { id: 'e-output-ui', source: 'output', target: 'voice_input', animated: true, label: 'Loop' },
@@ -102,9 +115,9 @@ export const LiveModeFlowData = {
         title: "Advanced Voice Pipeline",
         description: "A state-of-the-art multimodal pipeline handling rough audio to culturally nuanced speech synthesis.",
         features: [
-            { icon: <Mic size={14}/>, text: "STT: Deepgram + Browser Fallback" },
-            { icon: <Zap size={14}/>, text: "Brains: Claude-3 Haiku Reasoning" },
-            { icon: <Radio size={14}/>, text: "TTS: Sarvam (Hindi) / Eleven (EN)" }
+            { icon: <Search size={14}/>, text: "Recall: Top-15 Context Search" },
+            { icon: <Zap size={14}/>, text: "Brains: Cohere + Claude Haiku" },
+            { icon: <Radio size={14}/>, text: "TTS: Multilingual Synthesis" }
         ]
     },
     hoverContent: {
@@ -114,12 +127,25 @@ export const LiveModeFlowData = {
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-slate-800 p-2 rounded border border-white/5">
                         <span className="text-[8px] font-bold text-indigo-400 block uppercase">Deepgram</span>
-                        <span className="text-[7px] text-slate-500">WebSocket / Nova-2</span>
+                        <span className="text-[7px] text-slate-500">Flux V2 / 80ms chunks</span>
                     </div>
                     <div className="bg-slate-800 p-2 rounded border border-white/5">
                         <span className="text-[8px] font-bold text-slate-400 block uppercase">Native</span>
                         <span className="text-[7px] text-slate-500">W3C Fallback SDK</span>
                     </div>
+                </div>
+            </div>
+        ),
+        rerank: (
+            <div className="space-y-3">
+                <h4 className="font-bold text-white text-sm text-orange-400 uppercase tracking-widest">Precision Refinement</h4>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Uses **Cohere Rerank v3.0** to re-evaluate the 15 chunks retrieved by OpenSearch. 
+                    This step ensures that the LLM only receives the most semantically relevant legal context.
+                </p>
+                <div className="bg-orange-500/10 border border-orange-500/20 p-2 rounded-lg">
+                    <span className="text-[8px] font-bold text-orange-400 block uppercase">Multilingual-v3.0</span>
+                    <span className="text-[7px] text-slate-500 italic">Resilient Fallback: Active</span>
                 </div>
             </div>
         ),
