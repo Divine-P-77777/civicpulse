@@ -57,11 +57,11 @@ export const LiveModeFlowData = {
             type: 'architecture',
             position: { x: 1000, y: 150 }, 
             data: { 
-                label: 'Bedrock (Sonnet)', 
+                label: 'Bedrock (Haiku)', 
                 type: 'LLM', 
                 icon: <Cpu />, 
                 color: 'purple', 
-                description: 'Powered by Claude-3 Sonnet. Generates culturally nuanced legal responses in the target language (Hindi/English) with minimal latency.' 
+                description: 'Powered by Claude-3 Haiku. Generates culturally nuanced legal responses in the target language (Hindi/English) with minimal latency.' 
             } 
         },
         { 
@@ -103,7 +103,7 @@ export const LiveModeFlowData = {
         description: "A state-of-the-art multimodal pipeline handling rough audio to culturally nuanced speech synthesis.",
         features: [
             { icon: <Mic size={14}/>, text: "STT: Deepgram + Browser Fallback" },
-            { icon: <Zap size={14}/>, text: "Brains: Claude-3 Sonnet Reasoning" },
+            { icon: <Zap size={14}/>, text: "Brains: Claude-3 Haiku Reasoning" },
             { icon: <Radio size={14}/>, text: "TTS: Sarvam (Hindi) / Eleven (EN)" }
         ]
     },

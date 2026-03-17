@@ -5,6 +5,7 @@ from app.config import AWS_REGION
 from boto3.dynamodb.conditions import Key
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
