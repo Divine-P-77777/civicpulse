@@ -19,6 +19,15 @@ import { exportToPDF } from './utils/pdfUtils';
 import { DRAFT_TYPES } from './constants';
 import { useCallback } from 'react';
 
+interface UserProfile {
+    full_name: string;
+    address: string;
+    contact_number: string;
+    email: string;
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
 function DraftCreationPageInner() {
     const searchParams = useSearchParams();
     const { isLoaded } = useAuth();
@@ -38,11 +47,21 @@ function DraftCreationPageInner() {
     const [language, setLanguage] = useState('en');
     const [generatedContent, setGeneratedContent] = useState('');
     const [editableContent, setEditableContent] = useState('');
-    const [useProfile, setUseProfile] = useState<boolean>(useProfileFromURL || true);
+    const [useProfile, setUseProfile] = useState<boolean>(useProfileFromURL || false);
     const [copied, setCopied] = useState(false);
     const [isExportingPDF, setIsExportingPDF] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [currentDraftId, setCurrentDraftId] = useState<string | undefined>();
+    
+    // Profile states
+    const [profile, setProfile] = useState<UserProfile>({
+        full_name: '',
+        address: '',
+        contact_number: '',
+        email: ''
+    });
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
 
     const { getToken } = useAuth();
 
@@ -66,6 +85,56 @@ function DraftCreationPageInner() {
             headers: { ...(options.headers as Record<string, string>), 'Authorization': `Bearer ${token}` },
         });
     }, [getToken]);
+
+    const fetchProfile = async () => {
+        try {
+            const res = await authFetch(`${API_BASE}/api/user/profile`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.profile) {
+                    const newProfile = {
+                        full_name: data.profile.full_name || '',
+                        address: data.profile.address || '',
+                        contact_number: data.profile.contact_number || '',
+                        email: data.profile.email || ''
+                    };
+                    setProfile(newProfile);
+                    
+                    const hasData = Object.values(newProfile).some(val => val.trim().length > 0);
+                    if (hasData && searchParams.get('useProfile') !== 'false') {
+                        setUseProfile(true);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch profile:", err);
+        }
+    };
+
+    const saveProfile = async () => {
+        setSavingProfile(true);
+        try {
+            const res = await authFetch(`${API_BASE}/api/user/profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(profile)
+            });
+            if (res.ok) {
+                alert("Profile saved! Your future drafts will be personalized.");
+                setShowProfile(false);
+            }
+        } catch (err) {
+            alert("Failed to save profile");
+        } finally {
+            setSavingProfile(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isLoaded) {
+            fetchProfile();
+        }
+    }, [isLoaded]);
 
     const { isGenerating, streamingContent, error, generateDraft, resetError } = useDraftGeneration({
         topic,
@@ -154,7 +223,7 @@ function DraftCreationPageInner() {
                 authFetch={authFetch}
             />
 
-            <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isSidebarOpen ? 'pl-0 lg:pl-0' : 'pl-0 lg:pl-20'}`}>
+            <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isSidebarOpen ? 'pl-0 md:pl-[280px]' : 'pl-0 md:pl-20'}`}>
                 <DraftHeader 
                     step={step} 
                     onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
@@ -205,6 +274,12 @@ function DraftCreationPageInner() {
                             onLanguageChange={setLanguage}
                             useProfile={useProfile}
                             onUseProfileChange={setUseProfile}
+                            profile={profile}
+                            setProfile={setProfile}
+                            showProfile={showProfile}
+                            setShowProfile={setShowProfile}
+                            savingProfile={savingProfile}
+                            saveProfile={saveProfile}
                         />
                     )}
 

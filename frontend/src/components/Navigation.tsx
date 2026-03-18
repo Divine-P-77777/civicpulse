@@ -7,6 +7,8 @@ import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { toggleSidebar, setCurrentMode } from '@/store/slices/uiSlice';
 import { SignedIn, SignedOut, UserButton, SignInButton, SignUpButton, SignOutButton, useUser, useClerk } from '@clerk/nextjs';
 import { NativeStartNow } from '@/components/ui/native-start-now';
+import { UserRoundCogIcon } from '@/components/ui/UserRoundCogIcon';
+import { MessageCircleIcon } from '@/components/ui/MessageCircleIcon';
 import {
   Menu,
   X,
@@ -101,7 +103,7 @@ export default function Navigation() {
 
   const navigation = [
     { name: 'Live', href: '/live', icon: Mic },
-    { name: 'Chat', href: '/chat', icon: MessageCircle },
+    { name: 'Chat', href: '/chat', icon: MessageCircleIcon },
     { name: 'Make Draft', href: '/draftcreation', icon: PenTool },
   ];
 
@@ -167,15 +169,12 @@ export default function Navigation() {
           {/* Right: User / Auth section */}
           <div className="hidden lg:flex items-center space-x-4 flex-shrink-0">
             <Link href="/admin" className="flex items-center text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors px-2 py-2 rounded-full hover:bg-slate-50">
-              <ShieldAlert size={18} className="mr-1.5" /> Admin
+              <UserRoundCogIcon size={18} className="mr-1.5" /> Admin
             </Link>
             <SignedIn>
               <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                 {/* User profile button from clerk */}
-                <div className="bg-slate-50 border border-slate-200 rounded-full py-1 px-2 shadow-sm hover:shadow-md transition-all">
-                  <UserButton afterSignOutUrl=
-                    "/" />
-                </div>
+                <UserButton afterSignOutUrl="/" />
               </div>
             </SignedIn>
             <SignedOut>
@@ -252,7 +251,7 @@ export default function Navigation() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center px-4 py-3 rounded-2xl text-base font-semibold text-slate-700 hover:bg-slate-50 transition-colors mt-1"
               >
-                <ShieldAlert size={20} className="mr-3 text-slate-400" />
+                <UserRoundCogIcon size={20} className="mr-3 text-slate-400" />
                 Admin Dashboard
               </Link>
 
