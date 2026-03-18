@@ -23,7 +23,6 @@ export default function ChatPage() {
 
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [fullName, setFullName] = useState('');
-    const [dob, setDob] = useState('');
 
     const [showShareModal, setShowShareModal] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -80,7 +79,6 @@ export default function ChatPage() {
         try {
             const names = fullName.trim().split(' ');
             await user?.update({ firstName: names[0], lastName: names.slice(1).join(' ') || '' });
-            await user?.update({ unsafeMetadata: { ...user.unsafeMetadata, dob } });
             setShowOnboarding(false);
         } catch { }
     };
@@ -128,7 +126,7 @@ export default function ChatPage() {
                 </div>
             )}
 
-            {showOnboarding && <OnboardingModal fullName={fullName} dob={dob} onNameChange={setFullName} onDobChange={setDob} onSubmit={handleOnboardingSubmit} />}
+            {showOnboarding && <OnboardingModal fullName={fullName} onNameChange={setFullName} onSubmit={handleOnboardingSubmit} />}
 
             {showSidebar && (
                 <ChatSidebar

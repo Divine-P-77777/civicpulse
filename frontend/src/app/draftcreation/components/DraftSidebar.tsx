@@ -13,13 +13,6 @@ interface SavedDraft {
 }
 import Link from 'next/link';
 
-interface UserProfile {
-    full_name: string;
-    address: string;
-    contact_number: string;
-    email: string;
-}
-
 interface DraftSidebarProps {
     isOpen: boolean;
     onToggle: () => void;
@@ -42,14 +35,6 @@ export default function DraftSidebar({
     const [drafts, setDrafts] = useState<SavedDraft[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [profile, setProfile] = useState<UserProfile>({
-        full_name: '',
-        address: '',
-        contact_number: '',
-        email: ''
-    });
-    const [savingProfile, setSavingProfile] = useState(false);
-    const [showProfile, setShowProfile] = useState(false);
 
     const fetchHistory = async () => {
         setLoading(true);
@@ -66,47 +51,8 @@ export default function DraftSidebar({
         }
     };
 
-    const fetchProfile = async () => {
-        try {
-            const res = await authFetch(`${API_BASE}/api/user/profile`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.profile) {
-                    setProfile({
-                        full_name: data.profile.full_name || '',
-                        address: data.profile.address || '',
-                        contact_number: data.profile.contact_number || '',
-                        email: data.profile.email || ''
-                    });
-                }
-            }
-        } catch (err) {
-            console.error("Failed to fetch profile:", err);
-        }
-    };
-
-    const saveProfile = async () => {
-        setSavingProfile(true);
-        try {
-            const res = await authFetch(`${API_BASE}/api/user/profile`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(profile)
-            });
-            if (res.ok) {
-                alert("Profile saved! Your future drafts will be personalized.");
-                setShowProfile(false);
-            }
-        } catch (err) {
-            alert("Failed to save profile");
-        } finally {
-            setSavingProfile(false);
-        }
-    };
-
     useEffect(() => {
         fetchHistory();
-        fetchProfile();
     }, []);
 
     const handleDelete = async (e: React.MouseEvent, draftId: string) => {
@@ -159,13 +105,6 @@ export default function DraftSidebar({
                         <div className="flex flex-col gap-4">
                             <button onClick={onToggle} className="p-2.5 hover:bg-gray-100 rounded-xl text-[#2A6CF0] transition-all">
                                 <ChevronRight size={24} />
-                            </button>
-                            <button 
-                                onClick={() => { onToggle(); setShowProfile(true); }}
-                                className="p-2.5 hover:bg-gray-100 rounded-xl text-[#4CB782] transition-all"
-                                title="Personalization"
-                            >
-                                <Sparkles size={24} />
                             </button>
                         </div>
                     )}
@@ -274,76 +213,6 @@ export default function DraftSidebar({
                         ))
                     )}
                 </div>
-
-                {/* Personalization Section */}
-                {isOpen && (
-                    <div className="mt-auto border-t border-gray-100 p-4">
-                        {!showProfile ? (
-                            <button 
-                                onClick={() => setShowProfile(true)}
-                                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all group"
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 transition-colors">
-                                        <Sparkles size={16} />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="text-xs font-bold text-slate-800">Personalize drafts</p>
-                                        <p className="text-[10px] text-slate-500">Auto-fill your details</p>
-                                    </div>
-                                </div>
-                                <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 transition-colors" />
-                            </button>
-                        ) : (
-                            <div className="space-y-3 bg-slate-50 rounded-2xl p-3 border border-slate-100 animate-in slide-in-from-bottom-2 duration-300">
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-bold text-slate-800 uppercase tracking-tight">Your Profile</span>
-                                    <button onClick={() => setShowProfile(false)} className="text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase">Close</button>
-                                </div>
-                                <div className="space-y-2">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Full Name" 
-                                        value={profile.full_name}
-                                        onChange={e => setProfile({...profile, full_name: e.target.value})}
-                                        className="w-full px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                                    />
-                                    <textarea 
-                                        placeholder="Full Address" 
-                                        value={profile.address}
-                                        onChange={e => setProfile({...profile, address: e.target.value})}
-                                        rows={2}
-                                        className="w-full px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none resize-none"
-                                    />
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <input 
-                                            type="text" 
-                                            placeholder="Contact #" 
-                                            value={profile.contact_number}
-                                            onChange={e => setProfile({...profile, contact_number: e.target.value})}
-                                            className="w-full px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                                        />
-                                        <input 
-                                            type="email" 
-                                            placeholder="Email" 
-                                            value={profile.email}
-                                            onChange={e => setProfile({...profile, email: e.target.value})}
-                                            className="w-full px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                                        />
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={saveProfile}
-                                    disabled={savingProfile}
-                                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/10 transition-all disabled:opacity-50"
-                                >
-                                    {savingProfile ? "Saving..." : "Save Details"}
-                                </button>
-                                <p className="text-[9px] text-slate-400 text-center italic">These details will auto-fill "Your Name" etc. in drafts.</p>
-                            </div>
-                        )}
-                    </div>
-                )}
             </aside>
         </>
     );

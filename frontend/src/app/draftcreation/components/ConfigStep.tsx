@@ -1,6 +1,13 @@
 import React from 'react';
-import { PenTool, Sparkles } from 'lucide-react';
+import { PenTool, Sparkles, X, Edit2 } from 'lucide-react';
 import { DraftTypeSelector } from './DraftTypeSelector';
+
+interface UserProfile {
+    full_name: string;
+    address: string;
+    contact_number: string;
+    email: string;
+}
 
 interface ConfigStepProps {
     topic: string;
@@ -14,6 +21,12 @@ interface ConfigStepProps {
     useProfile: boolean;
     onUseProfileChange: (val: boolean) => void;
     onGenerate: () => void;
+    profile: UserProfile;
+    setProfile: (profile: UserProfile) => void;
+    showProfile: boolean;
+    setShowProfile: (show: boolean) => void;
+    savingProfile: boolean;
+    saveProfile: () => void;
 }
 
 export function ConfigStep({
@@ -27,7 +40,13 @@ export function ConfigStep({
     onLanguageChange,
     useProfile,
     onUseProfileChange,
-    onGenerate
+    onGenerate,
+    profile,
+    setProfile,
+    showProfile,
+    setShowProfile,
+    savingProfile,
+    saveProfile
 }: ConfigStepProps) {
     const languages = [
         { id: 'en', label: 'English' },
@@ -37,7 +56,7 @@ export function ConfigStep({
         { id: 'te', label: 'Telugu' },
     ];
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 relative">
             <div className="text-center pb-2">
                 <div className="w-14 h-14 bg-gradient-to-br from-[#2A6CF0] to-[#4CB782] rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-[0_4px_14px_rgba(42,108,240,0.3)]">
                     <PenTool className="w-7 h-7 text-white" />
@@ -61,6 +80,43 @@ export function ConfigStep({
                 <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Document Type</label>
                     <DraftTypeSelector selectedType={draftType} onSelect={onDraftTypeChange} />
+                </div>
+
+                {/* Personalization Section moved directly below Document Type */}
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col group hover:bg-slate-100 transition-all">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${useProfile ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                                <Sparkles className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-800">Use My Personalized Data</p>
+                                <p className="text-[10px] text-slate-500">Auto-fill my name, address, and contact info</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                const nextState = !useProfile;
+                                onUseProfileChange(nextState);
+                                if (nextState) {
+                                    setShowProfile(true);
+                                }
+                            }}
+                            className={`w-12 h-6 rounded-full relative transition-all duration-300 ${useProfile ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                        >
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${useProfile ? 'left-7' : 'left-1'}`} />
+                        </button>
+                    </div>
+                    {useProfile && (
+                        <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end">
+                            <button
+                                onClick={() => setShowProfile(true)}
+                                className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
+                            >
+                                <Edit2 size={12} /> Edit My Details
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div>
@@ -93,24 +149,6 @@ export function ConfigStep({
                     </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex items-center justify-between group hover:bg-slate-100 transition-all">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${useProfile ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
-                            <Sparkles className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-800">Use My Personalized Data</p>
-                            <p className="text-[10px] text-slate-500">Auto-fill my name, address, and contact info</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => onUseProfileChange(!useProfile)}
-                        className={`w-12 h-6 rounded-full relative transition-all duration-300 ${useProfile ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                    >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${useProfile ? 'left-7' : 'left-1'}`} />
-                    </button>
-                </div>
-
                 <button
                     onClick={onGenerate}
                     disabled={!topic.trim()}
@@ -124,6 +162,69 @@ export function ConfigStep({
             <p className="text-center text-[11px] text-slate-400">
                 CivicPulse is an AI assistant, not a lawyer. Always consult a qualified advocate for legal matters.
             </p>
+
+            {/* Profile Edit Overlay Modal */}
+            {showProfile && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                            <div className="flex items-center gap-2 text-emerald-600 font-bold">
+                                <Sparkles size={16} />
+                                <span className="text-sm">Personalized Data</span>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setShowProfile(false);
+                                    onUseProfileChange(false);
+                                }}
+                                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="space-y-3">
+                                <input 
+                                    type="text" 
+                                    placeholder="Full Name" 
+                                    value={profile.full_name}
+                                    onChange={e => setProfile({...profile, full_name: e.target.value})}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                                />
+                                <textarea 
+                                    placeholder="Full Address" 
+                                    value={profile.address}
+                                    onChange={e => setProfile({...profile, address: e.target.value})}
+                                    rows={2}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none resize-none"
+                                />
+                                <input 
+                                    type="text" 
+                                    placeholder="Contact #" 
+                                    value={profile.contact_number}
+                                    onChange={e => setProfile({...profile, contact_number: e.target.value})}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                                />
+                                <input 
+                                    type="email" 
+                                    placeholder="Email Address" 
+                                    value={profile.email}
+                                    onChange={e => setProfile({...profile, email: e.target.value})}
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                                />
+                            </div>
+                            <button 
+                                onClick={saveProfile}
+                                disabled={savingProfile}
+                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50 mt-2"
+                            >
+                                {savingProfile ? "Saving..." : "Save Details"}
+                            </button>
+                            <p className="text-[10px] text-slate-400 text-center italic mt-2">These details will auto-fill in your generated drafts.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -12,6 +12,7 @@ import { NativeButton } from '@/components/ui/native-button';
 import StarBorder from '@/components/StarBorder';
 import SpotlightCard from '@/components/SpotlightCard';
 import GlareHover from '@/components/GlareHover';
+import { MicIcon } from '@/components/ui/MicIcon';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -71,9 +72,7 @@ export default function Home() {
                   onClick={() => handleModeSelect('live')}
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all hover:shadow-md"
                 >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a5 5 0 1110 0v6a3 3 0 01-3 3z" />
-                  </svg>
+                  <Mic className="w-5 h-5 text-white" />
                   Live Mode
                 </NativeButton>
                 <NativeButton
@@ -108,7 +107,15 @@ export default function Home() {
             {/* Hero Image */}
             <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
               <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500 border-2">
-                  <img src="/demo.png" alt="CivicPulse Interactive Demo" className="w-full h-auto rounded-xl shadow-inner object-cover" />
+                  <video 
+                    src="/demo-video.mp4" 
+                    title="CivicPulse Interactive Demo" 
+                    className="w-full h-auto rounded-xl shadow-inner object-cover" 
+                    autoPlay 
+                    loop 
+                    muted 
+                    playsInline 
+                  />
               </div>
             </div>
           </div>
@@ -128,9 +135,7 @@ export default function Home() {
             <SpotlightCard className="bg-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col" spotlightColor="rgba(99, 102, 241, 0.15)">
               <div className="flex items-center gap-4 mb-6">
                  <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
-                    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a5 5 0 1110 0v6a3 3 0 01-3 3z" />
-                    </svg>
+                    <MicIcon size={28} />
                  </div>
                  <div>
                    <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md">Talking Assistant</span>

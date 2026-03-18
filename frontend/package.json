@@ -12,7 +12,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.39.0",
+    "@clerk/nextjs": "^5.7.5",
     "@pdf-lib/fontkit": "^1.1.1",
     "@reduxjs/toolkit": "^2.0.1",
     "@xyflow/react": "^12.10.1",

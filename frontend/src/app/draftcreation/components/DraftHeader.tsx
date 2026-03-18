@@ -1,5 +1,4 @@
-import React from 'react';
-import { ArrowLeft, PenTool, History } from 'lucide-react';
+import { Home, PenTool, History } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface DraftHeaderProps {
@@ -22,23 +21,25 @@ export function DraftHeader({ step, onToggleSidebar }: DraftHeaderProps) {
     const status = getStatusInfo();
 
     return (
-        <div className="sticky top-0 z-30 backdrop-blur-md bg-white/80 border-b border-slate-100 px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3">
-            <button
-                onClick={() => router.back()}
-                className="p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-[#2A6CF0] hover:bg-indigo-50 transition-all"
-            >
-                <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-                <div className="w-7 h-7 sm:w-8 h-8 bg-gradient-to-br from-[#2A6CF0] to-[#4CB782] rounded-lg sm:rounded-xl flex items-center justify-center shadow-sm shrink-0">
-                    <PenTool className="w-3.5 h-3.5 sm:w-4 h-4 text-white" />
-                </div>
-                <div className="truncate">
+        <div className="sticky top-0 z-30 backdrop-blur-md bg-white/80 border-b border-slate-100 px-3 sm:px-4 py-3 flex items-center justify-between relative">
+            <div className="flex-shrink-0 flex items-center z-10">
+                <button
+                    onClick={() => router.push('/')}
+                    className="p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-[#2A6CF0] hover:bg-indigo-50 transition-all"
+                >
+                    <Home className="w-5 h-5" />
+                </button>
+            </div>
+            
+            {/* Centered Logo & Title */}
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-2.5 min-w-0 z-0 pointer-events-none">
+                <div className="truncate pointer-events-auto">
                     <h1 className="text-xs sm:text-sm font-bold text-slate-900 leading-none truncate">Draft Creator</h1>
                     <p className="text-[9px] sm:text-[10px] text-slate-400 mt-0.5 truncate mt-1">AI Documents</p>
                 </div>
             </div>
-            <div className="ml-auto flex items-center gap-2 sm:gap-3">
+
+            <div className="flex-shrink-0 flex items-center gap-2 sm:gap-3 z-10 relative">
                 {onToggleSidebar && (
                     <button 
                         onClick={onToggleSidebar}
