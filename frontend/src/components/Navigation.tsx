@@ -104,7 +104,7 @@ export default function Navigation() {
   const navigation = [
     { name: 'Live', href: '/live', icon: Mic },
     { name: 'Chat', href: '/chat', icon: MessageCircleIcon },
-    { name: 'Make Draft', href: '/draftcreation', icon: PenTool },
+    { name: 'Draft', href: '/draftcreation', icon: PenTool },
   ];
 
   if (!isClient) return null; // Prevent hydration errors with Clerk
@@ -154,7 +154,7 @@ export default function Navigation() {
                       flex items-center px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200
                       ${isActive
                         ? 'bg-indigo-50 text-indigo-700 shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        : 'text-slate-600 hover:bg-purple-50 hover:text-purple-700 hover:shadow-md hover:shadow-gray-200'
                       }
                     `}
                   >
@@ -236,7 +236,7 @@ export default function Navigation() {
                     }}
                     className={`
                             flex items-center px-4 py-3 rounded-2xl text-base font-semibold transition-colors
-                            ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'}
+                            ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-purple-50 hover:text-purple-700 hover:shadow-md hover:shadow-gray-200'}
                         `}
                   >
                     <Icon size={20} className={`mr-3 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
