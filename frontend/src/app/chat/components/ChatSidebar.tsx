@@ -18,11 +18,16 @@ interface ChatSidebarProps {
     onLoadSession: (id: string) => void;
     onDeleteSession: (id: string) => void;
     user: any;
+    showSidebar?: boolean;
+    isHovering?: boolean;
+    onMouseLeave?: () => void;
+    onToggleSidebar?: () => void;
 }
 
 export default function ChatSidebar({
     sessions, activeSessionId, sidebarWidth, onResize,
-    onCreateSession, onLoadSession, onDeleteSession, user
+    onCreateSession, onLoadSession, onDeleteSession, user,
+    showSidebar = true, isHovering = false, onMouseLeave, onToggleSidebar
 }: ChatSidebarProps) {
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -42,12 +47,26 @@ export default function ChatSidebar({
     };
 
     return (
-        <aside className="relative bg-white/80 backdrop-blur-sm border-r border-gray-200/60 flex flex-col shadow-sm hidden md:flex"
-            style={{ width: sidebarWidth, minWidth: 220, maxWidth: 450 }}>
-            <div className="p-4 border-b border-gray-100">
+        <aside 
+            className={`bg-white/90 backdrop-blur-xl border-r border-gray-200/60 flex flex-col shadow-sm hidden md:flex z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                showSidebar 
+                    ? 'relative translate-x-0' 
+                    : `absolute left-0 top-0 bottom-0 shadow-[8px_0_30px_rgba(0,0,0,0.12)] ${isHovering ? 'translate-x-0' : '-translate-x-[calc(100%-64px)]'}`
+            }`}
+            style={{ width: sidebarWidth, minWidth: 220, maxWidth: 450 }}
+            onMouseLeave={onMouseLeave}
+        >
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-2">
                 <button onClick={onCreateSession}
-                    className="w-full bg-[#2A6CF0] hover:bg-[#2259D6] text-white text-sm font-semibold py-2.5 rounded-xl transition-all shadow-[0_4px_14px_rgba(42,108,240,0.2)] flex items-center justify-center gap-2">
-                    ✚ New Conversation
+                    className="flex-1 bg-[#2A6CF0] hover:bg-[#2259D6] text-white text-sm font-semibold py-2.5 rounded-xl transition-all shadow-[0_4px_14px_rgba(42,108,240,0.2)] flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis">
+                    ✚ New Chat
+                </button>
+                <button onClick={onToggleSidebar} className="p-2 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors shrink-0" title="Toggle Sidebar">
+                    {showSidebar ? (
+                        <svg className="w-5 h-5 mx-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><path d="M9 3v18" /><path d="M15 15l-3-3 3-3" /></svg>
+                    ) : (
+                        <svg className="w-5 h-5 mx-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><path d="M9 3v18" /><path d="M14 9l3 3-3 3" /></svg>
+                    )}
                 </button>
             </div>
             <div className="flex-1 overflow-y-auto overscroll-contain p-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-200/50 hover:scrollbar-thumb-gray-300 transition-colors" data-lenis-prevent="true">
