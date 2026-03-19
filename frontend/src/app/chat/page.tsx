@@ -12,6 +12,7 @@ import OnboardingModal from './components/OnboardingModal';
 import WelcomeScreen from './components/WelcomeScreen';
 import ShareModal from './components/ShareModal';
 import MobileHistoryModal from './components/MobileHistoryModal';
+import { AIResponseTyping } from '@/components/ui/AIResponseTyping';
 
 import { useChat } from '@/hooks/useChat';
 
@@ -29,6 +30,7 @@ export default function ChatPage() {
     const [language, setLanguage] = useState<'en' | 'hi'>('en');
 
     const [showSidebar, setShowSidebar] = useState(true);
+    const [isHoveringSidebar, setIsHoveringSidebar] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(280);
     const [dragOver, setDragOver] = useState(false);
     const dragCounter = useRef(0);
@@ -128,15 +130,25 @@ export default function ChatPage() {
 
             {showOnboarding && <OnboardingModal fullName={fullName} onNameChange={setFullName} onSubmit={handleOnboardingSubmit} />}
 
-            {showSidebar && (
-                <ChatSidebar
-                    sessions={sessions} activeSessionId={activeSessionId} sidebarWidth={sidebarWidth}
-                    onResize={setSidebarWidth} onCreateSession={createSession}
-                    onLoadSession={loadSession} onDeleteSession={deleteSession} user={user}
+            {/* Automatic Hover Sidebar Trigger (Desktop Only) */}
+            {!showSidebar && (
+                <div 
+                    className="absolute left-0 top-16 bottom-0 w-6 z-40 hidden md:block cursor-e-resize pointer-events-auto"
+                    onMouseEnter={() => setIsHoveringSidebar(true)}
                 />
             )}
 
-            <div className="flex-1 flex flex-col min-w-0 min-h-0">
+            <ChatSidebar
+                sessions={sessions} activeSessionId={activeSessionId} sidebarWidth={sidebarWidth}
+                onResize={setSidebarWidth} onCreateSession={createSession}
+                onLoadSession={loadSession} onDeleteSession={deleteSession} user={user}
+                showSidebar={showSidebar}
+                isHovering={isHoveringSidebar}
+                onMouseLeave={() => { if (!showSidebar) setIsHoveringSidebar(false); }}
+                onToggleSidebar={() => setShowSidebar(!showSidebar)}
+            />
+
+            <div className={`flex-1 flex flex-col min-w-0 min-h-0 z-10 w-full transition-all duration-300 ${!showSidebar ? 'md:ml-[64px]' : ''}`}>
                 <ChatHeader showSidebar={showSidebar} onToggleSidebar={() => setShowSidebar(!showSidebar)}
                     hasActiveSession={!!activeSessionId} onShareClick={() => setShowShareModal(true)}
                     onHistoryClick={() => setShowHistoryModal(true)}
@@ -152,24 +164,13 @@ export default function ChatPage() {
                         ))}
 
                         {isStreaming && (
-                            streamingText ? (
-                                <ChatMessage role="assistant" content={streamingText} timestamp={new Date().toISOString()} isStreaming />
-                            ) : (
-                                <div className="flex justify-start message-slide-in">
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-9 h-9 bg-gradient-to-br from-[#2A6CF0] to-[#4CB782] rounded-xl flex items-center justify-center shrink-0 shadow-sm">
-                                            <span className="text-white text-sm">⚖️</span>
-                                        </div>
-                                        <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-                                            <div className="flex gap-1.5 py-1">
-                                                <div className="w-2 h-2 bg-[#2A6CF0]/40 rounded-full animate-bounce" />
-                                                <div className="w-2 h-2 bg-[#2A6CF0]/40 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                                                <div className="w-2 h-2 bg-[#2A6CF0]/40 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )
+                            <div className="flex justify-start w-full mb-4 message-slide-in">
+                                <AIResponseTyping 
+                                    text={streamingText} 
+                                    thinkingState={streamingText ? "typing" : "thinking"}
+                                    speed={25}
+                                />
+                            </div>
                         )}
                     </div>
                 </div>

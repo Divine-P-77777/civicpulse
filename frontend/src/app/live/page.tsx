@@ -8,8 +8,8 @@ export default function LivePage() {
   const router = useRouter();
 
   const handleClose = () => {
-    // Navigate back to the chat view
-    router.push('/chat');
+    // Navigate back to the home page
+    router.push('/');
   };
 
   const handleUploadClick = () => {
