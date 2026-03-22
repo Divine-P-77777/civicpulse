@@ -2,6 +2,7 @@
 
 import { useUser, useAuth, SignInButton } from '@clerk/nextjs';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Scale, FileText } from 'lucide-react';
 
 import ChatHeader from './components/ChatHeader';
 import ChatSidebar from './components/ChatSidebar';
@@ -71,9 +72,9 @@ export default function ChatPage() {
     useEffect(() => {
         const el = scrollRef.current;
         if (!el) return;
-        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-        if (atBottom) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    }, [messages, streamingText]);
+        // Smoothly bring the new element into view
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }, [messages.length, isStreaming]);
 
     const handleOnboardingSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -97,7 +98,7 @@ export default function ChatPage() {
         return (
             <div className="h-[100dvh] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F8FBFF 0%, #E6F2FF 100%)' }}>
                 <div className="bg-white rounded-2xl p-10 text-center max-w-md shadow-[0_8px_30px_rgba(0,0,0,0.06)] border border-gray-100">
-                    <div className="w-16 h-16 bg-[#2A6CF0]/10 rounded-2xl flex items-center justify-center mx-auto mb-5"><span className="text-3xl">⚖️</span></div>
+                    <div className="w-16 h-16 bg-[#2A6CF0]/10 rounded-2xl flex items-center justify-center mx-auto mb-5"><Scale size={32} className="text-[#2A6CF0]" strokeWidth={1.5} /></div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to CivicPulse</h2>
                     <p className="text-gray-500 mb-6">Sign in to get free legal guidance.</p>
                     <SignInButton mode="modal">
@@ -121,7 +122,7 @@ export default function ChatPage() {
             {dragOver && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(42,108,240,0.06)', backdropFilter: 'blur(2px)' }}>
                     <div className="bg-white rounded-3xl p-10 text-center border-2 border-dashed border-[#2A6CF0] shadow-2xl" style={{ animation: 'fadeIn 0.15s ease-out' }}>
-                        <span className="text-5xl block mb-3">📄</span>
+                        <FileText size={48} className="text-[#2A6CF0] mx-auto mb-3" strokeWidth={1.5} />
                         <p className="text-gray-900 font-semibold text-lg">Drop your file here</p>
                         <p className="text-gray-500 text-sm mt-1">PDF, JPEG, PNG up to 15MB</p>
                     </div>
@@ -155,22 +156,30 @@ export default function ChatPage() {
                     language={language} onLanguageChange={setLanguage}
                     title={sessions.find(s => s.SessionId === activeSessionId)?.Title} />
 
-                <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-6" data-lenis-prevent="true">
-                    <div className="max-w-3xl mx-auto space-y-5">
+                <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pt-6 pb-12" data-lenis-prevent="true" style={{ overflowAnchor: 'auto' }}>
+                    <div className="max-w-3xl mx-auto space-y-5 pb-32">
                         {messages.length === 0 && !isStreaming && <WelcomeScreen onSetInput={setInput} />}
 
                         {messages.map((msg, i) => (
                             <ChatMessage key={`${i}-${msg.timestamp}`} role={msg.role} content={msg.content} timestamp={msg.timestamp} />
                         ))}
 
-                        {isStreaming && (
+                        {isStreaming && streamingText === '' && (
                             <div className="flex justify-start w-full mb-4 message-slide-in">
-                                <AIResponseTyping 
-                                    text={streamingText} 
-                                    thinkingState={streamingText ? "typing" : "thinking"}
-                                    speed={25}
-                                />
+                                <div className="flex items-start gap-3 max-w-[calc(100vw-2.5rem)] md:max-w-2xl">
+                                    <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-[#2A6CF0] to-[#4CB782]">
+                                        <Scale size={18} className="text-white" />
+                                    </div>
+                                    <div className="rounded-2xl px-5 py-4 bg-white border border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)] rounded-bl-md flex items-center gap-1.5 h-[42px]">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
+                                </div>
                             </div>
+                        )}
+                        {isStreaming && streamingText !== '' && (
+                            <ChatMessage role="assistant" content={streamingText} timestamp={new Date().toISOString()} isStreaming={true} />
                         )}
                     </div>
                 </div>

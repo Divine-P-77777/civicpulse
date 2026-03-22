@@ -42,7 +42,7 @@ export function useSupabaseRealtime({
         schema: 'public',
         table: 'ai_responses',
         filter: `session_id=eq.${sessionId}`
-      }, (payload) => {
+      }, (payload: Record<string, any>) => {
         console.log('AI Response received:', payload);
         onAIResponse?.(payload.new);
       });
@@ -53,7 +53,7 @@ export function useSupabaseRealtime({
         schema: 'public',
         table: 'voice_messages',
         filter: `session_id=eq.${sessionId}`
-      }, (payload) => {
+      }, (payload: Record<string, any>) => {
         console.log('Voice message received:', payload);
         onMessage?.(payload.new);
       });
@@ -64,7 +64,7 @@ export function useSupabaseRealtime({
         schema: 'public',
         table: 'camera_messages',
         filter: `session_id=eq.${sessionId}`
-      }, (payload) => {
+      }, (payload: Record<string, any>) => {
         console.log('Camera message received:', payload);
         onMessage?.(payload.new);
       });
@@ -76,7 +76,7 @@ export function useSupabaseRealtime({
         schema: 'public',
         table: 'chat_messages',
         filter: `session_id=eq.${sessionId}`
-      }, (payload) => {
+      }, (payload: Record<string, any>) => {
         console.log('Chat message received:', payload);
         onMessage?.(payload.new);
       });
@@ -87,7 +87,7 @@ export function useSupabaseRealtime({
         schema: 'public',
         table: 'typing_indicators',
         filter: `session_id=eq.${sessionId}`
-      }, (payload) => {
+      }, (payload: Record<string, any>) => {
         console.log('Typing indicator updated:', payload);
         if (payload.new.user_id !== user.id) {
           onTyping?.(payload.new.is_typing);
@@ -96,7 +96,7 @@ export function useSupabaseRealtime({
     }
 
     // Handle connection status
-    channel.on('system', {}, (payload) => {
+    channel.on('system', {}, (payload: Record<string, any>) => {
       console.log('Channel status:', payload);
       if (payload.extension === 'postgres_changes') {
         setConnectionStatus('connected');
@@ -106,7 +106,7 @@ export function useSupabaseRealtime({
 
     // Subscribe to the channel
     setConnectionStatus('connecting');
-    channel.subscribe((status) => {
+    channel.subscribe((status: string) => {
       console.log('Subscription status:', status);
       if (status === 'SUBSCRIBED') {
         setConnectionStatus('connected');

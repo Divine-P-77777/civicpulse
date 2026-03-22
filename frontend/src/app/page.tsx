@@ -5,7 +5,7 @@ import { useAppDispatch } from '@/hooks/redux';
 import { setCurrentMode } from '@/store/slices/uiSlice';
 import { CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic } from 'lucide-react';
 import { useState } from 'react';
-import { SignInButton, SignUpButton, SignedIn, SignedOut } from '@clerk/nextjs';
+import { SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 import { NativeTypewriter } from '@/components/NativeTypewriter';
 import ShinyText from '@/components/ui/shiny-text';
 import { NativeButton } from '@/components/ui/native-button';
@@ -16,6 +16,7 @@ import { MicIcon } from '@/components/ui/MicIcon';
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isLoaded, isSignedIn } = useUser();
 
   const handleModeSelect = (mode: 'live' | 'chat') => {
     dispatch(setCurrentMode(mode));
@@ -417,7 +418,7 @@ export default function Home() {
             Join thousands of users taking control of their legal documents.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-            <SignedOut>
+            {isLoaded && !isSignedIn && (
               <SignUpButton mode="modal">
                 <button
                   className="px-8 py-3.5 border border-transparent text-lg font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all"
@@ -425,15 +426,15 @@ export default function Home() {
                   Create Free Account
                 </button>
               </SignUpButton>
-            </SignedOut>
-            <SignedIn>
+            )}
+            {isLoaded && isSignedIn && (
               <Link
                 href="/chat"
                 className="px-8 py-3.5 border border-transparent text-lg font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all flex items-center justify-center"
               >
                 Go to Dashboard
               </Link>
-            </SignedIn>
+            )}
             <Link
               href="/live"
               className="px-8 py-3.5 border-2 border-slate-300 text-lg font-bold rounded-lg text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-400 transition-all"

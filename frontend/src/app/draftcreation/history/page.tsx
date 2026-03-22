@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth, SignInButton, SignedIn, SignedOut } from '@clerk/nextjs';
+import { useAuth, SignInButton } from '@clerk/nextjs';
 import { 
     History, 
     FileText, 
@@ -121,7 +121,7 @@ export default function HistoryPage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <SignedOut>
+                {isLoaded && !isSignedIn && (
                     <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200 shadow-sm">
                         <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
                         <h2 className="text-xl font-bold text-slate-800 mb-2">Sign in to view your history</h2>
@@ -132,50 +132,52 @@ export default function HistoryPage() {
                             </button>
                         </SignInButton>
                     </div>
-                </SignedOut>
+                )}
 
-                <SignedIn>
-                    {/* Search Bar */}
-                    <div className="relative mb-8 max-w-2xl mx-auto sm:mx-0">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input 
-                            type="text" 
-                            placeholder="Search by topic or document type..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
-                        />
-                    </div>
+                {isLoaded && isSignedIn && (
+                    <>
+                        {/* Search Bar */}
+                        <div className="relative mb-8 max-w-2xl mx-auto sm:mx-0">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input 
+                                type="text" 
+                                placeholder="Search by topic or document type..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+                            />
+                        </div>
 
-                    {loading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {[1, 2, 3, 4, 5, 6].map(i => (
-                                <div key={i} className="h-48 bg-white rounded-3xl animate-pulse border border-slate-100 shadow-sm" />
-                            ))}
-                        </div>
-                    ) : error ? (
-                        <div className="text-center py-20 bg-red-50 rounded-3xl border border-red-100">
-                            <p className="text-red-600 font-medium">{error}</p>
-                            <button onClick={fetchHistory} className="mt-4 text-indigo-600 font-bold underline">Try Again</button>
-                        </div>
-                    ) : filteredDrafts.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200 shadow-sm">
-                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                                <FileText className="w-8 h-8 text-slate-300" />
+                        {loading ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <div key={i} className="h-48 bg-white rounded-3xl animate-pulse border border-slate-100 shadow-sm" />
+                                ))}
                             </div>
-                            <h3 className="text-lg font-bold text-slate-800">No Drafts Found</h3>
-                            <p className="text-slate-500 text-sm mt-1">
-                                {searchTerm ? "Try a different search term" : "Your generated legal documents will appear here"}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {filteredDrafts.map((draft) => (
-                                <DraftCard key={draft.DraftId} draft={draft} onDelete={handleDelete} />
-                            ))}
-                        </div>
-                    )}
-                </SignedIn>
+                        ) : error ? (
+                            <div className="text-center py-20 bg-red-50 rounded-3xl border border-red-100">
+                                <p className="text-red-600 font-medium">{error}</p>
+                                <button onClick={fetchHistory} className="mt-4 text-indigo-600 font-bold underline">Try Again</button>
+                            </div>
+                        ) : filteredDrafts.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200 shadow-sm">
+                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                    <FileText className="w-8 h-8 text-slate-300" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800">No Drafts Found</h3>
+                                <p className="text-slate-500 text-sm mt-1">
+                                    {searchTerm ? "Try a different search term" : "Your generated legal documents will appear here"}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {filteredDrafts.map((draft) => (
+                                    <DraftCard key={draft.DraftId} draft={draft} onDelete={handleDelete} />
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
             </main>
         </div>
     );

@@ -38,7 +38,10 @@ function RippleButton({
 }: RippleButtonProps) {
   const [ripples, setRipples] = React.useState<Ripple[]>([]);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
-  React.useImperativeHandle(ref, () => buttonRef.current as HTMLButtonElement);
+  React.useImperativeHandle(
+    typeof ref === 'string' ? null : ref,
+    () => buttonRef.current as HTMLButtonElement
+  );
 
   const createRipple = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -74,7 +77,8 @@ function RippleButton({
     [createRipple, onClick],
   );
 
-  const Component = asChild ? Slot : motion.button;
+  // Casting to ElementType resolves LegacyRef union conflicts in polymorphic components
+  const Component = (asChild ? Slot : motion.button) as React.ElementType;
 
   return (
     <RippleButtonProvider value={{ ripples, setRipples }}>
@@ -112,7 +116,8 @@ function RippleButtonRipples({
 }: RippleButtonRipplesProps) {
   const { ripples } = useRippleButton();
 
-  const Component = asChild ? Slot : motion.span;
+  // Casting to ElementType resolves LegacyRef union conflicts in polymorphic components
+  const Component = (asChild ? Slot : motion.span) as React.ElementType;
 
   return ripples.map((ripple) => (
     <Component
