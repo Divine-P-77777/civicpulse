@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useAppDispatch } from '@/hooks/redux';
 import { setCurrentMode } from '@/store/slices/uiSlice';
-import { CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic } from 'lucide-react';
+import { 
+  CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic, 
+  Receipt, Landmark, Gavel, Eye, Car, ShieldCheck, 
+  Users, Briefcase, Sprout, Globe, Building2, 
+  Database, BookOpen, Binary, History, Scale, FileSearch, Library, Vote
+} from 'lucide-react';
 import { useState } from 'react';
 import { SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 import { NativeTypewriter } from '@/components/NativeTypewriter';
@@ -341,6 +346,110 @@ export default function Home() {
               <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">Secure History</h3>
               <p className="text-slate-600 leading-relaxed relative z-10">Private by design. Your analysis history and documents are encrypted and kept strictly confidential.</p>
             </GlareHover>
+          </div>
+        </div>
+      </section>
+
+      {/* Knowledge Base Coverage Section */}
+      <section className="py-24 bg-white border-t border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">Comprehensive Legal Knowledge Base</h2>
+            <p className="mt-4 text-xl text-slate-600">Our AI is trained on vast datasets of Indian law, ensuring accurate and contextual guidance across multiple sectors.</p>
+          </div>
+
+          {/* Active Sectors Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+            <SpotlightCard className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100" spotlightColor="rgba(79, 70, 229, 0.1)">
+              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mb-4">
+                <Receipt size={24} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg mb-2">Taxation Laws</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">CGST, IGST, SGST Acts, GST Reforms 2025, and Compensation to States protocols.</p>
+            </SpotlightCard>
+
+            <SpotlightCard className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100" spotlightColor="rgba(16, 185, 129, 0.1)">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center mb-4">
+                <Landmark size={24} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg mb-2">Constitutional Law</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">Full coverage of the Indian Constitution, detailing Fundamental Rights and Duties.</p>
+            </SpotlightCard>
+
+            <SpotlightCard className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100" spotlightColor="rgba(239, 68, 68, 0.1)">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center mb-4">
+                <Gavel size={24} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg mb-2">Criminal Law</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">Deep insights into the Indian Penal Code (IPC) and foundational criminal regulations.</p>
+            </SpotlightCard>
+
+            <SpotlightCard className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100" spotlightColor="rgba(37, 99, 235, 0.1)">
+              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+                <Library size={24} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg mb-2">Past Hearings & Judgments</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">Case-based reasoning using legal precedents from the <strong>Supreme Court of India</strong> and various <strong>High Courts</strong>.</p>
+            </SpotlightCard>
+
+            <SpotlightCard className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100" spotlightColor="rgba(245, 158, 11, 0.1)">
+              <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-4">
+                <Eye size={24} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg mb-2">Transparency</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">Comprehensive understanding of the RTI Act for governance and information access.</p>
+            </SpotlightCard>
+
+            <SpotlightCard className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100" spotlightColor="rgba(107, 114, 128, 0.1)">
+              <div className="w-12 h-12 bg-slate-200 text-slate-700 rounded-xl flex items-center justify-center mb-4">
+                <Car size={24} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg mb-2">Transportation</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">Motor Vehicles Act and civil transportation regulations across Indian states.</p>
+            </SpotlightCard>
+          </div>
+
+          {/* Expansion Roadmap Strip */}
+          <div className="relative rounded-3xl bg-slate-900 p-8 md:p-12 overflow-hidden shadow-2xl">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
+            <div className="relative z-10">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Future Sectors Roadmap</h3>
+                  <p className="text-slate-400">We are actively expanding our RAG knowledge base into these critical legal areas.</p>
+                </div>
+                <div className="flex gap-2">
+                  <div className="px-3 py-1 bg-indigo-500/20 rounded-full border border-indigo-500/30 text-indigo-300 text-xs font-bold uppercase tracking-widest">Incoming</div>
+                  <div className="px-3 py-1 bg-emerald-500/20 rounded-full border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-widest">Q3 2026</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {[
+                  { name: 'Civil Rights', icon: <Users size={16} /> },
+                  { name: 'Family Law', icon: <Library size={16} /> },
+                  { name: 'Financial Law', icon: <Briefcase size={16} /> },
+                  { name: 'Cyber Law', icon: <Binary size={16} /> },
+                  { name: 'Labour Laws', icon: <Building2 size={16} /> },
+                  { name: 'Environment', icon: <Sprout size={16} /> },
+                  { name: 'Property Law', icon: <Landmark size={16} /> },
+                  { name: 'Election Law', icon: <Vote size={16} /> },
+                ].map((sector) => (
+                  <div key={sector.name} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group">
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-indigo-400 transition-colors">
+                      {sector.icon}
+                    </div>
+                    <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">{sector.name}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-12 pt-8 border-t border-white/5 flex flex-wrap items-center justify-center gap-x-12 gap-y-6 text-slate-500">
+                <div className="flex items-center gap-2"><Database size={16} /> <span className="text-xs font-bold uppercase tracking-widest">India Code</span></div>
+                <div className="flex items-center gap-2"><Globe size={16} /> <span className="text-xs font-bold uppercase tracking-widest">eCourts</span></div>
+                <div className="flex items-center gap-2"><BookOpen size={16} /> <span className="text-xs font-bold uppercase tracking-widest">PRS India</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
