@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Link from 'next/link';
 import { FiFileText, FiArrowRight } from 'react-icons/fi';
+import { User, Scale } from 'lucide-react';
 
 interface ChatMessageProps {
     role: 'user' | 'assistant';
@@ -16,13 +17,20 @@ interface ChatMessageProps {
 const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStreaming }: ChatMessageProps) {
     const isUser = role === 'user';
 
-    // Parsing Draft Ready Taq
     const draftReadyRegex = /<DRAFT_READY\s+type="([^"]+)"\s+topic="([^"]+)"\s+use_profile="([^"]+)"\s+initial_context="([^"]+)"\s*\/>/;
     const draftMatch = content.match(draftReadyRegex);
-    
+
     // Clean content of the tag for display
-    const cleanDisplayContent = content.replace(draftReadyRegex, '').trim();
-    
+    let cleanDisplayContent = content.replace(draftReadyRegex, '').trim();
+
+    // Hide partial tags during streaming for better UX
+    if (isStreaming) {
+        const partialIdx = cleanDisplayContent.indexOf('<DRAFT_READY');
+        if (partialIdx !== -1) {
+            cleanDisplayContent = cleanDisplayContent.substring(0, partialIdx).trim();
+        }
+    }
+
     const draftData = draftMatch ? {
         type: draftMatch[1],
         topic: draftMatch[2],
@@ -37,7 +45,7 @@ const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStre
                 {/* Avatar */}
                 <div className={`w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isUser ? 'bg-[#2A6CF0]' : 'bg-gradient-to-br from-[#2A6CF0] to-[#4CB782]'
                     }`}>
-                    <span className="text-white text-xs md:text-sm">{isUser ? '🧑' : '⚖️'}</span>
+                    {isUser ? <User size={18} className="text-white" /> : <Scale size={18} className="text-white" />}
                 </div>
 
                 {/* Bubble */}
@@ -47,11 +55,6 @@ const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStre
                     }`}>
                     {isUser ? (
                         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{content}</p>
-                    ) : isStreaming ? (
-                        /* During streaming: render as plain text for performance — no markdown re-parse per token */
-                        <div className="text-sm leading-relaxed max-w-full">
-                            <p className="whitespace-pre-wrap break-words">{content}<span className="text-[#2A6CF0] animate-pulse font-bold">▌</span></p>
-                        </div>
                     ) : (
                         <div className="prose prose-sm max-w-full md:max-w-none
                             prose-p:my-1.5 prose-p:leading-relaxed
@@ -67,51 +70,64 @@ const ChatMessage = memo(function ChatMessage({ role, content, timestamp, isStre
                             prose-a:text-[#2A6CF0] prose-a:no-underline hover:prose-a:underline
                             prose-blockquote:border-l-[#2A6CF0] prose-blockquote:bg-[#2A6CF0]/5 prose-blockquote:rounded-r-lg prose-blockquote:py-1 prose-blockquote:not-italic
                             prose-ul:my-1 prose-ol:my-1 break-words">
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                    table: ({ node, ...props }: any) => (
-                                        <div className="overflow-x-auto max-w-[calc(100vw-6.5rem)] md:max-w-none my-3 border border-gray-100 rounded-lg">
-                                            <table className="min-w-full text-left border-collapse" {...props} />
-                                        </div>
-                                    )
-                                }}
-                            >
-                                {cleanDisplayContent}
-                            </ReactMarkdown>
-                            
-                            {draftData && !isStreaming && (
-                                <div className="mt-6 pt-6 border-t border-gray-100">
-                                    <div className="bg-gradient-to-br from-[#F0F7FF] to-[#FFFFFF] rounded-2xl p-5 border border-blue-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group">
-                                        {/* Subtle background pattern/glow */}
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/5 blur-3xl rounded-full -mr-16 -mt-16" />
-                                        
-                                        <div className="flex items-start gap-4 mb-5 relative z-10">
-                                            <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-blue-50 flex items-center justify-center text-[#2A6CF0] shrink-0">
-                                                <FiFileText className="text-2xl" />
+                            {cleanDisplayContent && (
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        table: ({ node, ...props }: any) => (
+                                            <div className="overflow-x-auto max-w-[calc(100vw-6.5rem)] md:max-w-none my-3 border border-gray-100 rounded-lg">
+                                                <table className="min-w-full text-left border-collapse" {...props} />
                                             </div>
-                                            <div className="flex-1">
-                                                <h4 className="text-[15px] font-bold text-gray-900 mb-0.5">Ready to Draft</h4>
-                                                <p className="text-sm text-gray-600 leading-relaxed">
-                                                    I have gathered all the necessary details. We can now proceed to generate your professional 
-                                                    <span className="text-[#2A6CF0] font-semibold mx-1 lowercase">{draftData.type.replace('_', ' ')}</span>.
-                                                </p>
-                                            </div>
+                                        )
+                                    }}
+                                >
+                                    {cleanDisplayContent + (isStreaming && !content.includes('<DRAFT_READY') ? ' ▌' : '')}
+                                </ReactMarkdown>
+                            )}
+                            {isStreaming && !cleanDisplayContent && !content.includes('<DRAFT_READY') && (
+                                <span className="text-[#2A6CF0] animate-pulse font-bold">▌</span>
+                            )}
+
+                            {(draftData || (isStreaming && content.includes('<DRAFT_READY'))) && (
+                                <div className={cleanDisplayContent ? "mt-5 pt-5 border-t border-gray-100" : ""}>
+                                    {!draftData ? (
+                                        <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100 animate-pulse mt-2 shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
+                                            <div className="h-4 bg-blue-200/60 rounded w-1/2 mb-4"></div>
+                                            <div className="h-3 bg-blue-200/50 rounded w-full mb-2"></div>
+                                            <div className="h-3 bg-blue-200/50 rounded w-4/5"></div>
                                         </div>
-                                        
-                                        <Link 
-                                            href={`/draftcreation?type=${draftData.type}&topic=${encodeURIComponent(draftData.topic)}&useProfile=${draftData.useProfile}&initialContext=${encodeURIComponent(draftData.initialContext)}`}
-                                            className="w-full bg-[#1E293B] hover:bg-black text-white text-[15px] font-semibold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_8px_20px_rgba(30,41,59,0.2)] hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)] hover:-translate-y-1"
-                                        >
-                                            <FiFileText className="text-lg" />
-                                            Start Official Drafting
-                                            <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
-                                        </Link>
-                                        
-                                        <p className="mt-3 text-center text-[11px] text-gray-400 font-medium tracking-wide uppercase">
-                                            Validated context ready for pre-filling
-                                        </p>
-                                    </div>
+                                    ) : (
+                                        <div className="bg-gradient-to-br from-[#F0F7FF] to-[#FFFFFF] rounded-2xl p-5 border border-blue-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group">
+                                            {/* Subtle background pattern/glow */}
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/5 blur-3xl rounded-full -mr-16 -mt-16" />
+
+                                            <div className="flex items-start gap-4 mb-5 relative z-10">
+                                                <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-blue-50 flex items-center justify-center text-[#2A6CF0] shrink-0">
+                                                    <FiFileText className="text-2xl" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="text-[15px] font-bold text-gray-900 mb-0.5">Ready to Draft</h4>
+                                                    <p className="text-sm text-gray-600 leading-relaxed">
+                                                        I have gathered all the necessary details. We can now proceed to generate your professional
+                                                        <span className="text-[#2A6CF0] font-semibold mx-1 lowercase">{draftData.type.replace('_', ' ')}</span>.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <Link
+                                                href={`/draftcreation?type=${draftData.type}&topic=${encodeURIComponent(draftData.topic)}&useProfile=${draftData.useProfile}&initialContext=${encodeURIComponent(draftData.initialContext)}`}
+                                                className="w-full bg-[#2A6CF0] hover:bg-[#2259D6] text-white text-[15px] font-semibold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_14px_rgba(42,108,240,0.3)] hover:shadow-[0_6px_20px_rgba(42,108,240,0.4)] hover:-translate-y-1"
+                                            >
+                                                <FiFileText className="text-lg" />
+                                                Start Official Drafting
+                                                <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
+                                            </Link>
+
+                                            <p className="mt-3 text-center text-[11px] text-gray-400 font-medium tracking-wide uppercase">
+                                                Validated context ready for pre-filling
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

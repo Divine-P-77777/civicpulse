@@ -5,11 +5,12 @@ import { usePathname } from 'next/navigation';
 import { Home, MessageCircle, Mic, PenTool, User } from 'lucide-react';
 import { useAppDispatch } from '@/hooks/redux';
 import { setCurrentMode } from '@/store/slices/uiSlice';
-import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
+import { UserButton, useUser } from '@clerk/nextjs';
 
 export default function MobileFooter() {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
+  const { isLoaded, isSignedIn } = useUser();
 
   // Hide the footer on specific routes where it interferes with the UI
   if (pathname.startsWith('/chat') || pathname.startsWith('/live') || pathname.startsWith('/draftcreation')) {
@@ -56,13 +57,15 @@ export default function MobileFooter() {
             if (item.isProfile) {
               return (
                 <div key={item.name} className="flex flex-col items-center justify-center flex-1 h-full py-1">
-                  <SignedIn>
-                    <div className="p-0.5 rounded-full border-2 border-slate-100 hover:border-indigo-200 transition-colors">
-                      <UserButton afterSignOutUrl="/" appearance={{ elements: { userButtonAvatarBox: 'w-7 h-7' } }} />
-                    </div>
-                    <span className="text-[9px] font-bold text-slate-500 mt-1 uppercase">Profile</span>
-                  </SignedIn>
-                  <SignedOut>
+                  {isLoaded && isSignedIn && (
+                    <>
+                      <div className="p-0.5 rounded-full border-2 border-slate-100 hover:border-indigo-200 transition-colors">
+                        <UserButton appearance={{ elements: { userButtonAvatarBox: 'w-7 h-7' } }} />
+                      </div>
+                      <span className="text-[9px] font-bold text-slate-500 mt-1 uppercase">Profile</span>
+                    </>
+                  )}
+                  {isLoaded && !isSignedIn && (
                     <Link
                       href={item.href}
                       className="flex flex-col items-center justify-center w-full h-full space-y-1 text-slate-400 hover:text-indigo-600 transition-all"
@@ -70,7 +73,7 @@ export default function MobileFooter() {
                       <Icon size={20} />
                       <span className="text-[9px] font-bold uppercase">Login</span>
                     </Link>
-                  </SignedOut>
+                  )}
                 </div>
               );
             }

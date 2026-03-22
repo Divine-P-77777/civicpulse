@@ -17,7 +17,7 @@ export default clerkMiddleware(async (auth, req) => {
   // So auth.protect() naturally achieves the goal: "trigger login after successfully should comes in /chat"
   
   if (isProtectedRoute(req)) {
-    await auth().protect();
+    await auth.protect();
   }
 });
 

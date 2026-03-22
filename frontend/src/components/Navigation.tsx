@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/hooks/redux';
 import { toggleSidebar, setCurrentMode } from '@/store/slices/uiSlice';
-import { SignedIn, SignedOut, UserButton, SignInButton, SignUpButton, SignOutButton, useUser, useClerk } from '@clerk/nextjs';
+import { UserButton, SignInButton, SignUpButton, SignOutButton, useUser, useClerk } from '@clerk/nextjs';
 import { NativeStartNow } from '@/components/ui/native-start-now';
 import { UserRoundCogIcon } from '@/components/ui/UserRoundCogIcon';
 import { MessageCircleIcon } from '@/components/ui/MessageCircleIcon';
@@ -171,13 +171,13 @@ export default function Navigation() {
             <Link href="/admin" className="flex items-center text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors px-2 py-2 rounded-full hover:bg-slate-50">
               <UserRoundCogIcon size={18} className="mr-1.5" /> Admin
             </Link>
-            <SignedIn>
+            {isLoaded && isSignedIn && (
               <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                 {/* User profile button from clerk */}
-                <UserButton afterSignOutUrl="/" />
+                <UserButton />
               </div>
-            </SignedIn>
-            <SignedOut>
+            )}
+            {isLoaded && !isSignedIn && (
               <div className="flex items-center gap-3">
                 <SignInButton mode="modal">
                   <button className="flex items-center text-sm font-semibold text-slate-700 hover:text-indigo-600 transition-colors px-4 py-2 rounded-full hover:bg-slate-50">
@@ -193,7 +193,7 @@ export default function Navigation() {
                   }}
                 />
               </div>
-            </SignedOut>
+            )}
           </div>
 
           {/* Mobile menu button & Install App */}
@@ -269,11 +269,11 @@ export default function Navigation() {
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-slate-50">
-              <SignedIn>
+              {isLoaded && isSignedIn && (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-200">
                     <div className="flex items-center gap-3">
-                      <UserButton afterSignOutUrl="/" />
+                      <UserButton />
                       <div className="text-sm font-bold text-slate-700 truncate">Account Profile</div>
                     </div>
                   </div>
@@ -286,8 +286,8 @@ export default function Navigation() {
                     </button>
                   </SignOutButton>
                 </div>
-              </SignedIn>
-              <SignedOut>
+              )}
+              {isLoaded && !isSignedIn && (
                 <div className="flex flex-col gap-3">
                   <SignInButton mode="modal">
                     <button className="w-full flex justify-center items-center px-4 py-3 border border-slate-300 rounded-2xl text-base font-bold text-slate-700 bg-white shadow-sm">
@@ -306,7 +306,7 @@ export default function Navigation() {
                     />
                   </div>
                 </div>
-              </SignedOut>
+              )}
             </div>
           </div>
         )}
