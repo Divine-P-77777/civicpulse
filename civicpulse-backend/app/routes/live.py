@@ -109,7 +109,7 @@ async def send_ai_voice_message(session_id: str, text: str, language: str = "en"
         else:
             audio_generator = elevenlabs_service.generate_speech(text)
 
-        for audio_chunk in audio_generator:
+        async for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
             if not await manager.send_json(session_id, {
                 "type": "audio_stream",

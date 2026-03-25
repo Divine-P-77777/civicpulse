@@ -21,6 +21,8 @@ export function useLiveWebSocket({
   playNextAudioChunk, audioQueueRef, startRecording, stopRecording, stopCamera, setBackendDone
 }: UseLiveWebSocketParams) {
   const [status, setStatus] = useState<LiveStatus>('idle');
+  const [userTranscript, setUserTranscript] = useState<string>('');
+  const [aiTranscript, setAiTranscript] = useState<string>('');
   const [transcript, setTranscript] = useState<string>('Ready. Tap the button to connect.');
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [draftData, setDraftData] = useState<any>(null);
@@ -93,6 +95,8 @@ export function useLiveWebSocket({
           }
 
           if (message.type === 'user_transcript') {
+            setUserTranscript(message.text);
+            setAiTranscript(''); // Clear AI text when user starts new prompt
             setTranscript(`You: "${message.text}"`);
             setStatus('processing');
           } else if (message.type === 'audio_stream') {
@@ -124,6 +128,7 @@ export function useLiveWebSocket({
                     console.error("Failed to parse draft tag", e);
                 }
             }
+            setAiTranscript(aiText);
             setTranscript(`AI: "${aiText}"`);
           } else if (message.type === 'ingestion_progress') {
             setStatus('uploading');
@@ -202,5 +207,5 @@ export function useLiveWebSocket({
     }
   };
 
-  return { wsRef, status, setStatus, transcript, setTranscript, uploadProgress, setUploadProgress, draftData, connectWebSocket, closeWebSocket, trackedSend };
+  return { wsRef, status, setStatus, transcript, setTranscript, userTranscript, setUserTranscript, aiTranscript, setAiTranscript, uploadProgress, setUploadProgress, draftData, connectWebSocket, closeWebSocket, trackedSend };
 }

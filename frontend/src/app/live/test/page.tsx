@@ -17,7 +17,7 @@ const TestPage = () => {
                 />
 
                 <DotLottieReact
-                    src="https://lottie.host/b96071ae-cfac-4b25-8c3d-00bcf79e5b6c/l03YOKLjjC.lottie"
+                    src="https://lottie.host/2c342fcf-0205-46d8-a32e-9b142677a943/OUVpfkBeoC.lottie"
                     loop
                     autoplay
                     className="w-28 h-28 md:w-40 md:h-40"

@@ -153,8 +153,9 @@ class RagPipeline:
             )
             if is_junk:
                 logger.info(f"Session {session_id}: Junk query detected ('{query}'), bypassing LLM.")
-                # We return a generator for streaming compatibility
-                async def _silent_gen():
+                # We return a sync generator for streaming compatibility
+                # (must match _stream_response which is also a sync generator)
+                def _silent_gen():
                     yield "I'm listening. Please proceed." if language == "en" else "मैं सुन रही हूँ। कृपया आगे बढ़िए।"
                 return _silent_gen() if stream else ("I'm listening. Please proceed." if language == "en" else "मैं सुन रही हूँ। कृपया आगे बढ़िए।")
 
