@@ -11,6 +11,7 @@ import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { motion, Variants } from 'framer-motion';
 import Link from 'next/link';
 import { FiFileText, FiArrowRight } from 'react-icons/fi';
+import { setLanguage } from '@/store/slices/uiSlice';
 
 import { LiveBackground } from './LiveBackground';
 import { LiveHeader } from './LiveHeader';
@@ -70,7 +71,8 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         startRecording: () => startRecording(),         
         stopRecording: () => stopRecording(),           
         stopCamera: () => stopCamera(),                  
-        setBackendDone: (done) => setBackendDone(done)  
+        setBackendDone: (done) => setBackendDone(done),
+        onLanguageSwitch: (lang) => dispatch(setLanguage(lang))
     });
 
     const {

@@ -143,8 +143,10 @@ export function useLiveAudio({
     const byteArray = new Uint8Array(byteNumbers);
 
 
-    // Explicitly define proper mime type for MP3 files to prevent NotSupportedError
-    const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+    // Sarvam TTS returns WAV; ElevenLabs/Edge TTS returns MP3.
+    // Using wrong MIME type causes browser to reject playback silently.
+    const audioMimeType = language === 'hi' ? 'audio/wav' : 'audio/mpeg';
+    const blob = new Blob([byteArray], { type: audioMimeType });
     const url = URL.createObjectURL(blob);
 
     // Initialize Web Audio API if needed (for volume boost)
@@ -355,19 +357,14 @@ export function useLiveAudio({
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
-      const langCode = language === 'hi' ? 'hi' : 'en';
-      
       let wsUrl: string;
       if (language === 'hi') {
-        // Fallback or use standard Nova-2 for Hindi as Flux is English-only
         wsUrl = `wss://api.deepgram.com/v1/listen?language=hi&interim_results=true&smart_format=true`;
       } else {
-        // Migration to Deepgram Flux (v2) - Simplified for troubleshooting
-        // We use one keyword param and standard Flux params
         wsUrl = `wss://api.deepgram.com/v2/listen?model=flux-general-en&eot_threshold=0.7&eot_timeout_ms=5000&keywords=Dhoury:2&keywords=dhoury:2`;
       }
 
-      console.log("[Deepgram] Connecting to URL:", wsUrl.split('?')[0], "with params:", wsUrl.split('?')[1]);
+      console.log("[Deepgram] Connecting:", wsUrl.split('?')[0]);
       const socket = new WebSocket(wsUrl, ["token", apiKey]);
       deepgramWsRef.current = socket;
 

@@ -107,7 +107,7 @@ async def send_ai_voice_message(session_id: str, text: str, language: str = "en"
             from app.services.sarvamai_service import sarvam_service
             audio_generator = sarvam_service.generate_speech_stream(iter([text]))
         else:
-            audio_generator = elevenlabs_service.generate_speech(text)
+            audio_generator = elevenlabs_service.generate_speech_stream(iter([text]))
 
         async for audio_chunk in audio_generator:
             chunk_b64 = base64.b64encode(audio_chunk).decode('utf-8')
@@ -267,6 +267,19 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
             elif msg_type == "user_text":
                 text = message.get("text", "")
                 if text:
+                    from app.services.rag_pipeline import rag_pipeline
+                    detected_lang = rag_pipeline.detect_language(text)
+                    
+                    if detected_lang != language:
+                        logger.info(f"Session {session_id}: Auto-switching language context from '{language}' to '{detected_lang}'")
+                        language = detected_lang
+                        
+                        # Notify frontend toggle to update
+                        await manager.send_json(session_id, {
+                            "type": "language_switch",
+                            "language": detected_lang
+                        })
+                    
                     await process_voice_turn(session_id, text, language)
 
             elif msg_type == "ingestion_complete":

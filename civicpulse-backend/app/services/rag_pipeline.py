@@ -265,6 +265,50 @@ class RagPipeline:
             logger.error(f"Simple completion failed: {e}")
             return ""
 
+    def detect_language(self, text: str) -> str:
+        """
+        Production-level fast language context detection.
+        Prevents switching on single words, prioritizes phrase context.
+        """
+        if not text or len(text.strip()) < 2:
+            return "en"
+
+        # 1. Very Fast Heuristic: Devanagari Script Check
+        devanagari_count = len([c for c in text if '\u0900' <= c <= '\u097F'])
+        if devanagari_count > len(text) * 0.1:
+            return "hi"
+            
+        # 2. Fast Heuristic: Hinglish Keyword Density
+        hinglish_words = {"aur", "kya", "hai", "nahi", "kaise", "karte", "hua", "mera", "mujhe", "karna", "iska", "matlab", "batao", "samjhao", "ka", "ki", "ke", "liye", "bhi", "mein", "pe", "par", "hona", "chahiye"}
+        words = "".join([c for c in text.lower() if c.isalnum() or c.isspace()]).split()
+        hinglish_match = sum(1 for w in words if w in hinglish_words)
+        
+        # If strong Hinglish presence
+        if hinglish_match >= 2 or (len(words) <= 4 and hinglish_match >= 1):
+            return "hi"
+            
+        # If very long sentence with no Hinglish keywords, assume English to save LLM call
+        if len(words) > 8 and hinglish_match == 0:
+            return "en"
+
+        # 3. AI Fallback (for complex Romanized Hindi or ambiguous context)
+        prompt = f"""
+        Analyze the language context of this spoken phrase.
+        Phrase: "{text}"
+        
+        Is this phrase predominantly Hindi (including Hinglish/Roman script) or English?
+        Remember: A single English word in a Hindi sentence means it's Hindi. A single Hindi word in an English sentence means it's English.
+        Reply with strictly 'hi' for Hindi/Hinglish, or 'en' for English. Do not write anything else.
+        """
+        try:
+            res = self.get_simple_completion(prompt, max_tokens=10).strip().lower()
+            if "hi" in res:
+                return "hi"
+            return "en"
+        except Exception as e:
+            logger.error(f"Language detection fallback error: {e}")
+            return "en"
+
     def _execute_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
         """Non-streaming response via Bedrock invoke_model API."""
         body = json.dumps({

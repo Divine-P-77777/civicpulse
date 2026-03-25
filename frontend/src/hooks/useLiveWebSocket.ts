@@ -14,11 +14,12 @@ interface UseLiveWebSocketParams {
   stopRecording: () => void;
   stopCamera: () => void;
   setBackendDone: (done: boolean) => void;
+  onLanguageSwitch: (lang: 'en' | 'hi') => void;
 }
 
 export function useLiveWebSocket({
   sessionId, language, getToken, clerk, onClose,
-  playNextAudioChunk, audioQueueRef, startRecording, stopRecording, stopCamera, setBackendDone
+  playNextAudioChunk, audioQueueRef, startRecording, stopRecording, stopCamera, setBackendDone, onLanguageSwitch
 }: UseLiveWebSocketParams) {
   const [status, setStatus] = useState<LiveStatus>('idle');
   const [userTranscript, setUserTranscript] = useState<string>('');
@@ -130,6 +131,9 @@ export function useLiveWebSocket({
             }
             setAiTranscript(aiText);
             setTranscript(`AI: "${aiText}"`);
+          } else if (message.type === 'language_switch') {
+            console.log("[WS] Backend auto-switched language to:", message.language);
+            onLanguageSwitch(message.language);
           } else if (message.type === 'ingestion_progress') {
             setStatus('uploading');
             setUploadProgress(message.progress);
