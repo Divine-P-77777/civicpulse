@@ -3,21 +3,25 @@
 import Link from 'next/link';
 import { useAppDispatch } from '@/hooks/redux';
 import { setCurrentMode } from '@/store/slices/uiSlice';
-import { 
-  CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic, 
-  Receipt, Landmark, Gavel, Eye, Car, ShieldCheck, 
-  Users, Briefcase, Sprout, Globe, Building2, 
+import {
+  CheckCircle2, Shield, Lock, Sliders, Menu, X, Mic,
+  Receipt, Landmark, Gavel, Eye, Car, ShieldCheck,
+  Users, Briefcase, Sprout, Globe, Building2,
   Database, BookOpen, Binary, History, Scale, FileSearch, Library, Vote
 } from 'lucide-react';
 import { useState } from 'react';
 import { SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
-import { NativeTypewriter } from '@/components/NativeTypewriter';
+import { NativeTypewriter } from '@/components/ui/NativeTypewriter';
 import ShinyText from '@/components/ui/shiny-text';
 import { NativeButton } from '@/components/ui/native-button';
-import StarBorder from '@/components/StarBorder';
-import SpotlightCard from '@/components/SpotlightCard';
-import GlareHover from '@/components/GlareHover';
+import StarBorder from '@/components/ui/StarBorder';
+import SpotlightCard from '@/components/ui/SpotlightCard';
+import GlareHover from '@/components/ui/GlareHover';
 import { MicIcon } from '@/components/ui/MicIcon';
+
+
+
+
 export default function Home() {
   const dispatch = useAppDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -70,7 +74,7 @@ export default function Home() {
               <p className="mt-8 text-base sm:text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance leading-relaxed">
                 AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
               </p>
-              
+
               <div className="mt-8 flex flex-col sm:flex-row flex-wrap gap-4 sm:justify-center lg:justify-start">
                 <NativeButton
                   glow
@@ -109,19 +113,19 @@ export default function Home() {
                 <div className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> 100% Safe</div>
               </div>
             </div>
-            
+
             {/* Hero Image */}
             <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
               <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500 border-2">
-                  <video 
-                    src="/demo-video.mp4" 
-                    title="CivicPulse Interactive Demo" 
-                    className="w-full h-auto rounded-xl shadow-inner object-cover" 
-                    autoPlay 
-                    loop 
-                    muted 
-                    playsInline 
-                  />
+                <video
+                  src="/demo-video.mp4"
+                  title="CivicPulse Interactive Demo"
+                  className="w-full h-auto rounded-xl shadow-inner object-cover"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
               </div>
             </div>
           </div>
@@ -140,13 +144,13 @@ export default function Home() {
             {/* Live Mode Card */}
             <SpotlightCard className="bg-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col" spotlightColor="rgba(99, 102, 241, 0.15)">
               <div className="flex items-center gap-4 mb-6">
-                 <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
-                    <MicIcon size={28} />
-                 </div>
-                 <div>
-                   <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md">Talking Assistant</span>
-                   <h3 className="text-2xl font-bold text-slate-900 mt-1">Live Mode</h3>
-                 </div>
+                <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+                  <MicIcon size={28} />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md">Talking Assistant</span>
+                  <h3 className="text-2xl font-bold text-slate-900 mt-1">Live Mode</h3>
+                </div>
               </div>
               <p className="text-slate-600 mb-8 flex-1">
                 Real-time voice and video interaction. Get instant verbal guidance on documents you hold up to your camera.
@@ -172,15 +176,15 @@ export default function Home() {
             {/* Chat Mode Card */}
             <SpotlightCard className="bg-white rounded-2xl border-2 border-emerald-100 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 p-8 flex flex-col" spotlightColor="rgba(16, 185, 129, 0.15)">
               <div className="flex items-center gap-4 mb-6">
-                 <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
-                    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                 </div>
-                 <div>
-                   <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-2 py-1 rounded-md">Deep Analysis</span>
-                   <h3 className="text-2xl font-bold text-slate-900 mt-1">Chat Mode</h3>
-                 </div>
+                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                  <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-2 py-1 rounded-md">Deep Analysis</span>
+                  <h3 className="text-2xl font-bold text-slate-900 mt-1">Chat Mode</h3>
+                </div>
               </div>
               <p className="text-slate-600 mb-8 flex-1">
                 Upload PDF images for detailed analysis. Chat with our AI to understand clauses, detect risks, and draft responses.
@@ -213,7 +217,7 @@ export default function Home() {
             <h2 className="text-3xl font-extrabold text-slate-900">Instant Risk Detection</h2>
             <p className="mt-4 text-lg text-slate-600">We highlight potentially problematic clauses so you know exactly what to watch out for.</p>
           </div>
-          
+
           <div className="flex flex-col md:flex-row justify-center items-center gap-8 md:gap-16">
             <div className="flex flex-col items-center text-center max-w-xs">
               <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center mb-6 shadow-sm border-4 border-white">
@@ -311,9 +315,9 @@ export default function Home() {
             <p className="mt-4 text-lg text-slate-600">Built to make legal understanding accessible and secure.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
-            <GlareHover 
+            <GlareHover
               className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-              glareColor="#4f46e5" 
+              glareColor="#4f46e5"
               glareOpacity={0.15}
             >
               <div className="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
@@ -322,9 +326,9 @@ export default function Home() {
               <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">24/7 AI Help</h3>
               <p className="text-slate-600 leading-relaxed relative z-10">Access expert-level analysis anytime. Features seamless Voice interaction and powerful OCR document scanning.</p>
             </GlareHover>
-            <GlareHover 
+            <GlareHover
               className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-              glareColor="#f59e0b" 
+              glareColor="#f59e0b"
               glareOpacity={0.15}
             >
               <div className="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
@@ -335,9 +339,9 @@ export default function Home() {
               <h3 className="text-xl font-bold text-slate-900 mb-3 relative z-10">Risk Flags</h3>
               <p className="text-slate-600 leading-relaxed relative z-10">Instantly spot danger. Our system categorizes clauses into intuitive Red, Yellow, and Green risk levels.</p>
             </GlareHover>
-            <GlareHover 
+            <GlareHover
               className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-              glareColor="#10b981" 
+              glareColor="#10b981"
               glareOpacity={0.15}
             >
               <div className="w-12 h-12 bg-emerald-100 text-emerald-600 flex items-center justify-center rounded-xl mb-6 relative z-10">
@@ -460,7 +464,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           <h2 className="text-3xl font-extrabold text-white mb-6">Speak Your Language</h2>
           <p className="text-indigo-100 max-w-2xl mx-auto text-lg mb-12">Available in English and Hindi, with more local Indian languages coming soon.</p>
-          
+
           <div className="flex flex-wrap justify-center gap-4">
             {['English', 'Hindi'].map((lang) => (
               <span key={lang} className="flex items-center gap-2 px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full text-white font-semibold transition-colors cursor-default border border-white/30 shadow-sm">
@@ -511,8 +515,8 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-12 text-center">
-             <Link href="#" className="font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4 decoration-indigo-200 hover:decoration-indigo-600 transition-all mr-6">Privacy Policy</Link>
-             <Link href="#" className="font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4 decoration-indigo-200 hover:decoration-indigo-600 transition-all">Terms of Service</Link>
+            <Link href="#" className="font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4 decoration-indigo-200 hover:decoration-indigo-600 transition-all mr-6">Privacy Policy</Link>
+            <Link href="#" className="font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4 decoration-indigo-200 hover:decoration-indigo-600 transition-all">Terms of Service</Link>
           </div>
         </div>
       </section>

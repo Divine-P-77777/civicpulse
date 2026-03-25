@@ -6,12 +6,12 @@ import './globals.css';
 import { Providers } from '@/lib/providers';
 import { ClerkProvider } from '@clerk/nextjs';
 import { usePathname } from 'next/navigation';
-import LenisProvider from '@/components/LenisProvider';
-import OnboardingModal from '@/components/OnboardingModal';
-import MobileFooter from '@/components/MobileFooter';
-import Navigation from '@/components/Navigation';
-import Footer from '@/components/Footer';
-import { PerformanceLogger } from '@/components/PerformanceLogger';
+import LenisProvider from '../components/layout/LenisProvider';
+import OnboardingModal from '../components/ui/OnboardingModal';
+import MobileFooter from '../components/layout/MobileFooter';
+import Navigation from '../components/layout/Navigation';
+import Footer from '../components/layout/Footer';
+import { PerformanceLogger } from '../components/layout/PerformanceLogger';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' });
@@ -23,13 +23,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isImmersivePage = pathname?.startsWith('/draftcreation') || 
-                          pathname?.startsWith('/admin') || 
-                          pathname?.startsWith('/architecture') || 
-                          pathname?.startsWith('/live') || 
-                          pathname?.startsWith('/chat') ||
-                          pathname?.startsWith('/sign-in') ||
-                          pathname?.startsWith('/sign-up');
+  const isImmersivePage = pathname?.startsWith('/draftcreation') ||
+    pathname?.startsWith('/admin') ||
+    pathname?.startsWith('/architecture') ||
+    pathname?.startsWith('/live') ||
+    pathname?.startsWith('/chat') ||
+    pathname?.startsWith('/sign-in') ||
+    pathname?.startsWith('/sign-up');
 
   return (
     <html lang="en" suppressHydrationWarning>

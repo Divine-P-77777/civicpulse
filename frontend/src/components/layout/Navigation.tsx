@@ -58,7 +58,7 @@ export default function Navigation() {
 
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    
+
     // Triple click logic -> routes to /admin
     setLogoClicks((prev) => {
       const newCount = prev + 1;
@@ -69,10 +69,10 @@ export default function Navigation() {
         // Only route to home on first click, but wait a bit to see if they click again
         setTimeout(() => {
           setLogoClicks((current) => {
-             if (current === 1) {
-                router.push('/');
-             }
-             return 0; // reset after timeout
+            if (current === 1) {
+              router.push('/');
+            }
+            return 0; // reset after timeout
           });
         }, 400); // 400ms window to click multiple times
       }
@@ -198,14 +198,14 @@ export default function Navigation() {
 
           {/* Mobile menu button & Install App */}
           <div className="flex items-center gap-2 lg:hidden">
-              <button
-                type="button"
-                onClick={handleInstallApp}
-                className="p-2 rounded-full text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                title="Install App"
-              >
-                <Download className="block h-5 w-5" aria-hidden="true" />
-              </button>
+            <button
+              type="button"
+              onClick={handleInstallApp}
+              className="p-2 rounded-full text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              title="Install App"
+            >
+              <Download className="block h-5 w-5" aria-hidden="true" />
+            </button>
             <button
               type="button"
               className="p-2 rounded-full text-slate-500 hover:text-slate-600 hover:bg-slate-100 transition-colors"
@@ -278,7 +278,7 @@ export default function Navigation() {
                     </div>
                   </div>
                   <SignOutButton redirectUrl="/">
-                    <button 
+                    <button
                       onClick={() => setMobileMenuOpen(false)}
                       className="w-full flex justify-center items-center px-4 py-3 border border-red-200 rounded-2xl text-base font-bold text-red-600 bg-red-50 hover:bg-red-100 shadow-sm transition-colors"
                     >

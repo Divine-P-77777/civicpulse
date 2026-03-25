@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { BrandLoader } from '@/components/BrandLoader';
+import { BrandLoader } from '@/components/ui/BrandLoader';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname, useSearchParams } from 'next/navigation';
 
@@ -35,7 +35,7 @@ export const LoaderProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 450); // Show it for just under half a second on navigation
-    
+
     return () => clearTimeout(timer);
   }, [pathname, searchParams]);
 

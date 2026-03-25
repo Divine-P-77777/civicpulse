@@ -163,68 +163,7 @@ export function ConfigStep({
                 CivicPulse is an AI assistant, not a lawyer. Always consult a qualified advocate for legal matters.
             </p>
 
-            {/* Profile Edit Overlay Modal */}
-            {showProfile && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                            <div className="flex items-center gap-2 text-emerald-600 font-bold">
-                                <Sparkles size={16} />
-                                <span className="text-sm">Personalized Data</span>
-                            </div>
-                            <button 
-                                onClick={() => {
-                                    setShowProfile(false);
-                                    onUseProfileChange(false);
-                                }}
-                                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <div className="space-y-3">
-                                <input 
-                                    type="text" 
-                                    placeholder="Full Name" 
-                                    value={profile.full_name}
-                                    onChange={e => setProfile({...profile, full_name: e.target.value})}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                                />
-                                <textarea 
-                                    placeholder="Full Address" 
-                                    value={profile.address}
-                                    onChange={e => setProfile({...profile, address: e.target.value})}
-                                    rows={2}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none resize-none"
-                                />
-                                <input 
-                                    type="text" 
-                                    placeholder="Contact #" 
-                                    value={profile.contact_number}
-                                    onChange={e => setProfile({...profile, contact_number: e.target.value})}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                                />
-                                <input 
-                                    type="email" 
-                                    placeholder="Email Address" 
-                                    value={profile.email}
-                                    onChange={e => setProfile({...profile, email: e.target.value})}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                                />
-                            </div>
-                            <button 
-                                onClick={saveProfile}
-                                disabled={savingProfile}
-                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50 mt-2"
-                            >
-                                {savingProfile ? "Saving..." : "Save Details"}
-                            </button>
-                            <p className="text-[10px] text-slate-400 text-center italic mt-2">These details will auto-fill in your generated drafts.</p>
-                        </div>
-                    </div>
-                </div>
-            )}
+
         </div>
     );
 }
