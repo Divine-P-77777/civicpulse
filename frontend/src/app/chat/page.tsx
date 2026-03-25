@@ -13,7 +13,7 @@ import OnboardingModal from './components/OnboardingModal';
 import WelcomeScreen from './components/WelcomeScreen';
 import ShareModal from './components/ShareModal';
 import MobileHistoryModal from './components/MobileHistoryModal';
-import { AIResponseTyping } from '@/components/ui/AIResponseTyping';
+import { AIResponseTyping } from '@/app/chat/components/AIResponseTyping';
 
 import { useChat } from '@/hooks/useChat';
 
@@ -133,7 +133,7 @@ export default function ChatPage() {
 
             {/* Automatic Hover Sidebar Trigger (Desktop Only) */}
             {!showSidebar && (
-                <div 
+                <div
                     className="absolute left-0 top-16 bottom-0 w-6 z-40 hidden md:block cursor-e-resize pointer-events-auto"
                     onMouseEnter={() => setIsHoveringSidebar(true)}
                 />

@@ -1,0 +1,38 @@
+
+> civicpulse-frontend@0.1.0 type-check
+> tsc --noEmit
+
+src/app/live/components/LiveMode.tsx(151,33): error TS7030: Not all code paths return a value.
+src/app/live/components/LiveMode.tsx(261,50): error TS2322: Type '{ idle: { scale: number; opacity: number; rotate: number; }; listening: { scale: number[]; opacity: number; rotate: number; transition: { duration: number; repeat: number; ease: string; }; }; processing: { scale: number[]; opacity: number; rotate: number; transition: { ...; }; }; speaking: { ...; }; }' is not assignable to type 'Variants'.
+  Property 'speaking' is incompatible with index signature.
+    Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type 'Variant'.
+      Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type 'TargetAndTransition'.
+        Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type '{ transition?: Transition$1 | undefined; transitionEnd?: MakeCustomValueType<TargetProperties> | undefined; }'.
+          Types of property 'transition' are incompatible.
+            Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Transition$1 | undefined'.
+              Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Orchestration & Repeat & PermissiveTransitionDefinition & { [key: string]: TransitionDefinition; }'.
+                Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Repeat'.
+                  Types of property 'repeatType' are incompatible.
+                    Type 'string' is not assignable to type '"reverse" | "mirror" | "loop" | undefined'.
+src/app/live/components/LiveMode.tsx(262,50): error TS2322: Type '{ idle: { scale: number; opacity: number; rotate: number; }; listening: { scale: number[]; opacity: number; rotate: number; transition: { duration: number; repeat: number; ease: string; }; }; processing: { scale: number[]; opacity: number; rotate: number; transition: { ...; }; }; speaking: { ...; }; }' is not assignable to type 'Variants'.
+  Property 'speaking' is incompatible with index signature.
+    Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type 'Variant'.
+      Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type 'TargetAndTransition'.
+        Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type '{ transition?: Transition$1 | undefined; transitionEnd?: MakeCustomValueType<TargetProperties> | undefined; }'.
+          Types of property 'transition' are incompatible.
+            Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Transition$1 | undefined'.
+              Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Orchestration & Repeat & PermissiveTransitionDefinition & { [key: string]: TransitionDefinition; }'.
+                Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Repeat'.
+                  Types of property 'repeatType' are incompatible.
+                    Type 'string' is not assignable to type '"reverse" | "mirror" | "loop" | undefined'.
+src/app/live/components/LiveMode.tsx(263,50): error TS2322: Type '{ idle: { scale: number; opacity: number; rotate: number; }; listening: { scale: number[]; opacity: number; rotate: number; transition: { duration: number; repeat: number; ease: string; }; }; processing: { scale: number[]; opacity: number; rotate: number; transition: { ...; }; }; speaking: { ...; }; }' is not assignable to type 'Variants'.
+  Property 'speaking' is incompatible with index signature.
+    Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type 'Variant'.
+      Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type 'TargetAndTransition'.
+        Type '{ scale: number[]; opacity: number; transition: { duration: number; repeat: number; repeatType: string; }; }' is not assignable to type '{ transition?: Transition$1 | undefined; transitionEnd?: MakeCustomValueType<TargetProperties> | undefined; }'.
+          Types of property 'transition' are incompatible.
+            Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Transition$1 | undefined'.
+              Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Orchestration & Repeat & PermissiveTransitionDefinition & { [key: string]: TransitionDefinition; }'.
+                Type '{ duration: number; repeat: number; repeatType: string; }' is not assignable to type 'Repeat'.
+                  Types of property 'repeatType' are incompatible.
+                    Type 'string' is not assignable to type '"reverse" | "mirror" | "loop" | undefined'.

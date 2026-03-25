@@ -1,1 +1,1 @@
-export { BrandLoader as default } from '@/components/BrandLoader';
+export { BrandLoader as default } from '@/components/ui/BrandLoader';

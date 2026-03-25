@@ -7,6 +7,8 @@ interface UseLiveAudioParams {
   status: string;
   setStatus: (s: any) => void;
   setTranscript: (t: string) => void;
+  setUserTranscript: (t: string) => void;
+  setAiTranscript: (t: string) => void;
   language: 'en' | 'hi';
   audioQueueRef: React.MutableRefObject<string[]>;
   onAutoSubmitStart?: (seconds: number) => void;
@@ -14,7 +16,7 @@ interface UseLiveAudioParams {
 }
 
 export function useLiveAudio({
-  wsReadyState, sendUserText, requestGreeting, status, setStatus, setTranscript, language, audioQueueRef,
+  wsReadyState, sendUserText, requestGreeting, status, setStatus, setTranscript, setUserTranscript, setAiTranscript, language, audioQueueRef,
   onAutoSubmitStart, onAutoSubmitCancel
 }: UseLiveAudioParams) {
   const isPlayingRef = useRef<boolean>(false);
@@ -286,6 +288,8 @@ export function useLiveAudio({
         // Show live transcript to user
         const display = finalTranscriptRef.current + interimTranscript;
         if (display.trim() && recognitionActiveRef.current && !isPlayingRef.current) {
+          setUserTranscript(display.trim());
+          setAiTranscript(''); // Clear AI text when user starts new prompt
           setTranscript(`You: "${display.trim()}"`);
         }
       };
@@ -540,6 +544,8 @@ export function useLiveAudio({
       sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
+      setUserTranscript(cleanedText);
+      setAiTranscript('');
       setTranscript(`You: "${cleanedText}"`);
       pauseRecognition();
       if (autoSubmitTimerRef.current) {
@@ -574,6 +580,8 @@ export function useLiveAudio({
       sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
+      setUserTranscript(cleanedText);
+      setAiTranscript('');
       setTranscript(`You: "${cleanedText}"`);
       // Pause recognition while we wait for AI response
       pauseRecognition();
