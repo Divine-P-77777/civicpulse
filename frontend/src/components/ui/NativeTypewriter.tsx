@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 interface NativeTypewriterProps {
@@ -22,7 +22,6 @@ export function NativeTypewriter({
   morph = true,
   className,
 }: NativeTypewriterProps) {
-  const shouldReduceMotion = useReducedMotion();
   const [displayedText, setDisplayedText] = useState("");
 
   const speedMap = {
@@ -37,11 +36,6 @@ export function NativeTypewriter({
   const contentHash = JSON.stringify(content);
 
   useEffect(() => {
-    if (shouldReduceMotion) {
-      setDisplayedText(Array.isArray(content) ? content.join(" ") : content);
-      return;
-    }
-
     let timeoutId: NodeJS.Timeout;
     let currentIndex = 0;
     let currentStringIndex = 0;
@@ -97,7 +91,7 @@ export function NativeTypewriter({
       clearTimeout(initialTimer);
       clearTimeout(timeoutId);
     };
-  }, [contentHash, typingSpeed, loop, startDelay, shouldReduceMotion, content]);
+  }, [contentHash, typingSpeed, loop, startDelay, content]);
 
   return (
     <div className={`inline-flex items-center ${className || ""}`}>

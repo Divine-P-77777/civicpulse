@@ -56,55 +56,45 @@ export default function Home() {
                   disabled={false}
                 />
               </div>
-              <h1 className="text-3xl tracking-tight font-extrabold text-slate-900 sm:text-5xl md:text-5xl lg:text-5xl xl:text-6xl text-balance leading-tight">
-                Understand Your Legal Rights in{" "}
-                <div className="text-indigo-600 block sm:mt-2 min-h-[1.2em]">
+              <h1 className="text-4xl text-center lg:text-left sm:text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.1] h-[90px] sm:h-[150px]">
+                Legal Rights, <br />
+                <span className="text-indigo-600 block mt-1 sm:mt-2 min-h-[1.5em] md:min-h-[1.2em]">
                   <NativeTypewriter
                     content={[
-                      "Simple Language.",
-                      "Clear Explanations.",
-                      "Real Rights."
+                      "Made Simple.",
+                      "Made Clear.",
+                      "For Everyone."
                     ]}
                     loop
                     speed={80}
                     cursor={true}
                   />
-                </div>
+                </span>
               </h1>
-              <p className="mt-8 text-base sm:text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance leading-relaxed">
-                AI-powered tool that analyzes complex legal documents, assesses risk, and helps you take informed action in your language.
+              <p className="mt-6 text-center lg:text-left text-base sm:text-lg text-slate-600 sm:max-w-xl sm:mx-auto lg:mx-0 text-balance leading-relaxed">
+                AI assistance that analyzes complex legal documents, assesses risk, and helps you take informed action.
               </p>
 
-              <div className="mt-8 flex flex-col sm:flex-row flex-wrap gap-4 sm:justify-center lg:justify-start">
+              <div className="mt-8 flex flex-col sm:flex-row flex-wrap gap-3 sm:justify-center lg:justify-start w-full max-w-sm sm:max-w-none mx-auto lg:mx-0">
                 <NativeButton
                   glow
                   href="/live"
                   onClick={() => handleModeSelect('live')}
-                  className="flex items-center justify-center gap-2 px-6 py-3 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all hover:shadow-md"
+                  className="flex items-center justify-center gap-2 px-6 py-3.5 border border-transparent text-base font-semibold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all w-full sm:w-auto"
                 >
                   <Mic className="w-5 h-5 text-white" />
-                  Live Mode
+                  Try Live Mode
                 </NativeButton>
                 <NativeButton
                   glow
                   href="/chat"
                   onClick={() => handleModeSelect('chat')}
-                  className="flex items-center justify-center gap-2 px-6 py-3 border border-indigo-200 text-base font-semibold rounded-lg text-indigo-700 bg-white hover:bg-indigo-50 shadow-sm transition-all"
+                  className="flex items-center justify-center gap-2 px-6 py-3.5 border border-slate-200 text-base font-semibold rounded-xl text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-all w-full sm:w-auto"
                 >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Chat Mode
-                </NativeButton>
-                <NativeButton
-                  glow
-                  href="/draftcreation"
-                  className="flex items-center justify-center gap-2 px-6 py-3 border border-slate-200 text-base font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-all"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  Make Draft
+                  Chat Analysis
                 </NativeButton>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm text-slate-500 font-medium font-sans">
@@ -115,17 +105,19 @@ export default function Home() {
             </div>
 
             {/* Hero Image */}
-            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
-              <div className="relative mx-auto w-full rounded-2xl shadow-2xl lg:max-w-xl bg-white p-2 border border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500 border-2">
-                <video
-                  src="/demo-video.mp4"
-                  title="CivicPulse Interactive Demo"
-                  className="w-full h-auto rounded-xl shadow-inner object-cover"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                />
+            <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-md lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
+              <div className="relative mx-auto w-full aspect-[4/3] rounded-[2.5rem] shadow-2xl bg-white p-2 border-2 border-slate-100 overflow-hidden transform -rotate-1 hover:rotate-0 transition-transform duration-500">
+                <div className="relative w-full h-full overflow-hidden rounded-[2rem]">
+                  <video
+                    src="/hero.mp4"
+                    title="CivicPulse Interactive Demo"
+                    className="absolute inset-0 w-full h-full object-cover scale-[1.10] md:scale-[1.10]"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -459,7 +451,7 @@ export default function Home() {
       </section>
 
       {/* Language Section */}
-      <section className="py-24 bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 relative overflow-hidden">
+      <section className="py-24 bg-gradient-to-r from-blue-950 via-indigo-600 to-blue-950 relative overflow-hidden">
         <div className="absolute inset-0 bg-white/10 pattern-grid-lg opacity-20"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           <h2 className="text-3xl font-extrabold text-white mb-6">Speak Your Language</h2>
