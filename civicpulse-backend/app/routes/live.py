@@ -29,11 +29,13 @@ class ConnectionManager:
         # Store active connections per session_id
         self.active_connections: dict[str, WebSocket] = {}
         self.cancel_events: dict[str, asyncio.Event] = {}
+        self.active_tasks: dict[str, asyncio.Task] = {}
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
         self.active_connections[session_id] = websocket
         self.cancel_events[session_id] = asyncio.Event()
+        self.active_tasks[session_id] = None  # To track the processing task
         logger.info(f"Session {session_id}: WebSocket connected.")
 
     def disconnect(self, session_id: str):
@@ -53,6 +55,12 @@ class ConnectionManager:
     def is_cancelled(self, session_id: str) -> bool:
         event = self.cancel_events.get(session_id)
         return event.is_set() if event else False
+        
+    def cancel_active_task(self, session_id: str):
+        task = self.active_tasks.get(session_id)
+        if task and not task.done():
+            task.cancel()
+            logger.info(f"Session {session_id}: Active LLM/TTS processing task cancelled.")
 
     async def send_json(self, session_id: str, data: dict) -> bool:
         """Send JSON to a specific session's WebSocket safely."""
@@ -376,7 +384,13 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
                             asyncio.to_thread(persist_language, session_id, detected_lang)
                         )
                     
-                    await process_voice_turn(session_id, text, language)
+                    # Signal any currently running voice turn task to gracefully abort before starting a new one
+                    manager.set_cancel_event(session_id)
+                    manager.clear_cancel_event(session_id)
+                    
+                    # Spawn the processing as a background task so we don't block the WebSocket receive loop
+                    task = asyncio.create_task(process_voice_turn(session_id, text, language))
+                    manager.active_tasks[session_id] = task
 
             elif msg_type == "session_end":
                 # Explicit cleanup when user navigates to draft page or leaves
@@ -395,6 +409,7 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
 
             elif msg_type == "interrupt":
                 logger.info(f"Session {session_id}: Interrupted by user.")
+                # Immediately signal ongoing processing to abort and persist
                 manager.set_cancel_event(session_id)
 
     except WebSocketDisconnect:

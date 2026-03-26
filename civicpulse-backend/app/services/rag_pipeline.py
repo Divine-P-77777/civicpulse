@@ -233,9 +233,9 @@ class RagPipeline:
         )
 
         # Add language instruction to system prompt dynamically based on user selection
-        if language and language != "en":
-            lang_name = {"hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}.get(language, language)
-            system_prompt += f"\n\nIMPORTANT: The user has explicitly selected {lang_name}. You MUST respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}. Do NOT respond in English."
+        if language == "hi":
+            lang_name = "Hindi"
+            system_prompt += f"\n\nIMPORTANT: The user has explicitly selected {lang_name}. You MUST respond entirely in {lang_name}. Use {lang_name} script. Keep legal terms in English where necessary for accuracy, but explain everything in {lang_name}. Do NOT respond in English or any other language."
             if mode == "live":
                 system_prompt += f"\nCRITICAL LIVE AUDIO RULE: The user is listening to this text via Text-to-Speech in {lang_name}. It is strictly forbidden to use English scripts or pronunciation markings. You must write natural spoken {lang_name} sentences."
         else:
@@ -244,9 +244,14 @@ class RagPipeline:
                 system_prompt += f"\nCRITICAL LIVE AUDIO RULE: This is an English-exclusive audio session. It is strictly forbidden to use any Hindi, Hinglish, or vernacular words. If the user accidentally spoke Hindi words, translate your response entirely to English."
 
         # Bedrock Converse API uses separate system and messages params
-
-        # Bedrock Converse API uses separate system and messages params
-        messages = [{"role": "user", "content": [{"type": "text", "text": query}]}]
+        
+        # Inject turn-level language override to break "language inertia" from chat history
+        if language == "hi":
+            formatted_query = f"[CRITICAL OVERRIDE: You MUST respond to this query ENTIRELY in Hindi script and language. Ignore the language of previous messages if they were in English. Do not use any language other than Hindi.]\n\nUser Query: {query}"
+        else:
+            formatted_query = f"[CRITICAL OVERRIDE: You MUST respond to this query ENTIRELY in English. Ignore the language of previous messages if they were in Hindi. Do not use any language other than English.]\n\nUser Query: {query}"
+            
+        messages = [{"role": "user", "content": [{"type": "text", "text": formatted_query}]}]
 
         # ── Step 5: LLM call with mode-aware limits ──────────────
         if stream:
