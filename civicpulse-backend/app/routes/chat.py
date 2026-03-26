@@ -92,6 +92,11 @@ async def send_message(body: MessageRequest, current_user: dict = Depends(get_cu
 
     user_msg = add_message(user_id, body.session_id, role="user", content=body.message)
 
+    # Auto-detect language switch for text chat
+    detected_lang = rag_pipeline.detect_language(body.message)
+    if detected_lang != "en" and detected_lang != body.language:
+        body.language = detected_lang
+
     try:
         ai_response = rag_pipeline.analyze_document(
             query=body.message,
@@ -129,6 +134,11 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
 
     # Auto-generate title if this is the first message in the session
     is_first_message = session.get("title", "New Chat") == "New Chat" and len(chat_history) == 0
+
+    # Auto-detect language switch for text chat
+    detected_lang = rag_pipeline.detect_language(body.message)
+    if detected_lang != "en" and detected_lang != body.language:
+        body.language = detected_lang
 
     def event_generator():
         collected = []
