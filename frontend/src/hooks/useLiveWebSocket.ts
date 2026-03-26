@@ -113,53 +113,73 @@ export function useLiveWebSocket({
             let aiText = message.text;
             
             // Parse Draft Ready Tag if present
-            // Uses robust extraction: initial_context is parsed last as it may contain embedded quotes/newlines
             const draftTagMatch = aiText.match(/<DRAFT_READY\s+([\s\S]+?)\s*\/>/);
             if (draftTagMatch) {
                 try {
                     const rawAttrs = draftTagMatch[1];
                     const data: any = {};
 
-                    // 1. Extract initial_context first (grab everything between initial_context=" and the last ")
+                    // Extract initial_context (may contain embedded quotes/newlines)
                     const contextMatch = rawAttrs.match(/initial_context="([\s\S]*)"/);
                     if (contextMatch) {
                         data.initial_context = contextMatch[1].trim();
                     }
 
-                    // 2. Extract the other simple scalar attributes (type, topic, use_profile)
+                    // Extract simple scalar attributes (type, topic, use_profile)
                     const simpleAttrs = rawAttrs.replace(/initial_context="[\s\S]*"/, '');
                     const simpleMatches = simpleAttrs.matchAll(/(\w+)="([^"]*)"/g);
                     for (const m of simpleMatches) {
                         data[m[1]] = m[2];
                     }
 
-                    // VALIDATION: Reject drafts with placeholder values
-                    // The AI sometimes ignores the prompt and generates incomplete drafts
-                    const placeholderPatterns = [
-                        /\[user to provide\]/i,
-                        /\[to be provided\]/i,
-                        /\[user must provide\]/i,
-                        /\[please provide\]/i,
-                        /\[pending\]/i,
-                        /\[unknown\]/i,
-                        /\[not specified\]/i,
-                        /\[missing\]/i,
-                        /\[needs detail\]/i,
-                    ];
-
-                    const hasPlaceholders = data.initial_context && placeholderPatterns.some(pattern => pattern.test(data.initial_context));
-
-                    if (hasPlaceholders) {
-                        console.warn("[Live] Rejected incomplete DRAFT_READY tag - contains placeholders. AI should ask for missing details.");
-                        // Don't set draftData, just show the AI's response text (which should ask for missing info)
-                    } else {
-                        console.log("[Live] Parsed Draft Ready:", { type: data.type, topic: data.topic, use_profile: data.use_profile, contextLength: data.initial_context?.length });
-                        setDraftData(data);
+                    // ── Gate 1: Required fields must all be present and non-empty ──
+                    const REQUIRED_FIELDS = ['type', 'topic', 'initial_context'];
+                    const missingFields = REQUIRED_FIELDS.filter(f => !data[f] || String(data[f]).trim().length === 0);
+                    if (missingFields.length > 0) {
+                        console.warn('[Live] Rejected DRAFT_READY — missing fields:', missingFields);
+                        aiText = aiText.replace(/<DRAFT_READY[\s\S]+?\/>/g, '').trim();
+                        setAiTranscript(aiText);
+                        setTranscript(`AI: "${aiText}"`);
+                        return;
                     }
+
+                    // ── Gate 2: initial_context must have enough substance (>100 chars) ──
+                    if (data.initial_context.length < 100) {
+                        console.warn('[Live] Rejected DRAFT_READY — initial_context too short:', data.initial_context.length);
+                        aiText = aiText.replace(/<DRAFT_READY[\s\S]+?\/>/g, '').trim();
+                        setAiTranscript(aiText);
+                        setTranscript(`AI: "${aiText}"`);
+                        return;
+                    }
+
+                    // ── Gate 3: Placeholder value detection ──
+                    const placeholderPatterns = [
+                        /\[user to provide\]/i, /\[to be provided\]/i,
+                        /\[user must provide\]/i, /\[please provide\]/i,
+                        /\[pending\]/i, /\[unknown\]/i, /\[not specified\]/i,
+                        /\[missing\]/i, /\[needs detail\]/i,
+                        /\[TBD\]/i, /\bN\/A\b/, /\bTBD\b/,
+                    ];
+                    const hasPlaceholders = placeholderPatterns.some(p =>
+                        p.test(data.initial_context) || p.test(data.topic)
+                    );
+                    if (hasPlaceholders) {
+                        console.warn('[Live] Rejected DRAFT_READY — placeholders detected.');
+                        aiText = aiText.replace(/<DRAFT_READY[\s\S]+?\/>/g, '').trim();
+                        setAiTranscript(aiText);
+                        setTranscript(`AI: "${aiText}"`);
+                        return;
+                    }
+
+                    // All gates passed — show the draft popup
+                    console.log('[Live] Draft validated and accepted:', { type: data.type, topic: data.topic, contextLength: data.initial_context.length });
+                    setDraftData(data);
+
                     // Remove tag from visible transcript
                     aiText = aiText.replace(/<DRAFT_READY[\s\S]+?\/>/g, '').trim();
                 } catch (e) {
-                    console.error("Failed to parse DRAFT_READY tag:", e);
+                    console.error('[Live] Failed to parse DRAFT_READY tag:', e);
+                    aiText = aiText.replace(/<DRAFT_READY[\s\S]+?\/>/g, '').trim();
                 }
             }
             setAiTranscript(aiText);

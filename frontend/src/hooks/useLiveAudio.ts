@@ -24,21 +24,30 @@ export function useLiveAudio({
 }: UseLiveAudioParams) {
   const isPlayingRef = useRef<boolean>(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const currentBlobUrlRef = useRef<string | null>(null); // Track blob URLs for revocation to avoid memory leaks
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
   const finalTranscriptRef = useRef<string>('');
   const recognitionActiveRef = useRef<boolean>(false);
-  const isBackendDoneRef = useRef<boolean>(true); // Track if backend finished sending chunks
+  const isBackendDoneRef = useRef<boolean>(true);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const autoSubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const AUTO_SUBMIT_DELAY = 2500; // ms of silence before auto-submit
+  const AUTO_SUBMIT_DELAY = 2500;
 
   // Deepgram Refs
   const deepgramFailedRef = useRef<boolean>(false);
   const deepgramWsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const greetingRequestedRef = useRef<boolean>(false);
+
+  // Language hot-swap tracking
+  const lastLanguageRef = useRef<'en' | 'hi'>(language);
+  const pendingLanguageRestartRef = useRef<boolean>(false);
+
+  // Keep a stable ref to language so callbacks don't go stale
+  const languageRef = useRef<'en' | 'hi'>(language);
+  useEffect(() => { languageRef.current = language; }, [language]);
 
   useEffect(() => {
     isListeningRef.current = (status === 'listening');
@@ -48,39 +57,33 @@ export function useLiveAudio({
   const pauseRecognition = useCallback(() => {
     recognitionActiveRef.current = false;
     try {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    } catch (e) { /* ignore - may not be started */ }
-
-    // Pause Deepgram MediaRecorder if active
+      if (recognitionRef.current) recognitionRef.current.stop();
+    } catch (e) { /* ignore */ }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.pause(); } catch (e) { }
     }
   }, []);
 
   const resumeRecognition = useCallback(() => {
-    console.log("[Audio] Attempting to resume recognition...");
+    console.log('[Audio] Attempting to resume recognition...');
     recognitionActiveRef.current = true;
     try {
       if (recognitionRef.current) {
         recognitionRef.current.start();
-        console.log("[Audio] Recognition restarted successfully");
+        console.log('[Audio] Recognition restarted successfully');
       } else {
-        console.warn("[Audio] No recognition instance to resume");
+        console.warn('[Audio] No recognition instance to resume');
       }
     } catch (e) {
-      console.warn("[Audio] Resume failed (may already be running):", e);
+      console.warn('[Audio] Resume failed (may already be running):', e);
     }
-
-    // Resume Deepgram MediaRecorder if paused
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
       try { mediaRecorderRef.current.resume(); } catch (e) { }
-      console.log("[Audio] Deepgram media recorder resumed");
+      console.log('[Audio] Deepgram media recorder resumed');
     }
   }, []);
 
-  // ─── Trigger Sound (chime when mic resumes) ────────────
+  // ─── Trigger Sound ────────────
   const playTriggerSound = useCallback(() => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -95,79 +98,83 @@ export function useLiveAudio({
       gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.2);
-    } catch (e) { /* ignore — AudioContext may not be available */ }
+    } catch (e) { /* ignore */ }
   }, []);
 
-  // ─── Audio Playback ────────────────────────────────────
+  // ─── Audio Finished ────────────────────────────────────
   const onAudioFinished = useCallback(() => {
-    // Only transition if the queue is empty AND backend confirmed it's done
     if (audioQueueRef.current.length > 0 || !isBackendDoneRef.current) {
-      console.log("[Audio] Waiting for more chunks or backend done signal...");
       return;
     }
-
-    console.log("[Audio] All audio finished and backend done, transitioning to listening");
+    console.log('[Audio] All audio finished, transitioning to listening');
     isPlayingRef.current = false;
     setStatus('listening');
-    setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
+    setTranscript(languageRef.current === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
     finalTranscriptRef.current = '';
-    // Play a short chime so the user knows it's their turn
     playTriggerSound();
-    // Directly resume recognition
     resumeRecognition();
-  }, [setStatus, setTranscript, language, resumeRecognition, playTriggerSound]);
+  }, [setStatus, setTranscript, resumeRecognition, playTriggerSound]);
 
+  // ─── Audio Playback ────────────────────────────────────
   const playNextAudioChunk = useCallback(() => {
-    // If already playing, do nothing (onended will call us again)
     if (isPlayingRef.current) return;
 
-    // No more chunks in queue → we're done
     if (audioQueueRef.current.length === 0) {
+      if (isBackendDoneRef.current) onAudioFinished();
       return;
     }
 
-    // We have chunks to play
     isPlayingRef.current = true;
-
-    // Pause recognition while playing to avoid echo
     pauseRecognition();
 
     const chunk = audioQueueRef.current.shift();
     if (!chunk || !audioElementRef.current) {
       isPlayingRef.current = false;
+      if (isBackendDoneRef.current) onAudioFinished();
       return;
     }
+
     const { data: base64Audio, format } = chunk;
 
-    const byteCharacters = atob(base64Audio);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-
-
-    // Guard: skip empty/tiny chunks that cause NotSupportedError
-    if (byteArray.length < 100) {
-      console.warn("[Audio] Skipping tiny/empty audio chunk, length:", byteArray.length);
+    let byteArray: Uint8Array;
+    try {
+      const byteCharacters = atob(base64Audio);
+      byteArray = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i);
+      }
+    } catch (e) {
+      console.warn('[Audio] Failed to decode base64 chunk, skipping:', e);
       isPlayingRef.current = false;
       setTimeout(() => playNextAudioChunk(), 50);
       return;
     }
 
-    // Use the format field sent by backend — eliminates MIME-type guessing
-    const audioMimeType = format === 'wav' ? 'audio/wav' : 'audio/mpeg';
-    const blob = new Blob([byteArray], { type: audioMimeType });
-    const url = URL.createObjectURL(blob);
+    // Skip tiny/empty chunks that crash mobile browsers
+    if (byteArray.length < 100) {
+      console.warn('[Audio] Skipping tiny chunk, length:', byteArray.length);
+      isPlayingRef.current = false;
+      setTimeout(() => playNextAudioChunk(), 50);
+      return;
+    }
 
-    // Initialize Web Audio API if needed (for volume boost)
+    const audioMimeType = format === 'wav' ? 'audio/wav' : 'audio/mpeg';
+    const blob = new Blob([byteArray.buffer as ArrayBuffer], { type: audioMimeType });
+
+    // Revoke previous blob URL to prevent memory leak
+    if (currentBlobUrlRef.current) {
+      URL.revokeObjectURL(currentBlobUrlRef.current);
+    }
+    const url = URL.createObjectURL(blob);
+    currentBlobUrlRef.current = url;
+
+    // Initialize Web Audio API for volume boost
     if (!audioCtxRef.current) {
       const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         const newCtx = new AudioCtx();
         const newGain = newCtx.createGain();
         newGain.connect(newCtx.destination);
-
         audioCtxRef.current = newCtx;
         gainNodeRef.current = newGain;
       }
@@ -176,11 +183,8 @@ export function useLiveAudio({
     const ctx = audioCtxRef.current;
     const gainNode = gainNodeRef.current;
     if (ctx && gainNode && audioElementRef.current) {
-      // Boost volume for Sarvam (Hindi) which is notoriously low
-      // Normal ElevenLabs is fine at 1.0, Sarvam usually needs 2.5x to match perceived loudness
-      gainNode.gain.value = language === 'hi' ? 2.5 : 1.0;
-
-      // Connect element to gain node if not already connected
+      // Sarvam (Hindi) audio is notoriously quiet, boost it
+      gainNode.gain.value = languageRef.current === 'hi' ? 2.5 : 1.0;
       if (!(audioElementRef.current as any)._connected) {
         const source = ctx.createMediaElementSource(audioElementRef.current);
         source.connect(gainNode);
@@ -188,36 +192,28 @@ export function useLiveAudio({
       }
     }
 
-    // Reset audio element before loading new source
     audioElementRef.current.pause();
     audioElementRef.current.src = url;
-
-    // Increase pace as requested (1.15x feels snappy but legible)
     audioElementRef.current.playbackRate = 1.3;
-
-    audioElementRef.current.load(); // Force load the new blob
-
+    audioElementRef.current.load();
     audioElementRef.current.play().catch(e => {
-      console.error("[Audio] Play error:", e);
+      console.error('[Audio] Play error:', e);
       isPlayingRef.current = false;
       setTimeout(() => playNextAudioChunk(), 100);
     });
-  }, [pauseRecognition, language]);
+  }, [pauseRecognition, onAudioFinished]);
 
-  // Setup audio element with onended handler
+  // Setup audio element once — stable ref, no infinite loop
   useEffect(() => {
     const audio = new Audio();
     audioElementRef.current = audio;
 
     audio.onended = () => {
-      console.log("[Audio] Chunk finished playing, queue length:", audioQueueRef.current.length);
+      console.log('[Audio] Chunk finished, queue length:', audioQueueRef.current.length);
       isPlayingRef.current = false;
-
       if (audioQueueRef.current.length > 0) {
-        // More chunks to play
         playNextAudioChunk();
       } else {
-        // All done — transition back to listening
         onAudioFinished();
       }
     };
@@ -226,138 +222,123 @@ export function useLiveAudio({
       audio.pause();
       audio.onended = null;
       audioElementRef.current = null;
+      // Clean up any dangling blob URL
+      if (currentBlobUrlRef.current) {
+        URL.revokeObjectURL(currentBlobUrlRef.current);
+        currentBlobUrlRef.current = null;
+      }
     };
-  }, [playNextAudioChunk, onAudioFinished]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Speech Recognition Setup 
+  // ─── Timer helpers (shared between Native & Deepgram) ────────────────────
+  const clearSubmitTimer = useCallback(() => {
+    if (autoSubmitTimerRef.current) {
+      clearTimeout(autoSubmitTimerRef.current);
+      autoSubmitTimerRef.current = null;
+      onAutoSubmitCancel?.();
+    }
+  }, [onAutoSubmitCancel]);
+
+  const scheduleSubmitTimer = useCallback((fromInterim = false) => {
+    clearSubmitTimer();
+    onAutoSubmitStart?.(AUTO_SUBMIT_DELAY / 1000);
+    autoSubmitTimerRef.current = setTimeout(() => {
+      const text = finalTranscriptRef.current.trim();
+      if (text && recognitionActiveRef.current && !isPlayingRef.current) {
+        console.log(`[Watchdog] Timeout exceeded${fromInterim ? ' (after interim)' : ''}. Forcing buffer submit:`, text);
+        sendCurrentTranscriptAuto();
+      }
+      onAutoSubmitCancel?.();
+    }, AUTO_SUBMIT_DELAY);
+  }, [clearSubmitTimer, onAutoSubmitStart, onAutoSubmitCancel]);
+
+  // ─── Native STT ───────────────────────────────────────────────────────────
   const startNativeRecognition = async () => {
     try {
-      console.log("[STT] Starting Native SpeechRecognition...");
+      console.log('[STT] Starting Native SpeechRecognition...');
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) {
-        console.error("Web Speech API not supported");
         setStatus('error');
-        setTranscript('Speech recognition not supported in this browser. Please use Chrome.');
+        setTranscript('Speech recognition not supported. Please use Chrome.');
         return;
       }
 
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
       recognitionActiveRef.current = true;
-
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = language === 'hi' ? 'hi-IN' : 'en-US';
-
+      recognition.lang = languageRef.current === 'hi' ? 'hi-IN' : 'en-US';
       finalTranscriptRef.current = '';
 
       recognition.onresult = (event: any) => {
         let interimTranscript = '';
-        let finalTranscript = '';
+        let newFinal = '';
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
-          if (result.isFinal) {
-            finalTranscript += result[0].transcript;
-          } else {
-            interimTranscript += result[0].transcript;
-          }
+          if (result.isFinal) newFinal += result[0].transcript;
+          else interimTranscript += result[0].transcript;
         }
 
-        if (finalTranscript) {
-          finalTranscriptRef.current += finalTranscript;
-          console.log("[STT] Final transcript:", finalTranscriptRef.current);
-
-          // ─── Auto-submit: start/reset the silence timer ───
-          if (autoSubmitTimerRef.current) {
-            clearTimeout(autoSubmitTimerRef.current);
-          }
-          onAutoSubmitStart?.(AUTO_SUBMIT_DELAY / 1000);
-          autoSubmitTimerRef.current = setTimeout(() => {
-            const text = finalTranscriptRef.current.trim();
-            if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-              console.log("[Auto-Submit] Silence detected, auto-sending:", text);
-              sendCurrentTranscriptAuto();
-            }
-            onAutoSubmitCancel?.();
-          }, AUTO_SUBMIT_DELAY);
+        if (newFinal) {
+          finalTranscriptRef.current += newFinal;
+          console.log('[STT] Final:', finalTranscriptRef.current);
+          scheduleSubmitTimer();
+        } else if (interimTranscript && finalTranscriptRef.current) {
+          // Only reset timer if we have accumulated final text already — prevents premature submit on first word
+          scheduleSubmitTimer(true);
         }
 
-        // Any new speech (even interim) resets the timer
-        if (interimTranscript && autoSubmitTimerRef.current) {
-          clearTimeout(autoSubmitTimerRef.current);
-          onAutoSubmitCancel?.();
-          // Restart timer from now
-          autoSubmitTimerRef.current = setTimeout(() => {
-            const text = finalTranscriptRef.current.trim();
-            if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-              console.log("[Auto-Submit] Silence after interim, auto-sending:", text);
-              sendCurrentTranscriptAuto();
-            }
-            onAutoSubmitCancel?.();
-          }, AUTO_SUBMIT_DELAY);
-        }
-
-        // Show live transcript to user
         const display = finalTranscriptRef.current + interimTranscript;
         if (display.trim() && recognitionActiveRef.current && !isPlayingRef.current) {
           setUserTranscript(display.trim());
-          setAiTranscript(''); // Clear AI text when user starts new prompt
+          setAiTranscript('');
           setTranscript(`You: "${display.trim()}"`);
         }
       };
 
       recognition.onerror = (event: any) => {
-        console.warn("[STT] Error:", event.error);
+        console.warn('[STT] Error:', event.error);
         if (event.error === 'no-speech') {
-          // No speech detected — auto-restart if still active
-          if (recognitionActiveRef.current) {
-            try { recognition.start(); } catch (e) { /* ignore */ }
-          }
+          if (recognitionActiveRef.current) try { recognition.start(); } catch (e) { }
           return;
         }
-        if (event.error === 'aborted') return; // Normal stop
-        if (event.error === 'network') {
-          // Network error — try restart after delay
-          if (recognitionActiveRef.current) {
-            setTimeout(() => {
-              try { recognition.start(); } catch (e) { /* ignore */ }
-            }, 1000);
-          }
+        if (event.error === 'aborted') return;
+        if (event.error === 'network' && recognitionActiveRef.current) {
+          setTimeout(() => { try { recognition.start(); } catch (e) { } }, 1000);
         }
       };
 
       recognition.onend = () => {
-        console.log("[STT] onend fired, activeRef:", recognitionActiveRef.current, "playingRef:", isPlayingRef.current);
-        // Auto-restart only if we should be listening
+        console.log('[STT] onend — active:', recognitionActiveRef.current, 'playing:', isPlayingRef.current);
         if (recognitionActiveRef.current && !isPlayingRef.current) {
-          console.log("[STT] Auto-restarting recognition...");
-          setTimeout(() => {
-            try { recognition.start(); } catch (e) { /* ignore */ }
-          }, 100);
+          setTimeout(() => { try { recognition.start(); } catch (e) { } }, 100);
         }
       };
 
       recognition.start();
       setStatus('listening');
-      setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
+      setTranscript(languageRef.current === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
 
       if (!greetingRequestedRef.current) {
         greetingRequestedRef.current = true;
         requestGreeting();
       }
     } catch (err) {
-      console.error("[STT] Failed to start native STT:", err);
+      console.error('[STT] Failed to start:', err);
       setStatus('error');
       setTranscript('Microphone access denied or STT not available.');
     }
   };
 
+  // ─── Deepgram STT ─────────────────────────────────────────────────────────
   const startDeepgramRecognition = async () => {
-    console.log("[Deepgram] Starting Deepgram streaming...");
+    console.log('[Deepgram] Starting Deepgram streaming...');
     const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
     if (!apiKey) {
-      console.warn("[Deepgram] No API key found in .env, falling back directly to native...");
+      console.warn('[Deepgram] No API key — falling back to native STT.');
       deepgramFailedRef.current = true;
       startNativeRecognition();
       return;
@@ -368,40 +349,31 @@ export function useLiveAudio({
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
-      let wsUrl: string;
-      if (language === 'hi') {
-        wsUrl = `wss://api.deepgram.com/v1/listen?language=hi&interim_results=true&smart_format=true`;
-      } else {
-        wsUrl = `wss://api.deepgram.com/v2/listen?model=flux-general-en&eot_threshold=0.7&eot_timeout_ms=5000&keywords=Dhoury:2&keywords=dhoury:2`;
-      }
+      const wsUrl = languageRef.current === 'hi'
+        ? `wss://api.deepgram.com/v1/listen?language=hi&interim_results=true&smart_format=true`
+        : `wss://api.deepgram.com/v2/listen?model=flux-general-en&eot_threshold=0.4&eot_timeout_ms=3000`;
 
-      console.log("[Deepgram] Connecting:", wsUrl.split('?')[0]);
-      const socket = new WebSocket(wsUrl, ["token", apiKey]);
+      console.log('[Deepgram] Connecting:', wsUrl.split('?')[0]);
+      const socket = new WebSocket(wsUrl, ['token', apiKey]);
       deepgramWsRef.current = socket;
-
-      // Deepgram requires a KeepAlive to stay open during AI playing
       let keepAliveInterval: any;
 
       socket.onopen = () => {
-        console.log("[Deepgram] WebSocket connected!");
+        console.log('[Deepgram] Connected!');
         recognitionActiveRef.current = true;
         finalTranscriptRef.current = '';
-
         setStatus('listening');
-        setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
+        setTranscript(languageRef.current === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
 
         mediaRecorder.addEventListener('dataavailable', (event) => {
           if (event.data.size > 0 && socket.readyState === 1 && recognitionActiveRef.current) {
             socket.send(event.data);
           }
         });
-        // 80ms audio chunks strongly recommended for Flux
         mediaRecorder.start(80);
 
         keepAliveInterval = setInterval(() => {
-          if (socket.readyState === 1) {
-            socket.send(JSON.stringify({ type: "KeepAlive" }));
-          }
+          if (socket.readyState === 1) socket.send(JSON.stringify({ type: 'KeepAlive' }));
         }, 10000);
 
         if (!greetingRequestedRef.current) {
@@ -413,93 +385,77 @@ export function useLiveAudio({
       socket.onmessage = (message) => {
         const received = JSON.parse(message.data);
 
-        // Handle Flux Turn Detection Events
-        if (received.type === "EndOfTurn") {
-          console.log("[Deepgram] EndOfTurn detected");
+        // Flux model emits EndOfTurn — highest-confidence submit signal
+        if (received.type === 'EndOfTurn') {
+          console.log('[Deepgram] EndOfTurn detected');
           const text = finalTranscriptRef.current.trim();
           if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-            console.log("[Flux] Auto-sending on EndOfTurn:", text);
+            clearSubmitTimer();
+            console.log('[Flux] Submitting on EndOfTurn:', text);
             sendCurrentTranscriptAuto();
           }
           return;
         }
 
         if (!received.channel?.alternatives?.[0]) return;
-
         const transcript = received.channel.alternatives[0].transcript;
 
-        if (transcript || received.is_final) {
-          if (received.is_final && transcript) {
-            finalTranscriptRef.current += transcript + " ";
-            console.log("[Deepgram] Final:", transcript);
+        if (received.is_final && transcript) {
+          finalTranscriptRef.current += transcript + ' ';
+          console.log('[Deepgram] Final:', transcript);
+          // Watchdog: submit if EndOfTurn never fires
+          scheduleSubmitTimer();
+        } else if (transcript && finalTranscriptRef.current) {
+          // Reset watchdog on any interim speech that follows confirmed final text
+          scheduleSubmitTimer(true);
+        }
 
-            // With Flux EndOfTurn, we might not need the long silence timer, 
-            // but keeping it as a fallback with a shorter duration might be safer.
-            if (autoSubmitTimerRef.current) clearTimeout(autoSubmitTimerRef.current);
-            onAutoSubmitStart?.(AUTO_SUBMIT_DELAY / 1000);
-            autoSubmitTimerRef.current = setTimeout(() => {
-              const text = finalTranscriptRef.current.trim();
-              if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-                console.log("[Auto-Submit] Deepgram auto-sending (timer):", text);
-                sendCurrentTranscriptAuto();
-              }
-              onAutoSubmitCancel?.();
-            }, AUTO_SUBMIT_DELAY);
-
-          } else if (transcript) {
-            // Reset timer on any new speech
-            if (autoSubmitTimerRef.current) {
-              clearTimeout(autoSubmitTimerRef.current);
-              onAutoSubmitCancel?.();
-              autoSubmitTimerRef.current = setTimeout(() => {
-                const text = finalTranscriptRef.current.trim();
-                if (text && recognitionActiveRef.current && !isPlayingRef.current) {
-                  sendCurrentTranscriptAuto();
-                }
-                onAutoSubmitCancel?.();
-              }, AUTO_SUBMIT_DELAY);
-            }
-          }
-
-          const display = finalTranscriptRef.current + (!received.is_final ? transcript : "");
-          if (display.trim() && recognitionActiveRef.current && !isPlayingRef.current) {
-            setTranscript(`You: "${display.trim()}"`);
-          }
+        const display = finalTranscriptRef.current + (!received.is_final ? transcript : '');
+        if (display.trim() && recognitionActiveRef.current && !isPlayingRef.current) {
+          setTranscript(`You: "${display.trim()}"`);
         }
       };
 
       socket.onclose = () => {
-        console.log("[Deepgram] WebSocket closed.");
+        console.log('[Deepgram] WebSocket closed.');
         if (keepAliveInterval) clearInterval(keepAliveInterval);
         try { mediaRecorder.stop(); } catch (e) { }
+        // Stop media tracks to release the microphone
+        stream.getTracks().forEach(t => t.stop());
 
         if (!deepgramFailedRef.current && recognitionActiveRef.current) {
-          console.log("[Deepgram] Connection closed prematurely, failing over to native...");
+          console.log('[Deepgram] Closed prematurely, falling back to native...');
           deepgramFailedRef.current = true;
           startNativeRecognition();
         }
       };
 
-      socket.onerror = (error) => {
-        // Downgraded to warn — Deepgram fallback to native browser STT is automatic
-        console.warn("[Deepgram] WebSocket failed (key exhausted or network issue). Falling back to native STT.");
+      socket.onerror = () => {
+        console.warn('[Deepgram] WebSocket error. Falling back to native STT.');
         deepgramFailedRef.current = true;
         if (keepAliveInterval) clearInterval(keepAliveInterval);
         try { mediaRecorder.stop(); } catch (e) { }
         try { socket.close(); } catch (e) { }
-        console.log("[STT] Falling back to native recognition...");
+        stream.getTracks().forEach(t => t.stop());
         startNativeRecognition();
       };
 
     } catch (err) {
-      console.error("[Deepgram] Media/setup failed:", err);
+      console.error('[Deepgram] Media/setup failed:', err);
       deepgramFailedRef.current = true;
       startNativeRecognition();
     }
   };
 
-  const startRecording = async () => {
-    greetingRequestedRef.current = false; // Reset on initial start
+  // ─── Recording Lifecycle ──────────────────────────────────────────────────
+  const startRecording = async (options?: { preserveGreeting?: boolean }) => {
+    if (options?.preserveGreeting) {
+      // Language hot-swap: clear historic failure so Deepgram is re-attempted fresh
+      deepgramFailedRef.current = false;
+    } else {
+      greetingRequestedRef.current = false;
+    }
+
     if (!deepgramFailedRef.current && process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY) {
       startDeepgramRecognition();
     } else {
@@ -509,6 +465,8 @@ export function useLiveAudio({
 
   const stopRecording = () => {
     recognitionActiveRef.current = false;
+    clearSubmitTimer();
+
     try {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
@@ -516,7 +474,6 @@ export function useLiveAudio({
       }
     } catch (e) { /* ignore */ }
 
-    // Deepgram cleanup
     if (deepgramWsRef.current) {
       try { deepgramWsRef.current.close(); } catch (e) { }
       deepgramWsRef.current = null;
@@ -527,29 +484,25 @@ export function useLiveAudio({
     }
   };
 
-  /**
-   * Strips common noise tokens from the end/start of text.
-   */
+  // ─── Text Filtering ───────────────────────────────────────────────────────
   const stripNoiseTokens = (text: string) => {
-    // Noise tokens: toh, to, huh, umm, hmm, ah, oh, तो, जी, भाई, यार
     const noiseRegex = /\b(toh|to|huh|umm|hmm|ah|oh|तो|तो तो|जी|जी जी|भाई|यार)\b/gi;
     return text.replace(noiseRegex, '').replace(/\s+/g, ' ').trim();
   };
 
+  // ─── Send Helpers ─────────────────────────────────────────────────────────
   /**
-   * Internal auto-submit — same as sendCurrentTranscript but doesn't need user tap.
+   * Internal: send accumulated transcript to backend (auto-submit / watchdog path).
    */
   const sendCurrentTranscriptAuto = () => {
     const rawText = finalTranscriptRef.current.trim();
     if (!rawText) return;
 
     const cleanedText = stripNoiseTokens(rawText);
-
-    // Junk Filter: Ignore if cleaned text is too short or pure noise
     const isJunk = cleanedText.length < 2 || /^[^a-z0-9\u0900-\u097F]+$/i.test(cleanedText);
 
     if (cleanedText && !isJunk) {
-      console.log("[Live] Auto-sending cleaned text:", cleanedText);
+      console.log('[Live Debug] Auto-sending cleaned text:', cleanedText);
       sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
@@ -557,26 +510,18 @@ export function useLiveAudio({
       setAiTranscript('');
       setTranscript(`You: "${cleanedText}"`);
       pauseRecognition();
-      if (autoSubmitTimerRef.current) {
-        clearTimeout(autoSubmitTimerRef.current);
-        autoSubmitTimerRef.current = null;
-      }
+      clearSubmitTimer();
+    } else {
+      console.log('[Live Debug] Dropped turn (noise/junk):', { rawText, cleanedText });
       finalTranscriptRef.current = '';
-      // Don't change status, just clear and keep listening
     }
   };
 
   /**
-   * Called when user taps the "send" button. Collects accumulated final transcript,
-   * sends it as user_text to the backend, and resets the buffer.
+   * Manual send: called when user taps the send button.
    */
   const sendCurrentTranscript = () => {
-    // Clear any auto-submit timer since user is manually sending
-    if (autoSubmitTimerRef.current) {
-      clearTimeout(autoSubmitTimerRef.current);
-      autoSubmitTimerRef.current = null;
-      onAutoSubmitCancel?.();
-    }
+    clearSubmitTimer();
 
     const rawText = finalTranscriptRef.current.trim();
     if (!rawText) return;
@@ -585,37 +530,28 @@ export function useLiveAudio({
     const isJunk = cleanedText.length < 2 && !/^[\u0900-\u097F]+$/.test(cleanedText);
 
     if (cleanedText && !isJunk) {
-      console.log("[Live] Sending cleaned text to backend:", cleanedText);
+      console.log('[Live] Sending to backend:', cleanedText);
       sendUserText(cleanedText);
       finalTranscriptRef.current = '';
       setStatus('processing');
       setUserTranscript(cleanedText);
       setAiTranscript('');
       setTranscript(`You: "${cleanedText}"`);
-      // Pause recognition while we wait for AI response
       pauseRecognition();
     } else {
-      // No transcript accumulated, just resume listening
-      setTranscript(language === 'hi' ? 'कोई आवाज़ नहीं सुनी। फिर से बोलिए।' : 'No speech detected. Try again.');
+      setTranscript(languageRef.current === 'hi' ? 'कोई आवाज़ नहीं सुनी। फिर से बोलिए।' : 'No speech detected. Try again.');
       finalTranscriptRef.current = '';
       setTimeout(() => {
         setStatus('listening');
-        setTranscript(language === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
+        setTranscript(languageRef.current === 'hi' ? 'सुन रहा हूँ... अब बोलिए।' : 'Listening... Speak now.');
         resumeRecognition();
       }, 1500);
     }
   };
 
-  /**
-   * Cancel a pending auto-submit (called from UI cancel button).
-   */
   const cancelAutoSubmit = () => {
-    if (autoSubmitTimerRef.current) {
-      clearTimeout(autoSubmitTimerRef.current);
-      autoSubmitTimerRef.current = null;
-      onAutoSubmitCancel?.();
-      console.log("[Auto-Submit] Cancelled by user");
-    }
+    clearSubmitTimer();
+    console.log('[Auto-Submit] Cancelled by user');
   };
 
   const interruptAudio = () => {
@@ -625,12 +561,7 @@ export function useLiveAudio({
     }
     audioQueueRef.current = [];
     isPlayingRef.current = false;
-    // Also cancel any pending auto-submit
-    if (autoSubmitTimerRef.current) {
-      clearTimeout(autoSubmitTimerRef.current);
-      autoSubmitTimerRef.current = null;
-      onAutoSubmitCancel?.();
-    }
+    clearSubmitTimer();
   };
 
   const setBackendDone = useCallback((done: boolean) => {
@@ -639,6 +570,28 @@ export function useLiveAudio({
       onAudioFinished();
     }
   }, [status, onAudioFinished]);
+
+  // ─── Language Hot-Swap ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (lastLanguageRef.current !== language) {
+      console.log(`[Live Debug] Language swapped: ${lastLanguageRef.current} → ${language}. Queueing STT restart...`);
+      lastLanguageRef.current = language;
+      pendingLanguageRestartRef.current = true;
+    }
+  }, [language]);
+
+  useEffect(() => {
+    if (!pendingLanguageRestartRef.current) return;
+    // Wait until the system is idle before restarting
+    if (status === 'processing' || status === 'speaking' || status === 'uploading' || isPlayingRef.current) return;
+
+    console.log('[Live Debug] Safe to rebind STT engine to:', language);
+    pendingLanguageRestartRef.current = false;
+
+    stopRecording();
+    setTimeout(() => startRecording({ preserveGreeting: true }), 150);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, status]);
 
   return { audioQueueRef, playNextAudioChunk, startRecording, stopRecording, interruptAudio, sendCurrentTranscript, resumeRecognition, cancelAutoSubmit, setBackendDone };
 }
