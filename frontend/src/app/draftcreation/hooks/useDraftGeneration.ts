@@ -31,8 +31,14 @@ export function useDraftGeneration({ topic, draftType, additionalContext, langua
             }
 
             const selectedType = DRAFT_TYPES.find(t => t.id === draftType);
-            const prompt = `Topic: ${topic}\nType: ${selectedType?.label || 'Legal Document'}\nContext: ${additionalContext || 'None'}`;
-            console.log("[Frontend Draft] Sending generate request:", { prompt, type: draftType });
+            
+            // If we have a rich context from Live Mode (advocate brief), use it as the primary instruction.
+            // Otherwise fall back to a plain topic-based request.
+            const prompt = additionalContext && additionalContext.trim().length > 50
+                ? `${additionalContext}\n\nDocument Type: ${selectedType?.label || 'Legal Document'}\nTopic: ${topic}`
+                : `Please draft a professional ${selectedType?.label || 'Legal Document'} regarding the following:\n\nTopic: ${topic}\n\nContext: ${additionalContext || 'None provided. Use standard format with placeholders.'}`;
+            
+            console.log("[Frontend Draft] Prompt source:", additionalContext?.length > 50 ? "Live Mode brief" : "Direct input");
 
             const headers: Record<string, string> = { 
                 'Content-Type': 'application/json',

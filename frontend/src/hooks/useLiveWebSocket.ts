@@ -9,7 +9,7 @@ interface UseLiveWebSocketParams {
   clerk: any;
   onClose: () => void;
   playNextAudioChunk: () => void;
-  audioQueueRef: React.MutableRefObject<string[]>;
+  audioQueueRef: React.MutableRefObject<{ data: string; format: 'wav' | 'mp3' }[]>;
   startRecording: () => void;
   stopRecording: () => void;
   stopCamera: () => void;
@@ -103,7 +103,8 @@ export function useLiveWebSocket({
           } else if (message.type === 'audio_stream') {
             setStatus('speaking');
             setBackendDone(false); // New stream started
-            audioQueueRef.current.push(message.data);
+            // Queue with format so MIME type is always correct (Sarvam=wav, ElevenLabs/Edge=mp3)
+            audioQueueRef.current.push({ data: message.data, format: message.format || 'mp3' });
             playNextAudioChunk();
           } else if (message.type === 'speaking_done') {
             console.log("[WS] Received speaking_done signal");
@@ -112,21 +113,53 @@ export function useLiveWebSocket({
             let aiText = message.text;
             
             // Parse Draft Ready Tag if present
-            const draftMatch = aiText.match(/<DRAFT_READY\s+([^>]+)\s*\/>/);
-            if (draftMatch) {
+            // Uses robust extraction: initial_context is parsed last as it may contain embedded quotes/newlines
+            const draftTagMatch = aiText.match(/<DRAFT_READY\s+([\s\S]+?)\s*\/>/);
+            if (draftTagMatch) {
                 try {
-                    const attrString = draftMatch[1];
+                    const rawAttrs = draftTagMatch[1];
                     const data: any = {};
-                    const attrMatches = attrString.matchAll(/(\w+)="([^"]*)"/g);
-                    for (const m of attrMatches) {
+
+                    // 1. Extract initial_context first (grab everything between initial_context=" and the last ")
+                    const contextMatch = rawAttrs.match(/initial_context="([\s\S]*)"/);
+                    if (contextMatch) {
+                        data.initial_context = contextMatch[1].trim();
+                    }
+
+                    // 2. Extract the other simple scalar attributes (type, topic, use_profile)
+                    const simpleAttrs = rawAttrs.replace(/initial_context="[\s\S]*"/, '');
+                    const simpleMatches = simpleAttrs.matchAll(/(\w+)="([^"]*)"/g);
+                    for (const m of simpleMatches) {
                         data[m[1]] = m[2];
                     }
-                    console.log("[Live] Found Draft Ready data:", data);
-                    setDraftData(data);
-                    // Remove the tag from visible transcript
-                    aiText = aiText.replace(/<DRAFT_READY\s+[^>]+\s*\/>/, '').trim();
+
+                    // VALIDATION: Reject drafts with placeholder values
+                    // The AI sometimes ignores the prompt and generates incomplete drafts
+                    const placeholderPatterns = [
+                        /\[user to provide\]/i,
+                        /\[to be provided\]/i,
+                        /\[user must provide\]/i,
+                        /\[please provide\]/i,
+                        /\[pending\]/i,
+                        /\[unknown\]/i,
+                        /\[not specified\]/i,
+                        /\[missing\]/i,
+                        /\[needs detail\]/i,
+                    ];
+
+                    const hasPlaceholders = data.initial_context && placeholderPatterns.some(pattern => pattern.test(data.initial_context));
+
+                    if (hasPlaceholders) {
+                        console.warn("[Live] Rejected incomplete DRAFT_READY tag - contains placeholders. AI should ask for missing details.");
+                        // Don't set draftData, just show the AI's response text (which should ask for missing info)
+                    } else {
+                        console.log("[Live] Parsed Draft Ready:", { type: data.type, topic: data.topic, use_profile: data.use_profile, contextLength: data.initial_context?.length });
+                        setDraftData(data);
+                    }
+                    // Remove tag from visible transcript
+                    aiText = aiText.replace(/<DRAFT_READY[\s\S]+?\/>/g, '').trim();
                 } catch (e) {
-                    console.error("Failed to parse draft tag", e);
+                    console.error("Failed to parse DRAFT_READY tag:", e);
                 }
             }
             setAiTranscript(aiText);
@@ -211,5 +244,5 @@ export function useLiveWebSocket({
     }
   };
 
-  return { wsRef, status, setStatus, transcript, setTranscript, userTranscript, setUserTranscript, aiTranscript, setAiTranscript, uploadProgress, setUploadProgress, draftData, connectWebSocket, closeWebSocket, trackedSend };
+  return { wsRef, status, setStatus, transcript, setTranscript, userTranscript, setUserTranscript, aiTranscript, setAiTranscript, uploadProgress, setUploadProgress, draftData, setDraftData, connectWebSocket, closeWebSocket, trackedSend };
 }

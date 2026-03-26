@@ -16,6 +16,7 @@ import { setLanguage } from '@/store/slices/uiSlice';
 import { LiveBackground } from './LiveBackground';
 import { LiveHeader } from './LiveHeader';
 import { LiveControls } from './LiveControls';
+import { FiEdit2 } from 'react-icons/fi';
 
 interface LiveModeProps {
     onClose: () => void;
@@ -55,10 +56,10 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         { target: '#tour-help', content: language === 'hi' ? 'किसी भी समय ये निर्देश दोबारा देखने के लिए यहाँ दबाएँ।' : 'Tap here to see these instructions again at any time.', placement: 'bottom-end' }
     ];
 
-    const audioQueueRef = useRef<string[]>([]);
+    const audioQueueRef = useRef<{ data: string; format: 'wav' | 'mp3' }[]>([]);
 
-    const { 
-        wsRef, status, setStatus, transcript, setTranscript, userTranscript, setUserTranscript, aiTranscript, setAiTranscript, uploadProgress, draftData, 
+    const {
+        wsRef, status, setStatus, transcript, setTranscript, userTranscript, setUserTranscript, aiTranscript, setAiTranscript, uploadProgress, draftData, setDraftData,
         connectWebSocket, closeWebSocket, trackedSend
     } = useLiveWebSocket({
         sessionId: sessionIdRef.current,
@@ -66,11 +67,11 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
         getToken,
         clerk,
         onClose,
-        playNextAudioChunk: () => playNextAudioChunk(), 
+        playNextAudioChunk: () => playNextAudioChunk(),
         audioQueueRef,
-        startRecording: () => startRecording(),         
-        stopRecording: () => stopRecording(),           
-        stopCamera: () => stopCamera(),                  
+        startRecording: () => startRecording(),
+        stopRecording: () => stopRecording(),
+        stopCamera: () => stopCamera(),
         setBackendDone: (done) => setBackendDone(done),
         onLanguageSwitch: (lang) => dispatch(setLanguage(lang))
     });
@@ -96,11 +97,6 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     } = useLiveAudio({
         wsReadyState: wsRef.current?.readyState,
         sendUserText: (text) => {
-            const draftRegex = /\b(?:create|make|write|generate|draft)\b.*\b(?:draft|complaint|notice|letter|document)\b/i;
-            if (draftRegex.test(text) || text.toLowerCase().startsWith('draft')) {
-                window.location.href = `/draftcreation?topic=${encodeURIComponent(text)}&source=live`;
-                return;
-            }
             trackedSend({ type: 'user_text', text })
         },
         requestGreeting: () => trackedSend({ type: 'request_greeting' }),
@@ -187,7 +183,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
     return (
         <div className="relative w-full h-[100dvh] flex flex-col items-center justify-between animate-fade-in bg-slate-50 overflow-hidden">
             <LiveBackground status={status} />
-            
+
             <Joyride
                 steps={tourSteps}
                 run={runTour}
@@ -201,14 +197,14 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
             {/* Help button */}
             <button id="tour-help" onClick={() => setRunTour(true)} className="absolute top-5 right-5 z-50 p-2 text-gray-400 hover:text-gray-900 bg-white/40 hover:bg-white/70 rounded-full backdrop-blur-md transition-all">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
             </button>
 
             {cameraMode === 'viewfinder' && (
-               <div className="absolute inset-0 z-40 bg-black">
-                   <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                   <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 aspect-square border-2 border-white/30 rounded-3xl pointer-events-none" />
-               </div>
+                <div className="absolute inset-0 z-40 bg-black">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                    <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 aspect-square border-2 border-white/30 rounded-3xl pointer-events-none" />
+                </div>
             )}
             {cameraMode === 'review' && capturedImage && (
                 <PhotoReview image={capturedImage} onAccept={handleAccept} onRetry={handleRetry} onCancel={stopCamera} />
@@ -220,11 +216,11 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                 </div>
             )}
 
-            <LiveHeader 
-                language={language} 
-                status={status} 
-                currentStatus={currentStatus} 
-                cameraMode={cameraMode} 
+            <LiveHeader
+                language={language}
+                status={status}
+                currentStatus={currentStatus}
+                cameraMode={cameraMode}
             />
 
             {/* Status Add-ons (Transcript, Auto-submit, Draft) */}
@@ -246,15 +242,50 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                     </button>
                 )}
 
-                {draftData && (
-                    <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500 w-full max-w-sm mx-auto">
-                        <Link href={`/draftcreation?type=${draftData.type}&topic=${encodeURIComponent(draftData.topic)}&useProfile=${draftData.use_profile || draftData.useProfile}&initialContext=${encodeURIComponent(draftData.initial_context || draftData.initialContext)}`} className="w-full bg-[#1E293B] hover:bg-black text-white text-sm font-semibold py-3 px-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-[0_12px_24px_rgba(30,41,59,0.3)] hover:-translate-y-1">
-                            <FiFileText className="text-lg text-[#2A6CF0]" />
-                            {language === 'hi' ? 'दस्तावेज़ तैयार करना शुरू करें' : 'Start Official Drafting'}
-                            <FiArrowRight className="ml-1" />
-                        </Link>
-                    </div>
-                )}
+                {draftData && (() => {
+                    const typeLabels: Record<string, string> = {
+                        complaint: 'Complaint', legal_notice: 'Legal Notice',
+                        appeal: 'Appeal Letter', affidavit: 'Affidavit',
+                        rti: 'RTI Application', general: 'General Draft'
+                    };
+                    const typeLabel = typeLabels[draftData.type] || 'Legal Draft';
+                    const handleDraftClick = () => {
+                        const params = new URLSearchParams({
+                            type: draftData.type || 'general',
+                            topic: draftData.topic || '',
+                            useProfile: String(draftData.use_profile === 'true' || draftData.useProfile === 'true'),
+                            initialContext: draftData.initial_context || draftData.initialContext || '',
+                            source: 'live'
+                        });
+                        // Send session_end to backend (triggers DynamoDB cleanup)
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({ type: 'session_end' }));
+                        }
+                        window.location.href = `/draftcreation?${params.toString()}`;
+                    };
+                    return (
+                        <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500 w-full max-w-sm mx-auto space-y-3">
+                            <p className="text-center text-xs text-slate-500 font-medium tracking-wide uppercase">
+                                {language === 'hi' ? 'तैयार है:' : 'Ready to draft:'} <span className="text-indigo-600 font-bold">{typeLabel}</span>
+                            </p>
+                            <div className="flex flex-col gap-2">
+                                <button onClick={handleDraftClick} className="w-full bg-[#1E293B] hover:bg-black text-white text-sm font-semibold py-3 px-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-[0_12px_24px_rgba(30,41,59,0.3)] hover:-translate-y-1 active:scale-95">
+                                    <FiFileText className="text-lg text-[#2A6CF0]" />
+                                    {language === 'hi' ? 'दस्तावेज़ बनाने जाएं' : 'Continue to Create Draft'}
+                                    <FiArrowRight className="ml-1" />
+                                </button>
+                                <button onClick={(e) => {
+                                    e.preventDefault();
+                                    setDraftData(null);
+                                    trackedSend({ type: 'user_text', text: language === 'hi' ? 'मुझे इस ड्राफ्ट में कुछ बदलाव करने हैं।' : 'I need to make some changes to this draft.' });
+                                }} className="w-full bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 text-sm font-semibold py-2.5 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-slate-50">
+                                    <FiEdit2 className="text-base" />
+                                    {language === 'hi' ? 'विवरण में बदलाव करें' : 'Edit Details'}
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Glowing Animation Interaction Zone */}
@@ -268,7 +299,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
 
                 <div className="relative z-20 w-56 h-56 md:w-72 md:h-72 flex items-center justify-center">
                     <DotLottieReact
-                        src={status === 'speaking' || status === 'processing' 
+                        src={status === 'speaking' || status === 'processing'
                             ? "https://lottie.host/53635bc2-9dd9-48ce-9231-ad0478168b0e/vbuHs1xbUF.lottie"
                             : "https://lottie.host/2c342fcf-0205-46d8-a32e-9b142677a943/OUVpfkBeoC.lottie"
                         }
@@ -279,7 +310,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                 </div>
             </div>
 
-            <LiveControls 
+            <LiveControls
                 cameraMode={cameraMode}
                 status={status}
                 language={language}

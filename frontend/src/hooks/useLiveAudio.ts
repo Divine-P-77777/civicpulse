@@ -1,5 +1,8 @@
 import { useRef, useEffect, useCallback } from 'react';
 
+/** A single audio chunk from the backend with its encoding format. */
+type AudioChunk = { data: string; format: 'wav' | 'mp3' };
+
 interface UseLiveAudioParams {
   wsReadyState: number | undefined;
   sendUserText: (text: string) => void;
@@ -10,7 +13,7 @@ interface UseLiveAudioParams {
   setUserTranscript: (t: string) => void;
   setAiTranscript: (t: string) => void;
   language: 'en' | 'hi';
-  audioQueueRef: React.MutableRefObject<string[]>;
+  audioQueueRef: React.MutableRefObject<AudioChunk[]>;
   onAutoSubmitStart?: (seconds: number) => void;
   onAutoSubmitCancel?: () => void;
 }
@@ -129,11 +132,12 @@ export function useLiveAudio({
     // Pause recognition while playing to avoid echo
     pauseRecognition();
 
-    const base64Audio = audioQueueRef.current.shift();
-    if (!base64Audio || !audioElementRef.current) {
+    const chunk = audioQueueRef.current.shift();
+    if (!chunk || !audioElementRef.current) {
       isPlayingRef.current = false;
       return;
     }
+    const { data: base64Audio, format } = chunk;
 
     const byteCharacters = atob(base64Audio);
     const byteNumbers = new Array(byteCharacters.length);
@@ -143,9 +147,16 @@ export function useLiveAudio({
     const byteArray = new Uint8Array(byteNumbers);
 
 
-    // Sarvam TTS returns WAV; ElevenLabs/Edge TTS returns MP3.
-    // Using wrong MIME type causes browser to reject playback silently.
-    const audioMimeType = language === 'hi' ? 'audio/wav' : 'audio/mpeg';
+    // Guard: skip empty/tiny chunks that cause NotSupportedError
+    if (byteArray.length < 100) {
+      console.warn("[Audio] Skipping tiny/empty audio chunk, length:", byteArray.length);
+      isPlayingRef.current = false;
+      setTimeout(() => playNextAudioChunk(), 50);
+      return;
+    }
+
+    // Use the format field sent by backend — eliminates MIME-type guessing
+    const audioMimeType = format === 'wav' ? 'audio/wav' : 'audio/mpeg';
     const blob = new Blob([byteArray], { type: audioMimeType });
     const url = URL.createObjectURL(blob);
 
@@ -218,7 +229,7 @@ export function useLiveAudio({
     };
   }, [playNextAudioChunk, onAudioFinished]);
 
-  // ─── Speech Recognition Setup ────────────────────────
+  // Speech Recognition Setup 
   const startNativeRecognition = async () => {
     try {
       console.log("[STT] Starting Native SpeechRecognition...");
@@ -470,7 +481,8 @@ export function useLiveAudio({
       };
 
       socket.onerror = (error) => {
-        console.error("[Deepgram] WebSocket error:", error);
+        // Downgraded to warn — Deepgram fallback to native browser STT is automatic
+        console.warn("[Deepgram] WebSocket failed (key exhausted or network issue). Falling back to native STT.");
         deepgramFailedRef.current = true;
         if (keepAliveInterval) clearInterval(keepAliveInterval);
         try { mediaRecorder.stop(); } catch (e) { }
@@ -532,7 +544,7 @@ export function useLiveAudio({
     if (!rawText) return;
 
     const cleanedText = stripNoiseTokens(rawText);
-    
+
     // Junk Filter: Ignore if cleaned text is too short or pure noise
     const isJunk = cleanedText.length < 2 || /^[^a-z0-9\u0900-\u097F]+$/i.test(cleanedText);
 
@@ -549,8 +561,8 @@ export function useLiveAudio({
         clearTimeout(autoSubmitTimerRef.current);
         autoSubmitTimerRef.current = null;
       }
-        finalTranscriptRef.current = '';
-        // Don't change status, just clear and keep listening
+      finalTranscriptRef.current = '';
+      // Don't change status, just clear and keep listening
     }
   };
 

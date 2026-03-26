@@ -20,13 +20,25 @@ class SarvamService:
     
     async def generate_edge_tts_fallback(self, text: str):
         import edge_tts
-        # Fallback to Edge TTS Swara voice if Sarvam fails
-        edge_voice = "hi-IN-SwaraNeural"
+        # Sanitize text before sending to Edge TTS — removes chars that cause NoAudioReceived
+        clean = text.strip()
+        # Remove markdown that slipped through
+        import re
+        clean = re.sub(r'[*_#`~]', '', clean).strip()
+        # Edge TTS chokes on empty or very short strings
+        if not clean or len(clean) < 3:
+            return
         
-        communicate = edge_tts.Communicate(text, edge_voice)
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                yield chunk["data"]
+        edge_voice = "hi-IN-SwaraNeural"
+        try:
+            communicate = edge_tts.Communicate(clean, edge_voice)
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    yield chunk["data"]
+        except Exception as e:
+            print(f"[Edge TTS] Failed for sentence '{clean[:40]}...': {e}")
+            # Don't raise — just skip this sentence rather than crashing the turn
+            return
 
     async def generate_speech_stream(self, text_iterator):
         global _sarvam_unhealthy
@@ -75,8 +87,11 @@ class SarvamService:
                     
             # Fallback to Edge TTS (using normalized sentence)
             edge_audio = b""
-            async for chunk in self.generate_edge_tts_fallback(normalized_sentence):
-                edge_audio += chunk
+            try:
+                async for chunk in self.generate_edge_tts_fallback(normalized_sentence):
+                    edge_audio += chunk
+            except Exception as e:
+                print(f"[Sarvam Fallback] Edge TTS also failed: {e}")
             if edge_audio:
                 yield edge_audio
 

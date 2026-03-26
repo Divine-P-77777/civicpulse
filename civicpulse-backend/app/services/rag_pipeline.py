@@ -43,19 +43,19 @@ class RagPipeline:
         logger.info(f"RAG Pipeline initialized with model: {self.model}")
 
         prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "system_prompt.txt")
-        with open(prompt_path, "r") as f:
+        with open(prompt_path, "r", encoding="utf-8") as f:
             self.prompt_template = f.read()
 
         live_prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "live_prompt.txt")
         try:
-            with open(live_prompt_path, "r") as f:
+            with open(live_prompt_path, "r", encoding="utf-8") as f:
                 self.live_prompt_template = f.read()
         except FileNotFoundError:
             self.live_prompt_template = self.prompt_template
 
         draft_prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "draft_file.txt")
         try:
-            with open(draft_prompt_path, "r") as f:
+            with open(draft_prompt_path, "r", encoding="utf-8") as f:
                 self.draft_prompt_template = f.read()
         except FileNotFoundError:
             self.draft_prompt_template = self.prompt_template
@@ -65,10 +65,11 @@ class RagPipeline:
     def _build_conversation_context(chat_history: list) -> str:
         """
         Builds conversation context using smart truncation — no LLM call.
-        
+
         Strategy:
         - Short history (≤10 msgs): include all messages verbatim (truncated per msg)
         - Long history (>10 msgs): keep last 6 verbatim, compress older to key points
+        - IMPORTANT: Never truncate messages containing <DRAFT_READY> tags to preserve context
         """
         if not chat_history:
             return ""
@@ -77,8 +78,12 @@ class RagPipeline:
             lines = []
             for msg in chat_history:
                 role = "User" if msg.get("role") == "user" else "Assistant"
-                content = msg.get("content", "")[:500]
-                lines.append(f"{role}: {content}")
+                content = msg.get("content", "")
+                # Don't truncate messages with DRAFT_READY tags - they contain critical context
+                if "<DRAFT_READY" in content:
+                    lines.append(f"{role}: {content}")
+                else:
+                    lines.append(f"{role}: {content[:500]}")
             return "\n".join(lines)
 
         # Long conversation — just keep the last few + a brief summary of older user messages
@@ -92,7 +97,7 @@ class RagPipeline:
         ][-7:])  # Keep at most 7 older user queries
 
         recent_text = "\n".join([
-            f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')[:400]}"
+            f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '') if '<DRAFT_READY' in m.get('content', '') else m.get('content', '')[:400]}"
             for m in recent
         ])
 
