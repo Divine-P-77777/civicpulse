@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MessageSquare, ClipboardList, User } from 'lucide-react';
 
 interface Session {
     SessionId: string;
@@ -78,7 +79,7 @@ export default function ChatSidebar({
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                             }`}>
                         <div className="flex items-center gap-2 truncate flex-1">
-                            <span className="text-xs">💬</span>
+                            <MessageSquare size={14} className="text-current opacity-70 shrink-0" />
                             <span className="truncate">{s.Title}</span>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); onDeleteSession(s.SessionId); }}
@@ -86,12 +87,12 @@ export default function ChatSidebar({
                     </div>
                 ))}
                 {sessions.length === 0 && (
-                    <div className="text-center p-6"><span className="text-3xl block mb-2">📋</span><p className="text-gray-400 text-xs">No conversations yet.<br />Start by asking a question!</p></div>
+                    <div className="text-center p-6"><div className="flex justify-center mb-3 text-gray-300"><ClipboardList size={36} strokeWidth={1.5} /></div><p className="text-gray-400 text-xs">No conversations yet.<br />Start by asking a question!</p></div>
                 )}
             </div>
             <div className="p-4 border-t border-gray-100 flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#2A6CF0]/10 rounded-full flex items-center justify-center text-sm font-medium text-[#2A6CF0]">
-                    {user?.firstName?.[0] || '👤'}
+                <div className="w-8 h-8 bg-[#2A6CF0]/10 rounded-full flex items-center justify-center text-sm font-medium text-[#2A6CF0] shrink-0">
+                    {user?.firstName?.[0] || <User size={16} />}
                 </div>
                 <div className="text-sm truncate">
                     <p className="text-gray-800 font-medium truncate">{user?.firstName} {user?.lastName}</p>

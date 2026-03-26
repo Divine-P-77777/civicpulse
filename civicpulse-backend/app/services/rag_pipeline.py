@@ -43,19 +43,19 @@ class RagPipeline:
         logger.info(f"RAG Pipeline initialized with model: {self.model}")
 
         prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "system_prompt.txt")
-        with open(prompt_path, "r") as f:
+        with open(prompt_path, "r", encoding="utf-8") as f:
             self.prompt_template = f.read()
 
         live_prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "live_prompt.txt")
         try:
-            with open(live_prompt_path, "r") as f:
+            with open(live_prompt_path, "r", encoding="utf-8") as f:
                 self.live_prompt_template = f.read()
         except FileNotFoundError:
             self.live_prompt_template = self.prompt_template
 
         draft_prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "draft_file.txt")
         try:
-            with open(draft_prompt_path, "r") as f:
+            with open(draft_prompt_path, "r", encoding="utf-8") as f:
                 self.draft_prompt_template = f.read()
         except FileNotFoundError:
             self.draft_prompt_template = self.prompt_template
@@ -65,10 +65,11 @@ class RagPipeline:
     def _build_conversation_context(chat_history: list) -> str:
         """
         Builds conversation context using smart truncation — no LLM call.
-        
+
         Strategy:
         - Short history (≤10 msgs): include all messages verbatim (truncated per msg)
         - Long history (>10 msgs): keep last 6 verbatim, compress older to key points
+        - IMPORTANT: Never truncate messages containing <DRAFT_READY> tags to preserve context
         """
         if not chat_history:
             return ""
@@ -77,8 +78,12 @@ class RagPipeline:
             lines = []
             for msg in chat_history:
                 role = "User" if msg.get("role") == "user" else "Assistant"
-                content = msg.get("content", "")[:500]
-                lines.append(f"{role}: {content}")
+                content = msg.get("content", "")
+                # Don't truncate messages with DRAFT_READY tags - they contain critical context
+                if "<DRAFT_READY" in content:
+                    lines.append(f"{role}: {content}")
+                else:
+                    lines.append(f"{role}: {content[:500]}")
             return "\n".join(lines)
 
         # Long conversation — just keep the last few + a brief summary of older user messages
@@ -92,7 +97,7 @@ class RagPipeline:
         ][-7:])  # Keep at most 7 older user queries
 
         recent_text = "\n".join([
-            f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')[:400]}"
+            f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '') if '<DRAFT_READY' in m.get('content', '') else m.get('content', '')[:400]}"
             for m in recent
         ])
 
@@ -264,6 +269,50 @@ class RagPipeline:
         except Exception as e:
             logger.error(f"Simple completion failed: {e}")
             return ""
+
+    def detect_language(self, text: str) -> str:
+        """
+        Production-level fast language context detection.
+        Prevents switching on single words, prioritizes phrase context.
+        """
+        if not text or len(text.strip()) < 2:
+            return "en"
+
+        # 1. Very Fast Heuristic: Devanagari Script Check
+        devanagari_count = len([c for c in text if '\u0900' <= c <= '\u097F'])
+        if devanagari_count > len(text) * 0.1:
+            return "hi"
+            
+        # 2. Fast Heuristic: Hinglish Keyword Density
+        hinglish_words = {"aur", "kya", "hai", "nahi", "kaise", "karte", "hua", "mera", "mujhe", "karna", "iska", "matlab", "batao", "samjhao", "ka", "ki", "ke", "liye", "bhi", "mein", "pe", "par", "hona", "chahiye"}
+        words = "".join([c for c in text.lower() if c.isalnum() or c.isspace()]).split()
+        hinglish_match = sum(1 for w in words if w in hinglish_words)
+        
+        # If strong Hinglish presence
+        if hinglish_match >= 2 or (len(words) <= 4 and hinglish_match >= 1):
+            return "hi"
+            
+        # If very long sentence with no Hinglish keywords, assume English to save LLM call
+        if len(words) > 8 and hinglish_match == 0:
+            return "en"
+
+        # 3. AI Fallback (for complex Romanized Hindi or ambiguous context)
+        prompt = f"""
+        Analyze the language context of this spoken phrase.
+        Phrase: "{text}"
+        
+        Is this phrase predominantly Hindi (including Hinglish/Roman script) or English?
+        Remember: A single English word in a Hindi sentence means it's Hindi. A single Hindi word in an English sentence means it's English.
+        Reply with strictly 'hi' for Hindi/Hinglish, or 'en' for English. Do not write anything else.
+        """
+        try:
+            res = self.get_simple_completion(prompt, max_tokens=10).strip().lower()
+            if "hi" in res:
+                return "hi"
+            return "en"
+        except Exception as e:
+            logger.error(f"Language detection fallback error: {e}")
+            return "en"
 
     def _execute_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
         """Non-streaming response via Bedrock invoke_model API."""
