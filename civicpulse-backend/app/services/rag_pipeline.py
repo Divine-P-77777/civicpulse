@@ -53,12 +53,75 @@ class RagPipeline:
         except FileNotFoundError:
             self.live_prompt_template = self.prompt_template
 
+        draft_phase_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "draft_phase.txt")
+        try:
+            with open(draft_phase_path, "r", encoding="utf-8") as f:
+                self.draft_phase_template = f.read()
+        except FileNotFoundError:
+            self.draft_phase_template = self.live_prompt_template  # Fallback gracefully
+
         draft_prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "draft_file.txt")
         try:
             with open(draft_prompt_path, "r", encoding="utf-8") as f:
                 self.draft_prompt_template = f.read()
         except FileNotFoundError:
             self.draft_prompt_template = self.prompt_template
+
+    @staticmethod
+    def detect_draft_intent(query: str, chat_history: list = None) -> bool:
+        """
+        Lightweight pre-LLM classifier: returns True if the user is explicitly
+        requesting to CREATE a legal document. Does NOT fire on general discussion.
+        """
+        q = query.lower().strip()
+
+        # ── Hard signals: explicit drafting verbs/nouns ──
+        DRAFT_KEYWORDS_EN = [
+            "draft", "write", "prepare", "create", "make", "generate", "compose",
+            "file", "send", "write up", "draw up",
+            "legal notice", "complaint", "rti", "affidavit", "appeal letter",
+            "notice", "petition",
+        ]
+        DRAFT_CONTEXT_EN = [
+            "i want to", "i need to", "can you", "please", "help me",
+            "how do i", "we need",
+        ]
+        DRAFT_KEYWORDS_HI = [
+            "draft", "drafting",
+            "लिखना", "लिखें", "लिखो", "बनाना", "बनाएं", "बनाओ",
+            "तैयार", "बनाना है", "चाहिए", "नोटिस", "शिकायत",
+            "आरटीआई", "आवेदन", "याचिका", "अपील",
+        ]
+
+        # Check for explicit drafting keywords in current query
+        if any(kw in q for kw in DRAFT_KEYWORDS_EN):
+            return True
+        if any(kw in q for kw in DRAFT_KEYWORDS_HI):
+            return True
+
+        # Check if query has a context word + any document type word
+        has_context = any(ctx in q for ctx in DRAFT_CONTEXT_EN)
+        has_doc_type = any(dt in q for dt in ["notice", "complaint", "rti", "affidavit", "petition", "appeal"])
+        if has_context and has_doc_type:
+            return True
+
+        # ── Check if we are already in a drafting conversation ──
+        # If the last assistant turn asked for a required detail, we are in phase 2
+        if chat_history:
+            for msg in reversed(chat_history[-6:]):
+                if msg.get("role") == "assistant":
+                    content = msg.get("content", "").lower()
+                    # The assistant was collecting drafting details
+                    if any(kw in content for kw in [
+                        "document type", "full name", "city", "jurisdiction",
+                        "date of incident", "grievance", "parties",
+                        "किस का नाम", "शहर", "तारीख", "किस अधिकारी", "मैंने",
+                        "<draft_ready",
+                    ]):
+                        return True
+                    break  # Only check most recent assistant message
+
+        return False
 
     # ─── Conversation Context (no LLM call, pure truncation) ──────────
     @staticmethod
@@ -210,7 +273,13 @@ class RagPipeline:
 
         # ── Step 4: Prompt construction ──────────────────────────
         if mode == "live":
-            template = self.live_prompt_template
+            # Use drafting prompt only when user explicitly asked to create a document
+            is_drafting = self.detect_draft_intent(query, chat_history)
+            if is_drafting:
+                logger.info(f"Session {session_id}: Draft intent detected — switching to draft_phase prompt.")
+                template = self.draft_phase_template
+            else:
+                template = self.live_prompt_template
         elif mode == "draft":
             template = self.draft_prompt_template
         else:
@@ -282,6 +351,14 @@ class RagPipeline:
         """
         if not text or len(text.strip()) < 2:
             return "en"
+
+        text_lower = text.lower()
+        
+        # 0. Meta-Command Override: If user explicitly requests a language, honor it regardless of the script used
+        if "english" in text_lower or "angrezi" in text_lower or "इंग्लिश" in text_lower or "अंग्रेज़ी" in text_lower:
+            return "en"
+        elif "hindi" in text_lower or "हिंदी" in text_lower or "हिन्दी" in text_lower:
+            return "hi"
 
         # 1. Very Fast Heuristic: Devanagari Script Check
         devanagari_count = len([c for c in text if '\u0900' <= c <= '\u097F'])

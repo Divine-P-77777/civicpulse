@@ -292,9 +292,9 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
             <div className={`relative w-full flex-1 flex items-center justify-center min-h-[300px] transition-all duration-700 ${cameraMode !== 'off' ? 'opacity-0 scale-90' : 'opacity-100 scale-100'}`}>
                 {/* Refractive Halos */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <motion.div animate={status} variants={haloVariants} className="absolute w-80 h-80 rounded-full border border-white/40 bg-white/5 backdrop-blur-[2px] shadow-[inset_0_0_40px_rgba(255,255,255,0.2)]" />
-                    <motion.div animate={status} variants={haloVariants} transition={{ delay: 0.1, duration: 0.8 }} className="absolute w-[360px] h-[360px] rounded-full border border-white/20 bg-white/2 backdrop-blur-[1px]" />
-                    <motion.div animate={status} variants={haloVariants} transition={{ delay: 0.2, duration: 1 }} className="absolute w-[440px] h-[440px] rounded-full border border-white/10 bg-white/[0.01]" />
+                    <motion.div style={{ willChange: 'transform, opacity' }} animate={status} variants={haloVariants} className="absolute w-80 h-80 rounded-full border border-white/40 bg-white/5 md:backdrop-blur-[2px] shadow-[inset_0_0_40px_rgba(255,255,255,0.2)]" />
+                    <motion.div style={{ willChange: 'transform, opacity' }} animate={status} variants={haloVariants} transition={{ delay: 0.1, duration: 0.8 }} className="absolute w-[360px] h-[360px] rounded-full border border-white/20 bg-white/2 md:backdrop-blur-[1px]" />
+                    <motion.div style={{ willChange: 'transform, opacity' }} animate={status} variants={haloVariants} transition={{ delay: 0.2, duration: 1 }} className="absolute w-[440px] h-[440px] rounded-full border border-white/10 bg-white/[0.01]" />
                 </div>
 
                 <div className="relative z-20 w-56 h-56 md:w-72 md:h-72 flex items-center justify-center">
@@ -305,7 +305,7 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                         }
                         loop
                         autoplay
-                        className="w-full h-full drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]"
+                        className="w-full h-full md:drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]"
                     />
                 </div>
             </div>
