@@ -90,9 +90,9 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             if (deleteVectors) {
                 const count = data.vectors_deleted || 0;
                 if (count > 0) {
-                    alert(`✅ Deleted "${key.split('/').pop()}" + ${count} vector chunk(s) removed from OpenSearch.`);
+                    alert(`Deleted "${key.split('/').pop()}" + ${count} vector chunk(s) removed from OpenSearch.`);
                 } else {
-                    alert(`⚠️ File deleted, but no associated vector chunks were found in OpenSearch.`);
+                    alert(`File deleted, but no associated vector chunks were found in OpenSearch.`);
                 }
             }
             
@@ -120,7 +120,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                 if (data.vectors_deleted) vectorDeletedCount += data.vectors_deleted;
             }));
             
-            alert(`✅ Successfully deleted ${deletedCount} file(s) and ${vectorDeletedCount} associated vector chunk(s).`);
+            alert(`Successfully deleted ${deletedCount} file(s) and ${vectorDeletedCount} associated vector chunk(s).`);
             setSelectedFiles(new Set());
             fetchData();
         } catch (err) {
@@ -153,11 +153,11 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                 })
             });
             if (res.ok) {
-                alert("✅ Metadata updated successfully!");
+                alert("Metadata updated successfully!");
                 setEditMetadata(null);
                 fetchData(true);
             } else {
-                alert("❌ Failed to update metadata");
+                alert("Failed to update metadata");
             }
         } catch (err) {
             console.error("Failed to update tags:", err);
@@ -179,9 +179,9 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             });
             const data = await res.json();
             if (res.ok) {
-                alert(`🚀 Ingestion started for "${key.split('/').pop()}". Check the Jobs tab or refreshed Vector count soon.`);
+                alert(`Ingestion started for "${key.split('/').pop()}". Check the Jobs tab or refreshed Vector count soon.`);
             } else {
-                alert(`❌ Failed to start ingestion: ${data.detail || 'Unknown error'}`);
+                alert(`Failed to start ingestion: ${data.detail || 'Unknown error'}`);
             }
         } catch (err) {
             console.error("Failed to process file:", err);
@@ -214,7 +214,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                 if (res.ok) started++;
             }));
             
-            alert(`🚀 Ingestion initiated for ${started} file(s). You can monitor progress in the Jobs tab.`);
+            alert(`Ingestion initiated for ${started} file(s). You can monitor progress in the Jobs tab.`);
             setSelectedFiles(new Set());
         } catch (err) {
             console.error("Batch processing failed:", err);
@@ -271,7 +271,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
                 body: JSON.stringify({ ids: Array.from(selectedVectors) }),
             });
             const data = await res.json();
-            alert(`✅ Successfully deleted ${data.deleted} vector chunk(s).`);
+            alert(`Successfully deleted ${data.deleted} vector chunk(s).`);
             // Refresh the vector list
             if (vectorViewerKey) await handleViewVectors(vectorViewerKey);
         } catch (err) {
@@ -346,7 +346,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             </div>
             
             {/* Filter Bar */}
-            <div className={`p-4 rounded-2xl border flex flex-col md:flex-row gap-4 items-center transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+            <div className={`p-4 rounded-3xl border flex flex-col md:flex-row gap-4 items-center transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                 <div className="relative flex-1 w-full">
                     <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                     <input 
@@ -381,7 +381,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             {/* Custom Delete Modal */}
             {deleteTarget && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" data-lenis-prevent>
-                    <div className={`p-6 rounded-2xl w-full max-w-sm border shadow-xl ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`p-6 rounded-3xl w-full max-w-sm border shadow-xl ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
                         <h4 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Delete File?</h4>
                         <p className={`text-sm mb-4 break-all ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                             Are you sure you want to delete <span className="font-mono bg-black/10 dark:bg-white/10 px-1 rounded">{deleteTarget}</span>? This cannot be undone.
@@ -420,7 +420,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             {/* Edit Metadata Modal */}
             {editMetadata && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" data-lenis-prevent>
-                    <div className={`p-6 rounded-2xl w-full max-w-sm border shadow-xl ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`p-6 rounded-3xl w-full max-w-sm border shadow-xl ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center gap-2 mb-4">
                             <Tag className="w-5 h-5 text-[#2A6CF0]" />
                             <h4 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Edit Metadata</h4>
@@ -475,12 +475,13 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             {/* ═══ Vector Viewer Modal ═══ */}
             {vectorViewerKey && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-                    <div className={`rounded-2xl w-full max-w-3xl border shadow-xl flex flex-col max-h-[85vh] ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className={`rounded-3xl w-full max-w-3xl border shadow-xl flex flex-col max-h-[85vh] ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
                         {/* Header */}
                         <div className={`p-5 border-b flex items-center justify-between flex-shrink-0 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                             <div className="min-w-0 flex-1">
-                                <h4 className={`text-lg font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                    🔍 Vector Chunks
+                                <h4 className="text-lg font-semibold truncate flex items-center gap-2">
+                                    <Search className="w-5 h-5 text-[#2A6CF0]" />
+                                    <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>Vector Chunks</span>
                                 </h4>
                                 <p className={`text-xs font-mono truncate mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>{vectorViewerKey}</p>
                             </div>
@@ -576,7 +577,7 @@ export default function S3Tab({ isDarkMode, authFetch, API_BASE }: S3TabProps) {
             )}
 
             {loading ? <p className={`text-center p-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Loading...</p> : (
-                <div className={`rounded-2xl border overflow-hidden transition-colors flex flex-col ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+                <div className={`rounded-3xl border overflow-hidden transition-colors flex flex-col ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                     {/* S3 File Actions bar when items are selected */}
                     {s3Files?.files?.length > 0 && selectedFiles.size > 0 && (
                         <div className={`px-5 py-3 border-b flex items-center justify-between transition-all ${isDarkMode ? 'border-gray-700 bg-gray-800/80' : 'border-gray-200 bg-gray-50'}`}>

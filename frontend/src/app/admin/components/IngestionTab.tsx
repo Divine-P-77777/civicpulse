@@ -1,5 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { 
+    FilePlus, 
+    UploadCloud, 
+    Search, 
+    Scissors, 
+    Brain, 
+    Database, 
+    CheckCircle2, 
+    Paperclip, 
+    Loader2, 
+    X, 
+    Lightbulb, 
+    RefreshCw, 
+    AlertCircle,
+    FileText,
+    History
+} from 'lucide-react';
 
 interface IngestionTabProps {
     isDarkMode: boolean;
@@ -53,13 +70,13 @@ const STAGE_LABELS: Record<string, string> = {
     done: 'Done',
 };
 
-const STAGE_ICONS: Record<string, string> = {
-    upload: '📤',
-    extraction: '🔍',
-    chunking: '✂️',
-    embedding: '🧠',
-    storing: '💾',
-    done: '✅',
+const STAGE_ICONS: Record<string, React.ReactNode> = {
+    upload: <UploadCloud size={12} />,
+    extraction: <Search size={12} />,
+    chunking: <Scissors size={12} />,
+    embedding: <Brain size={12} />,
+    storing: <Database size={12} />,
+    done: <CheckCircle2 size={12} />,
 };
 
 export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: IngestionTabProps) {
@@ -151,7 +168,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                         metadata: j.metadata || {},
                     }));
                     setActiveJobs(mapped);
-                    setStatus({ type: 'info', message: `🔄 Reconnected to ${mapped.length} running job(s)` });
+                    setStatus({ type: 'info', message: 'Reconnected to running job(s)' });
                 }
             } catch (err) {
                 console.warn('[JobReconnect] Could not check for running jobs:', err);
@@ -382,10 +399,12 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className={`rounded-2xl border p-6 transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+            <div className={`rounded-3xl border p-6 transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                 <div className="flex justify-between items-center mb-5">
                     <h3 className={`text-lg font-semibold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        <span className="w-8 h-8 bg-[#2A6CF0]/10 rounded-lg flex items-center justify-center text-sm">📄</span>
+                        <span className="w-8 h-8 bg-[#2A6CF0]/10 rounded-lg flex items-center justify-center">
+                            <FilePlus size={18} className="text-[#2A6CF0]" />
+                        </span>
                         New Ingestion Job
                     </h3>
                     <div className={`flex gap-1 p-1 rounded-xl border ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
@@ -419,7 +438,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                         )}
                         {file && ingestType !== 'web' && (
                             <p className="mt-2 text-xs text-[#2A6CF0] font-medium flex items-center gap-1">
-                                <span>📎</span> {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                                <Paperclip size={12} /> {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
                             </p>
                         )}
                     </div>
@@ -431,7 +450,12 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
 
                     <button type="submit" disabled={(ingestType !== 'web' && !file) || (ingestType === 'web' && !textInput) || isUploading}
                         className={`w-full py-3 rounded-xl font-semibold transition-all ${((ingestType !== 'web' && !file) || (ingestType === 'web' && !textInput) || isUploading) ? (isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed') : 'bg-[#2A6CF0] hover:bg-[#2259D6] text-white shadow-[0_4px_14px_rgba(42,108,240,0.25)]'}`}>
-                        {isUploading ? '⏳ Uploading...' : '📥 Start Ingestion'}
+                        {isUploading ? (
+                            <div className="flex items-center justify-center gap-2">
+                                <Loader2 size={18} className="animate-spin" />
+                                <span>Uploading...</span>
+                            </div>
+                        ) : 'Start Ingestion'}
                     </button>
                 </form>
 
@@ -461,7 +485,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                                 {/* Header row: filename + cancel */}
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                                        <span className="text-sm">📄</span>
+                                        <FileText size={14} className={isDarkMode ? 'text-gray-400' : 'text-gray-500'} />
                                         <span className={`text-xs font-semibold truncate ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                                             {(() => {
                                                 const type = job.metadata?.type || "";
@@ -488,7 +512,7 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                                                     isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-500'
                                                 } ${job.cancelling ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 title="Cancel this job">
-                                                {job.cancelling ? '⏳' : '✕'}
+                                                {job.cancelling ? <Loader2 size={12} className="animate-spin" /> : <X size={14} />}
                                             </button>
                                         )}
                                     </div>
@@ -530,18 +554,18 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                                 {(job.detail.total_chunks || job.detail.total_pages) && (
                                     <div className="flex gap-3 mt-2">
                                         {job.detail.total_pages ? (
-                                            <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                📄 {job.detail.pages_extracted || 0}/{job.detail.total_pages} pages
+                                            <span className={`text-[10px] flex items-center gap-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                <FileText size={10} /> {job.detail.pages_extracted || 0}/{job.detail.total_pages} pages
                                             </span>
                                         ) : null}
                                         {job.detail.total_chunks ? (
-                                            <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                🧠 {job.detail.chunks_embedded || 0}/{job.detail.total_chunks} embedded
+                                            <span className={`text-[10px] flex items-center gap-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                <Brain size={10} /> {job.detail.chunks_embedded || 0}/{job.detail.total_chunks} embedded
                                             </span>
                                         ) : null}
                                         {job.detail.total_chunks ? (
-                                            <span className={`text-[10px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                💾 {job.detail.chunks_stored || 0}/{job.detail.total_chunks} stored
+                                            <span className={`text-[10px] flex items-center gap-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                <Database size={10} /> {job.detail.chunks_stored || 0}/{job.detail.total_chunks} stored
                                             </span>
                                         ) : null}
                                     </div>
@@ -551,19 +575,34 @@ export default function IngestionTab({ isDarkMode, authFetch, API_BASE }: Ingest
                     </div>
                 )}
             </div>
-            <div className={`rounded-2xl border p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`rounded-3xl border p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)] ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'}`}>
                 <h4 className="text-[#2A6CF0] font-semibold mb-3 flex items-center gap-2">
-                    <span className="w-8 h-8 bg-[#2A6CF0]/10 rounded-lg flex items-center justify-center text-sm">💡</span>
+                    <span className="w-8 h-8 bg-[#2A6CF0]/10 rounded-lg flex items-center justify-center">
+                        <Lightbulb size={18} className="text-[#2A6CF0]" />
+                    </span>
                     Pipeline Stages
                 </h4>
                 <div className={`space-y-3 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    <div className="flex gap-2 items-start"><span>🔍</span><div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Extraction</strong> — PDF text is extracted via AWS Textract or local OCR (Pytesseract). Page-by-page progress is reported.</div></div>
-                    <div className="flex gap-2 items-start"><span>✂️</span><div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Chunking</strong> — Extracted text is split into ~800 character chunks with 100 char overlap for optimal retrieval.</div></div>
-                    <div className="flex gap-2 items-start"><span>🧠</span><div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Embedding</strong> — Each chunk is converted to a 1536-dim vector using Amazon Titan Embeddings.</div></div>
-                    <div className="flex gap-2 items-start"><span>💾</span><div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Storing</strong> — Vectors are indexed in OpenSearch for real-time similarity search.</div></div>
+                    <div className="flex gap-2 items-start">
+                        <Search size={16} className="mt-0.5 text-[#2A6CF0]" />
+                        <div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Extraction</strong> — PDF text is extracted via AWS Textract or local OCR (Pytesseract). Page-by-page progress is reported.</div>
+                    </div>
+                    <div className="flex gap-2 items-start">
+                        <Scissors size={16} className="mt-0.5 text-[#2A6CF0]" />
+                        <div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Chunking</strong> — Extracted text is split into ~800 character chunks with 100 char overlap for optimal retrieval.</div>
+                    </div>
+                    <div className="flex gap-2 items-start">
+                        <Brain size={16} className="mt-0.5 text-[#2A6CF0]" />
+                        <div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Embedding</strong> — Each chunk is converted to a 1536-dim vector using Amazon Titan Embeddings.</div>
+                    </div>
+                    <div className="flex gap-2 items-start">
+                        <Database size={16} className="mt-0.5 text-[#2A6CF0]" />
+                        <div><strong className={isDarkMode ? 'text-gray-200' : 'text-gray-800'}>Storing</strong> — Vectors are indexed in OpenSearch for real-time similarity search.</div>
+                    </div>
                 </div>
-                <div className={`mt-4 p-3 rounded-lg text-xs ${isDarkMode ? 'bg-gray-900 text-gray-500' : 'bg-gray-50 text-gray-500'}`}>
-                    💎 Tip: Use <code className="font-mono">&quot;region&quot;</code> in your metadata to ensure local laws are correctly weighted during RAG search.
+                <div className={`mt-4 p-3 rounded-lg text-xs flex items-center gap-2 ${isDarkMode ? 'bg-gray-900 text-gray-500' : 'bg-gray-50 text-gray-500'}`}>
+                    <Lightbulb size={12} className="text-[#2A6CF0]" />
+                    <span>Tip: Use <code className="font-mono">&quot;region&quot;</code> in your metadata to ensure local laws are correctly weighted during RAG search.</span>
                 </div>
             </div>
         </div>
