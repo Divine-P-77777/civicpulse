@@ -74,7 +74,7 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
                     { title: 'Recent Queries', value: dynamoItems?.count ?? '...', sub: 'Analysis requests', color: 'text-[#A855F7]', icon: <HardDrive /> },
                     { title: 'S3 Buckets', value: s3Files?.count ?? s3Files?.files?.length ?? '...', sub: 'Uploaded files', color: 'text-[#F97316]', icon: <FileArchive /> },
                 ].map((kpi, idx) => (
-                    <div key={idx} className={`p-5 rounded-2xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+                    <div key={idx} className={`p-5 rounded-3xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                         <div className="flex justify-between items-start mb-2">
                             <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{kpi.title}</p>
                             <div className={`${kpi.color} opacity-80`}>{kpi.icon}</div>
@@ -87,7 +87,7 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className={`col-span-2 p-6 rounded-2xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+                <div className={`col-span-2 p-6 rounded-3xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                     <h3 className={`text-lg font-semibold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>System Usage (Weekly)</h3>
                     <div className="h-64 w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -101,7 +101,7 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
                         </ResponsiveContainer>
                     </div>
                 </div>
-                <div className={`col-span-1 p-6 rounded-2xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+                <div className={`col-span-1 p-6 rounded-3xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                     <h3 className={`text-lg font-semibold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Document Types</h3>
                     <div className="h-64 w-full min-w-0 flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -138,7 +138,7 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
             {/* View All Document Types Modal */}
             {showAllTypes && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
+                    <div className={`w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
                         <div className="px-6 py-4 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
                             <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>All Document Types</h3>
                             <button 
@@ -176,7 +176,7 @@ export default function DashboardTab({ isDarkMode, authFetch, API_BASE }: Dashbo
             )}
 
             {/* Map Section */}
-            <div className={`p-6 rounded-2xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+            <div className={`p-6 rounded-3xl border transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                 <h3 className={`text-lg font-semibold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Service Focus Regions</h3>
                 <div className={`h-[400px] w-full rounded-xl overflow-hidden ${isDarkMode ? 'bg-gray-900/50' : 'bg-blue-50/50'}`}>
                     <ComposableMap projection="geoMercator" projectionConfig={{ scale: 800, center: [78.9629, 22.5937] }}>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Database, RefreshCw, Trash2 } from 'lucide-react';
 
 interface DynamoDBTabProps {
     isDarkMode: boolean;
@@ -73,9 +74,15 @@ export default function DynamoDBTab({ isDarkMode, authFetch, API_BASE }: DynamoD
     return (
         <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>🗃️ Analysis Results</h3>
+                <div className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-[#2A6CF0]" />
+                    <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Analysis Results</h3>
+                </div>
                 <div className="flex flex-wrap gap-2 items-center">
-                    <button onClick={fetchData} className={`text-sm px-3 py-1.5 rounded-xl transition border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>🔄 Refresh</button>
+                    <button onClick={fetchData} className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-xl transition border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </button>
                     {selectedIds.size > 0 && (
                         <button onClick={handleBulkDelete} className="text-sm px-3 py-1.5 bg-[#E45454]/10 hover:bg-[#E45454]/20 text-[#E45454] rounded-xl transition border border-[#E45454]/20 animate-in zoom-in duration-200">
                             Delete Selected ({selectedIds.size})
@@ -94,7 +101,7 @@ export default function DynamoDBTab({ isDarkMode, authFetch, API_BASE }: DynamoD
                         </div>
                     )}
                     {dynamoItems?.items?.map((item: any) => (
-                        <div key={item.doc_id} className={`rounded-2xl border p-4 transition-all ${isDarkMode ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]'} ${selectedIds.has(item.doc_id) ? (isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50/50') : ''}`}>
+                        <div key={item.doc_id} className={`rounded-3xl border p-4 transition-all ${isDarkMode ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]'} ${selectedIds.has(item.doc_id) ? (isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50/50') : ''}`}>
                             <div className="flex justify-between items-start">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-3 mb-1">

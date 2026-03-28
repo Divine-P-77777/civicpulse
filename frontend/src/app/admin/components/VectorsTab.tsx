@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Activity, RefreshCw, Trash2, Database, Layers } from 'lucide-react';
 
 interface VectorsTabProps {
     isDarkMode: boolean;
@@ -44,7 +44,7 @@ export default function VectorsTab({ isDarkMode, authFetch, API_BASE }: VectorsT
     };
 
     const handlePurgeVectors = async () => {
-        if (!confirm('⚠️ This will delete ALL vector documents. Are you sure?')) return;
+        if (!confirm('This will delete ALL vector documents. Are you sure?')) return;
         await authFetch(`${API_BASE}/api/admin/vectors`, { method: 'DELETE' });
         fetchData();
     };
@@ -92,7 +92,7 @@ export default function VectorsTab({ isDarkMode, authFetch, API_BASE }: VectorsT
                         { label: 'Health', value: vectorStats.status ?? '—', color: vectorStats.status === 'green' ? '#4CB782' : vectorStats.status === 'yellow' ? '#F4B740' : '#E45454' },
                         { label: 'Store Size', value: vectorStats.store_size ? `${(vectorStats.store_size / 1024).toFixed(1)} KB` : '—', color: '#2A6CF0' },
                     ].map((s, i) => (
-                        <div key={i} className={`rounded-2xl border p-5 text-center transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+                        <div key={i} className={`rounded-3xl border p-5 text-center transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                             <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
                             <p className={`text-xs uppercase mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{s.label}</p>
                         </div>
@@ -100,7 +100,10 @@ export default function VectorsTab({ isDarkMode, authFetch, API_BASE }: VectorsT
                 </div>
             )}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>🧬 Vector Documents</h3>
+                <div className="flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-[#2A6CF0]" />
+                    <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Vector Documents</h3>
+                </div>
                 <div className="flex flex-wrap gap-2 items-center">
                     {/* Search */}
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-colors ${isDarkMode ? 'bg-gray-900/50 border-gray-700 text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-700'}`}>
@@ -108,17 +111,23 @@ export default function VectorsTab({ isDarkMode, authFetch, API_BASE }: VectorsT
                         <input type="text" placeholder="Search Source or Index..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                             className="bg-transparent text-sm outline-none w-40" />
                     </div>
-                    <button onClick={fetchData} className={`text-sm px-3 py-1.5 rounded-xl transition border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>🔄 Refresh</button>
+                    <button onClick={fetchData} className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-xl transition border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </button>
                     {selectedIds.size > 0 && (
                         <button onClick={handleBulkDelete} className="text-sm px-3 py-1.5 bg-[#E45454]/10 hover:bg-[#E45454]/20 text-[#E45454] rounded-xl transition border border-[#E45454]/20 animate-in zoom-in duration-200">
                             Delete Selected ({selectedIds.size})
                         </button>
                     )}
-                    <button onClick={handlePurgeVectors} className="text-sm px-3 py-1.5 bg-[#E45454]/10 hover:bg-[#E45454]/20 text-[#E45454] rounded-xl transition border border-[#E45454]/20 hidden sm:block">🗑️ Purge All</button>
+                    <button onClick={handlePurgeVectors} className={`flex items-center gap-2 text-sm px-3 py-1.5 bg-[#E45454]/10 hover:bg-[#E45454]/20 text-[#E45454] rounded-xl transition border border-[#E45454]/20 hidden sm:block`}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Purge All
+                    </button>
                 </div>
             </div>
             {loading ? <p className={`text-center p-8 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Loading...</p> : (
-                <div className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
+                <div className={`rounded-3xl border overflow-hidden transition-colors ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.04)]'}`}>
                     <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
                         <table className="w-full text-sm min-w-[600px]">
                             <thead className={`text-xs uppercase ${isDarkMode ? 'bg-gray-900/50 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
