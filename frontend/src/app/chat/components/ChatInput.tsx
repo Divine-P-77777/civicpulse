@@ -72,8 +72,8 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
     const isPdf = pendingFile?.type === 'application/pdf';
 
     return (
-        <div className="shrink-0 px-3 pb-3 pt-2 md:px-6 md:pb-5 md:pt-3">
-            <div className="max-w-3xl mx-auto">
+        <div className="shrink-0 px-2 pb-2 pt-1 md:px-6 md:pb-5 md:pt-3 transition-all duration-300">
+            <div className="w-full max-w-4xl mx-auto">
 
                 {/* Attachment Preview */}
                 {pendingFile && (
@@ -103,7 +103,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                 )}
 
                 {/* Input Bar */}
-                <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] w-full max-w-full overflow-hidden">
+                <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.04)] w-full max-w-full overflow-hidden transition-all duration-200 focus-within:border-[#2A6CF0]/50 focus-within:ring-4 focus-within:ring-[#2A6CF0]/5">
                     <button onClick={() => fileRef.current?.click()}
                         disabled={isUploading || isStreaming}
                         className="shrink-0 p-2 text-gray-400 hover:text-[#2A6CF0] hover:bg-[#2A6CF0]/5 rounded-xl transition-all disabled:opacity-40"
@@ -122,7 +122,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                         placeholder="Ask about your legal rights..."
                         rows={1}
-                        className="flex-1 w-full min-w-0 bg-transparent text-gray-900 text-sm placeholder-gray-400 outline-none border-none resize-none max-h-36 min-h-[36px] py-1.5 leading-relaxed break-words focus:border-none"
+                        className="flex-1 w-full min-w-0 bg-transparent text-gray-900 text-sm placeholder-gray-400 outline-none border-none resize-none max-h-36 min-h-[36px] py-1.5 leading-relaxed break-words focus:ring-0"
                     />
 
                     <button onClick={handleSend} disabled={(!value.trim() && !pendingFile) || isStreaming}

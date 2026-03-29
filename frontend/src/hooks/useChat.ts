@@ -203,7 +203,7 @@ export function useChat({ apiBase, authFetch, getToken, isSignedIn, language }: 
             }
 
             const totalLatency = performance.now() - startTime;
-            
+
             // Log Benchmark
             console.log(
                 `%c ⚡ CivicPulse AI Benchmark [Chat Mode] %c TTFT: ${ttft ? (ttft / 1000).toFixed(2) : 'N/A'}s | Total: ${(totalLatency / 1000).toFixed(2)}s `,

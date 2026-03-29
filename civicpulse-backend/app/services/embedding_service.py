@@ -25,18 +25,34 @@ def chunk_text(text: str):
     )
     return splitter.split_text(text)
 
+import threading
+import time
+
+_single_embed_semaphore = threading.BoundedSemaphore(10)
+
 def generate_embedding(text: str):
     """Sync version for single-query embeddings (used by search)."""
-    try:
-        response = bedrock_client.invoke_model(
-            modelId="amazon.titan-embed-text-v1",
-            body=json.dumps({"inputText": text})
-        )
-        response_body = json.loads(response.get("body").read())
-        return response_body.get("embedding")
-    except Exception as e:
-        logger.error(f"Single embedding failed: {e}")
-        raise
+    for attempt in range(6):  # Increased to 6 attempts for production
+        try:
+            with _single_embed_semaphore:
+                response = bedrock_client.invoke_model(
+                    modelId="amazon.titan-embed-text-v1",
+                    body=json.dumps({"inputText": text})
+                )
+                response_body = json.loads(response.get("body").read())
+                return response_body.get("embedding")
+        except Exception as e:
+            err_msg = str(e)
+            if "ThrottlingException" in err_msg or "Too many requests" in err_msg:
+                if attempt == 5:
+                    logger.error(f"Single embedding permanently failed after 6 attempts: {e}")
+                    raise
+                wait = (2 ** attempt) + 0.1  # Exponential backoff
+                logger.warning(f"Embedding throttled (attempt {attempt+1}), retrying in {wait:.1f}s...")
+                time.sleep(wait)
+            else:
+                logger.error(f"Single embedding failed: {e}")
+                raise
 
 async def generate_embeddings_parallel(chunks: list[str], max_concurrency: int = 10):
     """

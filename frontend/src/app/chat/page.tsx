@@ -156,8 +156,8 @@ export default function ChatPage() {
                     language={language} onLanguageChange={setLanguage}
                     title={sessions.find(s => s.SessionId === activeSessionId)?.Title} />
 
-                <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pt-6 pb-12" data-lenis-prevent="true" style={{ overflowAnchor: 'auto' }}>
-                    <div className="max-w-3xl mx-auto space-y-5 pb-32">
+                <div ref={scrollRef} className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pt-2 transition-all duration-300 ${messages.length === 0 ? 'overflow-hidden' : ''}`} data-lenis-prevent="true" style={{ overflowAnchor: 'auto' }}>
+                    <div className={`w-full max-w-4xl mx-auto space-y-4 ${messages.length > 0 ? 'pb-32' : 'pb-4'}`}>
                         {messages.length === 0 && !isStreaming && <WelcomeScreen onSetInput={setInput} />}
 
                         {messages.map((msg, i) => (
@@ -166,7 +166,7 @@ export default function ChatPage() {
 
                         {isStreaming && streamingText === '' && (
                             <div className="flex justify-start w-full mb-4 message-slide-in">
-                                <div className="flex items-start gap-3 max-w-[calc(100vw-2.5rem)] md:max-w-2xl">
+                                <div className="flex items-start gap-3 max-w-full md:max-w-3xl">
                                     <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-[#2A6CF0] to-[#4CB782]">
                                         <Scale size={18} className="text-white" />
                                     </div>

@@ -22,8 +22,11 @@ TRIM_THRESHOLD = 12
 # Thread pool for parallel I/O (embedding + vector search)
 _executor = ThreadPoolExecutor(max_workers=2)
 
-# Semaphore: limit concurrent Bedrock LLM calls to prevent throttling
-_bedrock_semaphore = asyncio.Semaphore(3)
+import threading
+import time
+
+# Semaphore: limit concurrent Bedrock LLM calls to prevent throttling (per-process)
+_bedrock_semaphore = threading.BoundedSemaphore(3)
 
 # Mode-specific config
 MODE_CONFIG = {
@@ -397,7 +400,7 @@ class RagPipeline:
             return "en"
 
     def _execute_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
-        """Non-streaming response via Bedrock invoke_model API."""
+        """Non-streaming response via Bedrock invoke_model API with local retry/throttling logic."""
         body = json.dumps({
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": max_tokens,
@@ -406,15 +409,29 @@ class RagPipeline:
             "messages": messages
         })
         
-        response = bedrock_client.invoke_model(modelId=self.model, body=body)
-        result = json.loads(response['body'].read())
-        result_text = result["content"][0]["text"]
-        
-        store_analysis_result(query, result_text, user_id, session_id)
-        return result_text
+        for attempt in range(5):  # 5 local retry attempts
+            try:
+                with _bedrock_semaphore:
+                    response = bedrock_client.invoke_model(modelId=self.model, body=body)
+                    result = json.loads(response['body'].read())
+                    result_text = result["content"][0]["text"]
+                    
+                    store_analysis_result(query, result_text, user_id, session_id)
+                    return result_text
+            except Exception as e:
+                err_msg = str(e)
+                if "ThrottlingException" in err_msg or "Too many requests" in err_msg:
+                    if attempt == 4: raise
+                    wait_time = (2 ** attempt) + 0.5
+                    logger.warning(f"Bedrock Throttled (Attempt {attempt+1}), retrying in {wait_time:.1f}s...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Bedrock invocation failed: {e}")
+                    raise
+        return "I'm sorry, I'm currently overwhelmed with requests. Please try again in a moment."
 
     def _stream_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024):
-        """Streaming generator via Bedrock invoke_model_with_response_stream API."""
+        """Streaming generator via Bedrock invoke_model_with_response_stream API with throttling protection."""
         body = json.dumps({
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": max_tokens,
@@ -423,7 +440,21 @@ class RagPipeline:
             "messages": messages
         })
         
-        response = bedrock_client.invoke_model_with_response_stream(modelId=self.model, body=body)
+        response = None
+        for attempt in range(5):
+            try:
+                with _bedrock_semaphore:
+                    response = bedrock_client.invoke_model_with_response_stream(modelId=self.model, body=body)
+                    break # Success, start streaming
+            except Exception as e:
+                err_msg = str(e)
+                if "ThrottlingException" in err_msg or "Too many requests" in err_msg:
+                    if attempt == 4: raise
+                    wait_time = (2 ** attempt) + 0.5
+                    logger.warning(f"Bedrock Stream Throttled (Attempt {attempt+1}), retrying in {wait_time:.1f}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise
 
         collected_chunks = []
         for event in response["body"]:
