@@ -1,6 +1,6 @@
 "use client"
 import React from 'react';
-import { Globe, Mic, Server, Zap, Headphones, MessageSquare, Cpu, Search, Layers, Radio } from 'lucide-react';
+import { Globe, Mic, Server, Zap, Headphones, MessageSquare, Cpu, Search, Layers, Radio, Database, Clock } from 'lucide-react';
 
 export const LiveModeFlowData = {
     nodes: [
@@ -29,6 +29,18 @@ export const LiveModeFlowData = {
             } 
         },
         { 
+            id: 'session_db', 
+            type: 'architecture',
+            position: { x: 500, y: 0 }, 
+            data: { 
+                label: 'Session Context', 
+                type: 'Memory', 
+                icon: <Database />, 
+                color: 'amber', 
+                description: 'AWS DynamoDB stores the last 20 turns of conversation history with a 4-hour TTL for seamless multi-turn context awareness.' 
+            } 
+        },
+        { 
             id: 'fastapi', 
             type: 'architecture',
             position: { x: 500, y: 150 }, 
@@ -37,7 +49,7 @@ export const LiveModeFlowData = {
                 type: 'Backend', 
                 icon: <Server />, 
                 color: 'emerald', 
-                description: 'Builds the multi-modal request object. Injects detected user language (Hindi/English) and maintains high-frequency WebSocket state.' 
+                description: 'Orchestrates the live loop. Fetches history from DynamoDB, constructs RAG prompts, and manages real-time socket tasks.' 
             } 
         },
         { 
@@ -49,7 +61,7 @@ export const LiveModeFlowData = {
                 type: 'Search', 
                 icon: <Search />, 
                 color: 'blue', 
-                description: 'Fetches the top 15 most relevant legal candidates from OpenSearch using vector similarity. Ensures broad coverage for legal lookup.' 
+                description: 'Fetches the top 15 legal segments. Injected with current conversation history to maintain context-aware search results.' 
             } 
         },
         { 
@@ -104,6 +116,8 @@ export const LiveModeFlowData = {
     edges: [
         { id: 'e-voice-stt', source: 'voice_input', target: 'stt', animated: true, label: 'Analog' },
         { id: 'e-stt-fastapi', source: 'stt', target: 'fastapi', animated: true, label: 'Text/Lang' },
+        { id: 'e-fastapi-db', source: 'fastapi', target: 'session_db', label: 'Save', style: { strokeDasharray: '3,3' } },
+        { id: 'e-db-fastapi', source: 'session_db', target: 'fastapi', label: 'Load', style: { strokeDasharray: '3,3' } },
         { id: 'e-fastapi-rag', source: 'fastapi', target: 'rag', animated: true },
         { id: 'e-rag-rerank', source: 'rag', target: 'rerank', animated: true, label: 'Top 15' },
         { id: 'e-rerank-bedrock', source: 'rerank', target: 'bedrock', animated: true, label: 'Top 5' },
@@ -115,9 +129,9 @@ export const LiveModeFlowData = {
         title: "Advanced Voice Pipeline",
         description: "A state-of-the-art multimodal pipeline handling rough audio to culturally nuanced speech synthesis.",
         features: [
-            { icon: <Search size={14}/>, text: "Recall: Top-15 Context Search" },
-            { icon: <Zap size={14}/>, text: "Brains: Cohere + Claude Haiku" },
-            { icon: <Radio size={14}/>, text: "TTS: Multilingual Synthesis" }
+            { icon: <Clock size={14}/>, text: "4-Hour Session TTL" },
+            { icon: <MessageSquare size={14}/>, text: "20-Turn Sliding Window" },
+            { icon: <Radio size={14}/>, text: "Multi-modal Synthesis" }
         ]
     },
     hoverContent: {
@@ -132,6 +146,27 @@ export const LiveModeFlowData = {
                     <div className="bg-slate-800 p-2 rounded border border-white/5">
                         <span className="text-[8px] font-bold text-slate-400 block uppercase">Native</span>
                         <span className="text-[7px] text-slate-500">W3C Fallback SDK</span>
+                    </div>
+                </div>
+            </div>
+        ),
+        session_db: (
+            <div className="space-y-3">
+                <h4 className="font-bold text-white text-sm text-amber-500 uppercase tracking-widest">Session Persistence</h4>
+                <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg">
+                    <span className="text-[8px] font-bold text-amber-400 block uppercase">Context Management</span>
+                    <p className="text-[7px] text-slate-400 leading-tight mt-1">
+                        Stores conversation history (user & AI turns) to preserve multi-turn reasoning context.
+                    </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-slate-800 p-2 rounded border border-white/5">
+                        <span className="text-[8px] font-bold text-amber-400 block uppercase">Sliding Window</span>
+                        <span className="text-[7px] text-slate-500">20 Full Turns Max</span>
+                    </div>
+                    <div className="bg-slate-800 p-2 rounded border border-white/5">
+                        <span className="text-[8px] font-bold text-amber-400 block uppercase">Expiration</span>
+                        <span className="text-[7px] text-slate-500">4-Hour Backend TTL</span>
                     </div>
                 </div>
             </div>
