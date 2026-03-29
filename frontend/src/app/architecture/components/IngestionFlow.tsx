@@ -74,14 +74,13 @@ export const IngestionFlowData = {
             type: 'architecture',
             position: { x: 1000, y: 200 }, 
             data: { 
-                label: 'Bedrock Intelligence', 
-                type: 'LLM', 
+                label: 'Titan Embedding G1', 
+                type: 'Embedding', 
                 icon: <Zap />, 
                 color: 'purple', 
-                description: 'The semantic engine. While Titan handles embeddings, Claude 3 Haiku provides the underlying intelligence that enables these vectors to be interpreted as human language later.' 
+                description: 'The embedding engine. Amazon Titan G1 transforms semantic text into high-dimensional vectors (1536 dimensions), enabling similarity search in a mathematical space.' 
             } 
         },
-
         // Destination
         { 
             id: 'opensearch', 

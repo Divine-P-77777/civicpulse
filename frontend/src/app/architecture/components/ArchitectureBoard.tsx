@@ -35,26 +35,73 @@ interface ArchitectureNodeData extends Record<string, unknown> {
 type ArchitectureNode = Node<ArchitectureNodeData>;
 
 interface ArchitectureBoardProps {
+    flowId: string;
     initialNodes: ArchitectureNode[];
     initialEdges: Edge[];
     hoverContent: Record<string, React.ReactNode>;
 }
 
-const ArchitectureBoard = ({ initialNodes, initialEdges, hoverContent }: ArchitectureBoardProps) => {
+const ArchitectureBoard = ({ flowId, initialNodes, initialEdges, hoverContent }: ArchitectureBoardProps) => {
     const [nodes, setNodes] = useState<ArchitectureNode[]>(initialNodes);
     const [edges, setEdges] = useState<Edge[]>(initialEdges);
     const [selectedNode, setSelectedNode] = useState<ArchitectureNode | null>(null);
 
-    // Sync nodes/edges when flow changes
+    const STORAGE_KEY = useMemo(() => `civicpulse_positions_${flowId}`, [flowId]);
+
+    // Sync nodes/edges when flow changes + LOAD from localStorage
     useEffect(() => {
-        setNodes(initialNodes);
+        const savedPositionsStr = localStorage.getItem(STORAGE_KEY);
+        let finalNodes = initialNodes;
+
+        if (savedPositionsStr) {
+            try {
+                const savedPositions = JSON.parse(savedPositionsStr);
+                finalNodes = initialNodes.map(node => {
+                    if (savedPositions[node.id]) {
+                        return { ...node, position: savedPositions[node.id] };
+                    }
+                    return node;
+                });
+            } catch (e) {
+                console.error("Failed to parse saved positions:", e);
+            }
+        }
+
+        setNodes(finalNodes);
         setEdges(initialEdges);
         setSelectedNode(null);
-    }, [initialNodes, initialEdges]);
+
+        // Optional: fitView after positions are loaded
+    }, [flowId, initialNodes, initialEdges, STORAGE_KEY]);
 
     const onNodesChange: OnNodesChange<ArchitectureNode> = useCallback(
-        (changes) => setNodes((nds) => applyNodeChanges<ArchitectureNode>(changes, nds)),
-        []
+        (changes) => {
+            setNodes((nds) => {
+                const nextNodes = applyNodeChanges<ArchitectureNode>(changes, nds);
+                
+                // Track if any position changes occurred to batch localStorage update
+                const positionChanges = changes.filter(c => c.type === 'position' && 'position' in c && c.position);
+                
+                if (positionChanges.length > 0) {
+                    const savedPositionsStr = localStorage.getItem(STORAGE_KEY);
+                    let currentPositions: Record<string, any> = {};
+                    try {
+                        currentPositions = savedPositionsStr ? JSON.parse(savedPositionsStr) : {};
+                    } catch (e) {}
+
+                    positionChanges.forEach(change => {
+                        if ('position' in change && change.position) {
+                            currentPositions[change.id] = change.position;
+                        }
+                    });
+
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentPositions));
+                }
+                
+                return nextNodes;
+            });
+        },
+        [STORAGE_KEY]
     );
     const onEdgesChange: OnEdgesChange = useCallback(
         (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),

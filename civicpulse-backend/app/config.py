@@ -10,10 +10,10 @@ BEDROCK_REGION = os.getenv("BEDROCK_REGION", AWS_REGION)
 
 # Adaptive retry: automatically uses exponential backoff + jitter on throttling
 bedrock_config = Config(
-    retries={"max_attempts": 8, "mode": "adaptive"},
+    retries={"max_attempts": 10, "mode": "adaptive"},
     read_timeout=120,
     connect_timeout=10,
-    max_pool_connections=50,  # Support more parallel ingestion + chat
+    max_pool_connections=60,  # Support more parallel ingestion + chat
     tcp_keepalive=True,        # Better stability for long-lived connections
 )
 
