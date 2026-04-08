@@ -223,70 +223,142 @@ export default function LiveMode({ onClose, onUploadClick }: LiveModeProps) {
                 cameraMode={cameraMode}
             />
 
-            {/* Status Add-ons (Transcript, Auto-submit, Draft) */}
-            <div className={`px-6 w-full max-w-lg text-center z-20 flex flex-col items-center transition-all duration-700 ${cameraMode !== 'off' ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
-                {status === 'uploading' && (
-                    <div className="w-48 h-1 bg-gray-100 rounded-full mt-2 overflow-hidden mx-auto">
+            {/* ── Fixed overlays (never extend viewport) ── */}
+
+            {/* Upload progress bar — fixed inside header area */}
+            {status === 'uploading' && (
+                <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 w-48">
+                    <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-gradient-to-r from-blue-600 to-emerald-500 transition-all" style={{ width: `${uploadProgress}%` }} />
                     </div>
-                )}
+                </div>
+            )}
 
-                {/* Transcripts removed per Gemini Live style */}
-
-                {autoSubmitCountdown !== null && (
-                    <button onClick={cancelAutoSubmit} className="mt-2 flex items-center justify-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-medium text-amber-700 hover:bg-amber-100 transition-all animate-pulse mx-auto">
-                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+            {/* Auto-submit countdown — fixed floating pill */}
+            {autoSubmitCountdown !== null && (
+                <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-40">
+                    <button onClick={cancelAutoSubmit} className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-50/90 border border-amber-200 rounded-full text-xs font-medium text-amber-700 hover:bg-amber-100 transition-all animate-pulse backdrop-blur-md shadow-md whitespace-nowrap">
+                        <svg className="w-3.5 h-3.5 animate-spin shrink-0" viewBox="0 0 24 24" fill="none">
                             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="62.83" strokeDashoffset={62.83 * (1 - (autoSubmitCountdown / 2.5))} strokeLinecap="round" className="text-amber-500" />
                         </svg>
                         {language === 'hi' ? `${autoSubmitCountdown.toFixed(1)}s में भेज रहा... रद्द करें` : `Sending in ${autoSubmitCountdown.toFixed(1)}s — tap to cancel`}
                     </button>
-                )}
+                </div>
+            )}
 
-                {draftData && (() => {
-                    const typeLabels: Record<string, string> = {
-                        complaint: 'Complaint', legal_notice: 'Legal Notice',
-                        appeal: 'Appeal Letter', affidavit: 'Affidavit',
-                        rti: 'RTI Application', general: 'General Draft'
-                    };
-                    const typeLabel = typeLabels[draftData.type] || 'Legal Draft';
-                    const handleDraftClick = () => {
-                        const params = new URLSearchParams({
-                            type: draftData.type || 'general',
-                            topic: draftData.topic || '',
-                            useProfile: String(draftData.use_profile === 'true' || draftData.useProfile === 'true'),
-                            initialContext: draftData.initial_context || draftData.initialContext || '',
-                            source: 'live'
-                        });
-                        // Send session_end to backend (triggers DynamoDB cleanup)
-                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                            wsRef.current.send(JSON.stringify({ type: 'session_end' }));
-                        }
-                        window.location.href = `/draftcreation?${params.toString()}`;
-                    };
-                    return (
-                        <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500 w-full max-w-sm mx-auto space-y-3">
-                            <p className="text-center text-xs text-slate-500 font-medium tracking-wide uppercase">
-                                {language === 'hi' ? 'तैयार है:' : 'Ready to draft:'} <span className="text-indigo-600 font-bold">{typeLabel}</span>
-                            </p>
-                            <div className="flex flex-col gap-2">
-                                <button onClick={handleDraftClick} className="w-full bg-[#1E293B] hover:bg-black text-white text-sm font-semibold py-3 px-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-[0_12px_24px_rgba(30,41,59,0.3)] hover:-translate-y-1 active:scale-95">
-                                    <FiFileText className="text-lg text-[#2A6CF0]" />
-                                    {language === 'hi' ? 'दस्तावेज़ बनाने जाएं' : 'Continue to Create Draft'}
-                                    <FiArrowRight className="ml-1" />
-                                </button>
-                                <button onClick={(e) => {
-                                    e.preventDefault();
-                                    setDraftData(null);
-                                    trackedSend({ type: 'user_text', text: language === 'hi' ? 'मुझे इस ड्राफ्ट में कुछ बदलाव करने हैं।' : 'I need to make some changes to this draft.' });
-                                }} className="w-full bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 text-sm font-semibold py-2.5 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-slate-50">
-                                    <FiEdit2 className="text-base" />
-                                    {language === 'hi' ? 'विवरण में बदलाव करें' : 'Edit Details'}
-                                </button>
+            {/* Drafting Mode Indicator — fixed floating pill at top */}
+            {!draftData && status !== 'idle' && cameraMode === 'off' && (() => {
+                const isDraftingMode = aiTranscript && (
+                    /which.*(department|authority|government)|what.*(rti|about|happened)|your.*(name|city)|date.*(incident)|collecting|targeting|sender|recipient|jurisdiction|grievance|preparing/i.test(aiTranscript)
+                );
+                if (!isDraftingMode) return null;
+                return (
+                    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-xl border border-indigo-100 rounded-full shadow-[0_4px_20px_rgba(99,102,241,0.15)]">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+                            <span className="text-xs font-semibold text-indigo-600 whitespace-nowrap">
+                                {language === 'hi' ? 'दस्तावेज़ विवरण एकत्र हो रहा है...' : 'Collecting draft details...'}
+                            </span>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Draft Ready — Small centered popup (never extends viewport) */}
+            {draftData && (() => {
+                const typeLabels: Record<string, string> = {
+                    complaint: 'Complaint', legal_notice: 'Legal Notice',
+                    appeal: 'Appeal Letter', affidavit: 'Affidavit',
+                    rti: 'RTI Application', general: 'General Draft'
+                };
+                const typeEmojis: Record<string, string> = {
+                    rti: '📋', complaint: '⚖️', legal_notice: '📜',
+                    appeal: '🏛️', affidavit: '✍️', general: '📄'
+                };
+                const typeLabel = typeLabels[draftData.type] || 'Legal Draft';
+                const emoji = typeEmojis[draftData.type] || '📄';
+
+                const handleCreateDraft = () => {
+                    const params = new URLSearchParams({
+                        type: draftData.type || 'general',
+                        topic: draftData.topic || '',
+                        useProfile: String(draftData.use_profile === 'true' || draftData.useProfile === 'true'),
+                        initialContext: draftData.initial_context || draftData.initialContext || '',
+                        source: 'live'
+                    });
+                    window.open(`/draftcreation?${params.toString()}`, '_blank');
+                };
+
+                return (
+                    <>
+                        {/* Light backdrop */}
+                        <div
+                            className="fixed inset-0 z-50 bg-black/20 animate-in fade-in duration-200"
+                            onClick={() => setDraftData(null)}
+                        />
+                        {/* Centered popup */}
+                        <div className="fixed inset-0 z-50 flex items-center justify-center px-5 pointer-events-none">
+                            <div className="pointer-events-auto w-full max-w-xs bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.22)] overflow-hidden animate-in zoom-in-90 fade-in duration-200 ease-out">
+                                {/* Gradient top line */}
+                                <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-400" />
+
+                                <div className="px-5 py-4 space-y-3">
+                                    {/* Header */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">{emoji}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none mb-0.5">
+                                                {language === 'hi' ? 'तैयार' : 'Ready'}
+                                            </p>
+                                            <p className="text-base font-bold text-slate-900 leading-tight truncate">
+                                                {typeLabel}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setDraftData(null)}
+                                            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                                        >
+                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+
+                                    {/* Topic — single line */}
+                                    {draftData.topic && (
+                                        <p className="text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 leading-snug line-clamp-2">
+                                            {draftData.topic}
+                                        </p>
+                                    )}
+
+                                    {/* Buttons */}
+                                    <div className="flex gap-2 pt-0.5">
+                                        <button
+                                            onClick={handleCreateDraft}
+                                            className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-bold py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_16px_rgba(99,102,241,0.4)] active:scale-[0.97]"
+                                        >
+                                            <FiFileText className="text-sm shrink-0" />
+                                            {language === 'hi' ? 'बनाएं' : 'Create'}
+                                            <FiArrowRight className="text-xs shrink-0" />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setDraftData(null);
+                                                trackedSend({ type: 'user_text', text: language === 'hi' ? 'मुझे कुछ बदलना है।' : 'I need to change something.' });
+                                            }}
+                                            className="w-10 h-10 bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 rounded-2xl flex items-center justify-center transition-colors shrink-0 active:scale-[0.97]"
+                                        >
+                                            <FiEdit2 className="text-sm" />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    );
-                })()}
-            </div>
+                    </>
+                );
+            })()}
+
+
+
+
 
             {/* Glowing Animation Interaction Zone */}
             <div className={`relative w-full flex-1 flex items-center justify-center min-h-[300px] transition-all duration-700 ${cameraMode !== 'off' ? 'opacity-0 scale-90' : 'opacity-100 scale-100'}`}>

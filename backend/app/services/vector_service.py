@@ -121,6 +121,114 @@ class VectorService:
         response = self.client.search(index=self.index_name, body=search_query)
         return [hit["_source"]["metadata"] for hit in response["hits"]["hits"]]
 
+    def similarity_search_with_boost(
+        self,
+        query_vector: list,
+        k: int = 5,
+        user_id: str = None,
+        filters: dict = None,
+        boosted_sources: list = None
+    ):
+        """
+        Hybrid search: KNN vector similarity + BM25-style source boost.
+        When boosted_sources is provided, documents whose metadata.source
+        or metadata.url matches those sources receive a relevance bonus,
+        ensuring niche laws (e.g. Wildlife Act) surface even if their
+        semantic embedding score is slightly below generic chunks.
+        """
+        # Base KNN query — same structure as similarity_search
+        must_clause = [
+            {
+                "knn": {
+                    "vector": {
+                        "vector": query_vector,
+                        "k": k
+                    }
+                }
+            }
+        ]
+
+        # Build source/visibility filter (identical to similarity_search)
+        should_filter = [
+            {"term": {"metadata.source_type.keyword": "global"}}
+        ]
+        if user_id:
+            should_filter.append({
+                "bool": {
+                    "must": [
+                        {"term": {"metadata.source_type.keyword": "private"}},
+                        {"term": {"metadata.uploaded_by.keyword": user_id}}
+                    ]
+                }
+            })
+        should_filter.append({
+            "bool": {
+                "must_not": {"exists": {"field": "metadata.source_type"}}
+            }
+        })
+
+        filter_clause = {
+            "bool": {"should": should_filter}
+        }
+
+        # Add metadata filters if provided
+        if filters:
+            filter_clause["bool"]["must"] = []
+            for key, value in filters.items():
+                if value:
+                    filter_clause["bool"]["must"].append(
+                        {"term": {f"metadata.{key}.keyword": value}}
+                    )
+
+        search_query: dict = {
+            "size": k,
+            "query": {
+                "bool": {
+                    "must": must_clause,
+                    "filter": filter_clause,
+                }
+            }
+        }
+
+        # Boost matching sources via function_score wrapper
+        if boosted_sources:
+            source_should = []
+            for src in boosted_sources:
+                source_should.append({"wildcard": {"metadata.source.keyword": f"*{src}*"}})
+                source_should.append({"wildcard": {"metadata.url.keyword": f"*{src}*"}})
+
+            search_query = {
+                "size": k,
+                "query": {
+                    "function_score": {
+                        "query": {
+                            "bool": {
+                                "must": must_clause,
+                                "filter": filter_clause,
+                            }
+                        },
+                        "functions": [
+                            {
+                                "filter": {"bool": {"should": source_should, "minimum_should_match": 1}},
+                                "weight": 1.8  # Give matching law sources 80% score boost
+                            }
+                        ],
+                        "score_mode": "multiply",
+                        "boost_mode": "multiply"
+                    }
+                }
+            }
+
+        try:
+            response = self.client.search(index=self.index_name, body=search_query)
+            results = [hit["_source"]["metadata"] for hit in response["hits"]["hits"]]
+            logger.info(f"similarity_search_with_boost: {len(results)} results, boosted_sources={boosted_sources}")
+            return results
+        except Exception as e:
+            logger.error(f"similarity_search_with_boost failed, falling back to standard search: {e}")
+            # Graceful fallback to plain KNN search
+            return self.similarity_search(query_vector, k, user_id, filters)
+
     def search_by_source(self, source: str, size: int = 200):
         """Find all vector chunks that match a specific source/filename."""
         try:
