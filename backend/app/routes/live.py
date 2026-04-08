@@ -167,7 +167,8 @@ async def send_ai_voice_message(session_id: str, text: str, language: str = "en"
 async def process_voice_turn(
     session_id: str,
     transcript_text: str,
-    language: str
+    language: str,
+    user_id: str = "live_user"
 ):
     """Process a complete voice turn: load history → RAG → TTS → stream back → persist turn."""
     try:
@@ -182,12 +183,13 @@ async def process_voice_turn(
         logger.info(f"Session {session_id}: Loaded {len(chat_history)} history turns")
 
         manager.clear_cancel_event(session_id)
-        # 2. Run RAG Pipeline (streaming) with conversation context
-        logger.info(f"Session {session_id}: Running RAG pipeline...")
 
+
+
+        logger.info(f"Session {session_id}: Running RAG pipeline (user={user_id})...")
         llm_stream = rag_pipeline.analyze_document(
             query=transcript_text,
-            user_id="live_user",
+            user_id=user_id,
             session_id=session_id,
             chat_history=chat_history,
             language=language,
@@ -196,13 +198,35 @@ async def process_voice_turn(
         )
 
         # Collect full response while streaming to TTS
-        full_response_chunks = []
-        
+        full_response_chunks: list[str] = []
+        # Shared queue: text_iterator pushes parsed draft data here as soon as
+        # the closing /> is detected in the LLM stream — audio loop fires the
+        # WebSocket event immediately on the next iteration (fastest possible).
+        _draft_queue: list[dict] = []
+
+        import re as _re
+
+        def _parse_draft_tag(raw_tag: str) -> dict | None:
+            """Parse attributes from a complete <DRAFT_READY ... /> tag string."""
+            try:
+                ctx_m = _re.search(r'initial_context="([\s\S]*)"', raw_tag)
+                parsed: dict = {}
+                if ctx_m:
+                    parsed["initial_context"] = ctx_m.group(1).strip()
+                simple_part = _re.sub(r'initial_context="[\s\S]*"', '', raw_tag)
+                for m in _re.finditer(r'(\w+)="([^"]*)"', simple_part):
+                    parsed[m.group(1)] = m.group(2)
+                if parsed.get("type") and parsed.get("initial_context"):
+                    return parsed
+            except Exception as _e:
+                logger.error(f"Session {session_id}: _parse_draft_tag error: {_e}")
+            return None
+
         def text_iterator():
             """
             Yields text chunks to TTS, stripping <DRAFT_READY .../> tags so they
-            are never spoken aloud. The full response (including the tag) is still
-            collected in full_response_chunks for the frontend transcript.
+            are never spoken aloud. Parses the tag eagerly and pushes to _draft_queue
+            so draft_completed can be fired during audio streaming (not after).
             """
             tag_buffer = ""
             inside_tag = False
@@ -212,25 +236,29 @@ async def process_voice_turn(
 
                 if inside_tag:
                     tag_buffer += chunk
-                    # Check if we've reached the end of the tag
                     if "/>" in tag_buffer:
                         inside_tag = False
-                        # Yield anything that came AFTER the closing />
+                        # ── Parse eagerly and push to queue ──
+                        parsed = _parse_draft_tag(tag_buffer)
+                        if parsed:
+                            _draft_queue.append(parsed)
+                        # Yield anything after the closing />
                         after_tag = tag_buffer.split("/>", 1)[-1]
                         tag_buffer = ""
                         if after_tag.strip():
                             yield after_tag
-                    # Still inside tag — don't yield anything
                     continue
 
                 if "<DRAFT_READY" in chunk:
-                    # Tag starts in this chunk — split and yield only the pre-tag part
                     pre_tag, rest = chunk.split("<DRAFT_READY", 1)
                     if pre_tag.strip():
                         yield pre_tag
                     tag_buffer = "<DRAFT_READY" + rest
-                    # Check if the tag closes in the same chunk
                     if "/>" in tag_buffer:
+                        # Closed in same chunk
+                        parsed = _parse_draft_tag(tag_buffer)
+                        if parsed:
+                            _draft_queue.append(parsed)
                         after_tag = tag_buffer.split("/>", 1)[-1]
                         tag_buffer = ""
                         if after_tag.strip():
@@ -242,7 +270,7 @@ async def process_voice_turn(
 
         # 2. Generate TTS audio from the text stream
         logger.info(f"Session {session_id}: Generating TTS for language '{language}'")
-        
+
         if language == "hi":
             from app.services.sarvamai_service import sarvam_service
             audio_generator = sarvam_service.generate_speech_stream(text_iterator())
@@ -251,8 +279,18 @@ async def process_voice_turn(
             audio_generator = elevenlabs_service.generate_speech_stream(text_iterator())
             audio_format = "mp3"
 
-        # 3. Stream TTS audio chunks back to the client
+        # 3. Stream TTS audio chunks — fire draft_completed the moment tag is ready
+        draft_event_sent = False
         async for audio_chunk in audio_generator:
+            # ── Fire draft_completed at FIRST audio chunk after tag is parsed ──
+            if _draft_queue and not draft_event_sent:
+                draft_event_sent = True
+                await manager.send_json(session_id, {
+                    "type": "draft_completed",
+                    "data": _draft_queue[0]
+                })
+                logger.info(f"Session {session_id}: draft_completed fired during stream: type={_draft_queue[0].get('type')}")
+
             if manager.is_cancelled(session_id):
                 logger.info(f"Session {session_id}: Audio streaming interrupted by user.")
                 break
@@ -265,14 +303,24 @@ async def process_voice_turn(
                 "format": audio_format
             })
 
+        # Fire draft_completed if tag was found but audio loop ended before sending
+        if _draft_queue and not draft_event_sent:
+            await manager.send_json(session_id, {
+                "type": "draft_completed",
+                "data": _draft_queue[0]
+            })
+            logger.info(f"Session {session_id}: draft_completed fired post-stream: type={_draft_queue[0].get('type')}")
+
         # 4. Send the AI transcript ONCE after all audio is streamed
         final_text = "".join(full_response_chunks)
-        logger.info(f"Session {session_id}: RAG response ({len(final_text)} chars): {final_text}")
+        logger.info(f"Session {session_id}: RAG response ({len(final_text)} chars)")
+
         await manager.send_json(session_id, {
             "type": "ai_transcript",
             "text": final_text
         })
         await manager.send_json(session_id, {"type": "speaking_done"})
+
 
         # 5. Persist turn to DynamoDB - AWAIT to ensure history is saved before next message
         try:
@@ -324,7 +372,6 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
     language = "en"
     # Create isolated session record (one doc per concurrent user)
-    # AWAIT completion to ensure session exists before processing messages
     try:
         await asyncio.to_thread(create_session, session_id, user_id, language)
         logger.info(f"Session {session_id}: DynamoDB session created successfully.")
@@ -389,7 +436,7 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
                     manager.clear_cancel_event(session_id)
                     
                     # Spawn the processing as a background task so we don't block the WebSocket receive loop
-                    task = asyncio.create_task(process_voice_turn(session_id, text, language))
+                    task = asyncio.create_task(process_voice_turn(session_id, text, language, user_id))
                     manager.active_tasks[session_id] = task
 
             elif msg_type == "session_end":
@@ -405,7 +452,7 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
                 # Auto-respond about an uploaded document
                 doc_name = message.get("filename", "document")
                 auto_query = f"A document called '{doc_name}' was just uploaded. Please briefly tell me what this document is about and if there are any concerns I should know about."
-                await process_voice_turn(session_id, auto_query, language)
+                await process_voice_turn(session_id, auto_query, language, user_id)
 
             elif msg_type == "interrupt":
                 logger.info(f"Session {session_id}: Interrupted by user.")

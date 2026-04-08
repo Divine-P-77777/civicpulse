@@ -187,6 +187,15 @@ export function useLiveWebSocket({
           } else if (message.type === 'language_switch') {
             console.log("[WS] Backend auto-switched language to:", message.language);
             onLanguageSwitch(message.language);
+          } else if (message.type === 'draft_completed') {
+            // Backend extracted and validated DRAFT_READY — use this as ground truth
+            const data = message.data || {};
+            if (data.type && data.initial_context && data.initial_context.length > 60) {
+              console.log('[Live] draft_completed received from backend:', data.type, data.topic);
+              setDraftData(data);
+            } else {
+              console.warn('[Live] draft_completed received but data incomplete:', data);
+            }
           } else if (message.type === 'ingestion_progress') {
             setStatus('uploading');
             setUploadProgress(message.progress);
