@@ -36,8 +36,8 @@ def generate_embedding(text: str):
         try:
             with _single_embed_semaphore:
                 response = bedrock_client.invoke_model(
-                    modelId="amazon.titan-embed-text-v1",
-                    body=json.dumps({"inputText": text})
+                    modelId="amazon.titan-embed-text-v2:0",
+                    body=json.dumps({"inputText": text, "dimensions": 1024, "normalize": True})
                 )
                 response_body = json.loads(response.get("body").read())
                 return response_body.get("embedding")
@@ -73,11 +73,10 @@ async def generate_embeddings_parallel(chunks: list[str], max_concurrency: int =
                 # Acquisition order: Local then Global
                 async with local_semaphore:
                     async with global_semaphore:
-                        # Wrap the sync Titan call in a thread
                         response = await asyncio.to_thread(
                             bedrock_client.invoke_model,
-                            modelId="amazon.titan-embed-text-v1",
-                            body=json.dumps({"inputText": chunk})
+                            modelId="amazon.titan-embed-text-v2:0",
+                            body=json.dumps({"inputText": chunk, "dimensions": 1024, "normalize": True})
                         )
                         response_body = json.loads(response.get("body").read())
                         return index, response_body.get("embedding")

@@ -31,9 +31,9 @@ class MessageRequest(BaseModel):
 class UpdateTitleRequest(BaseModel):
     title: str
 
-# ═══════════════════════════════════════════════
+
 # SESSION MANAGEMENT
-# ═══════════════════════════════════════════════
+
 
 @router.post("/session")
 async def create_chat_session(
@@ -75,9 +75,8 @@ async def delete_chat_session(session_id: str = Path(...), current_user: dict = 
     user_id = current_user.get("sub")
     return delete_session(user_id, session_id)
 
-# ═══════════════════════════════════════════════
+
 # MESSAGING — Non-streaming
-# ═══════════════════════════════════════════════
 
 @router.post("/message")
 async def send_message(body: MessageRequest, current_user: dict = Depends(get_current_user)):
@@ -113,9 +112,8 @@ async def send_message(body: MessageRequest, current_user: dict = Depends(get_cu
     bot_msg = add_message(user_id, body.session_id, role="assistant", content=ai_response)
     return {"session_id": body.session_id, "user_message": user_msg, "bot_response": bot_msg}
 
-# ═══════════════════════════════════════════════
+
 # MESSAGING — Streaming (SSE)
-# ═══════════════════════════════════════════════
 
 @router.post("/stream")
 async def stream_message(body: MessageRequest, current_user: dict = Depends(get_current_user)):
@@ -188,9 +186,7 @@ async def stream_message(body: MessageRequest, current_user: dict = Depends(get_
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-# ═══════════════════════════════════════════════
 # SHARE CHAT
-# ═══════════════════════════════════════════════
 
 @router.post("/session/{session_id}/share")
 async def share_chat(session_id: str = Path(...), current_user: dict = Depends(get_current_user)):
@@ -210,9 +206,7 @@ async def view_shared_chat(share_id: str = Path(...)):
         raise HTTPException(status_code=404, detail="Shared chat not found")
     return session
 
-# ═══════════════════════════════════════════════
 # DOCUMENT UPLOAD (User-facing ingestion)
-# ═══════════════════════════════════════════════
 
 from app.services.s3_service import upload_to_s3, S3_BUCKET
 from app.services.ingestion_service import run_document_ingestion

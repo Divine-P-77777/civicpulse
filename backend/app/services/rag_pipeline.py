@@ -459,7 +459,7 @@ class RagPipeline:
         else:
             formatted_query = f"[CRITICAL OVERRIDE: You MUST respond to this query ENTIRELY in English. Ignore the language of previous messages if they were in Hindi. Do not use any language other than English.]\n\nUser Query: {query}"
             
-        messages = [{"role": "user", "content": [{"type": "text", "text": formatted_query}]}]
+        messages = [{"role": "user", "content": [{"text": formatted_query}]}]
 
         # ── Step 5: LLM call with mode-aware limits ──────────────
         temperature = config.get("temperature", 0.7)
@@ -471,15 +471,12 @@ class RagPipeline:
     def get_simple_completion(self, prompt: str, max_tokens: int = 64) -> str:
         """Lightweight completion for simple tasks like title generation."""
         try:
-            body = json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": max_tokens,
-                "temperature": 0.5,
-                "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
-            })
-            response = bedrock_client.invoke_model(modelId=self.model, body=body)
-            result = json.loads(response['body'].read())
-            return result["content"][0]["text"].strip()
+            response = bedrock_client.converse(
+                modelId=self.model,
+                messages=[{"role": "user", "content": [{"text": prompt}]}],
+                inferenceConfig={"maxTokens": max_tokens, "temperature": 0.5}
+            )
+            return response['output']['message']['content'][0]['text'].strip()
         except Exception as e:
             logger.error(f"Simple completion failed: {e}")
             return ""
@@ -487,71 +484,89 @@ class RagPipeline:
     def detect_language(self, text: str) -> str:
         """
         Production-level fast language context detection.
-        Prevents switching on single words, prioritizes phrase context.
+        Prioritizes phrase structure over individual words.
+        Indian proper nouns (names, cities) do NOT trigger a language switch.
         """
         if not text or len(text.strip()) < 2:
             return "en"
 
         text_lower = text.lower()
-        
-        # 0. Meta-Command Override: If user explicitly requests a language, honor it regardless of the script used
+
+        # 0. Explicit language override — highest priority
         if "english" in text_lower or "angrezi" in text_lower or "इंग्लिश" in text_lower or "अंग्रेज़ी" in text_lower:
             return "en"
         elif "hindi" in text_lower or "हिंदी" in text_lower or "हिन्दी" in text_lower:
             return "hi"
 
-        # 1. Very Fast Heuristic: Devanagari Script Check
+        # 1. Devanagari script — most reliable signal (user typed Hindi)
         devanagari_count = len([c for c in text if '\u0900' <= c <= '\u097F'])
         if devanagari_count > len(text) * 0.1:
             return "hi"
-            
-        # 2. Fast Heuristic: Hinglish Keyword Density
-        hinglish_words = {"aur", "kya", "hai", "nahi", "kaise", "karte", "hua", "mera", "mujhe", "karna", "iska", "matlab", "batao", "samjhao", "ka", "ki", "ke", "liye", "bhi", "mein", "pe", "par", "hona", "chahiye"}
-        words = "".join([c for c in text.lower() if c.isalnum() or c.isspace()]).split()
-        hinglish_match = sum(1 for w in words if w in hinglish_words)
-        
-        # If strong Hinglish presence
-        if hinglish_match >= 2 or (len(words) <= 4 and hinglish_match >= 1):
+
+        words = "".join([c for c in text_lower if c.isalnum() or c.isspace()]).split()
+
+        # 2. English anchor check — if sentence has clear English structural words,
+        #    stay in English regardless of any Indian names or postpositions present.
+        ENGLISH_ANCHORS = {
+            "i", "my", "me", "we", "you", "the", "a", "an", "is", "are", "was",
+            "have", "has", "want", "need", "file", "please", "can", "will", "would",
+            "should", "do", "this", "that", "for", "with", "how", "what", "when",
+            "where", "help", "make", "create", "send", "draft", "write", "get",
+            "about", "against", "from", "name", "and", "or", "of", "to"
+        }
+        english_anchor_count = sum(1 for w in words if w in ENGLISH_ANCHORS)
+        if english_anchor_count >= 2:
+            return "en"
+
+        # 3. Hinglish keyword density
+        # NOTE: Deliberately excluded: ka, ki, ke, pe, par, mein — these collide
+        # heavily with Indian proper nouns in otherwise-English sentences.
+        # Only include words that are unambiguously Hindi (not English borrowings).
+        HINGLISH_WORDS = {
+            "aur", "kya", "hai", "nahi", "kaise", "karte", "hua",
+            "mera", "mujhe", "karna", "iska", "matlab", "batao",
+            "samjhao", "liye", "bhi", "hona", "chahiye", "nahin",
+            "lekin", "phir", "abhi", "yahan", "wahan", "koi", "sab",
+            "hum", "tum", "unka", "unke", "apna", "apni", "apne",
+        }
+        hinglish_match = sum(1 for w in words if w in HINGLISH_WORDS)
+
+        # Require 2+ unambiguous Hinglish words to switch — 1 alone is not enough
+        if hinglish_match >= 2:
             return "hi"
-            
-        # If very long sentence with no Hinglish keywords, assume English to save LLM call
+
+        # 4. Very long sentence with no Hinglish → English (skip expensive LLM call)
         if len(words) > 8 and hinglish_match == 0:
             return "en"
 
-        # 3. AI Fallback (for complex Romanized Hindi or ambiguous context)
-        prompt = f"""
-        Analyze the language context of this spoken phrase.
-        Phrase: "{text}"
-        
-        Is this phrase predominantly Hindi (including Hinglish/Roman script) or English?
-        Remember: A single English word in a Hindi sentence means it's Hindi. A single Hindi word in an English sentence means it's English.
-        Reply with strictly 'hi' for Hindi/Hinglish, or 'en' for English. Do not write anything else.
-        """
+        # 5. AI fallback — only for genuinely ambiguous short phrases
+        prompt = f"""Analyze the language of this spoken phrase.
+Phrase: "{text}"
+
+RULE: Indian proper nouns (names like Priya, Rajesh, Suresh; cities like Delhi, Mumbai) are NOT Hindi markers — they appear in both English and Hindi sentences. Judge by the SENTENCE STRUCTURE and VERB FORMS only.
+
+Is this phrase predominantly Hindi/Hinglish OR English?
+Reply with exactly 'hi' or 'en'. Nothing else."""
         try:
             res = self.get_simple_completion(prompt, max_tokens=10).strip().lower()
-            if "hi" in res:
-                return "hi"
-            return "en"
+            return "hi" if res.startswith("hi") else "en"
         except Exception as e:
             logger.error(f"Language detection fallback error: {e}")
             return "en"
 
+
     def _execute_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024, temperature=0.7):
-        """Non-streaming response via Bedrock invoke_model API with local retry/throttling logic."""
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "system": system_prompt,
-            "messages": messages
-        })
-        
+        """Non-streaming response via Bedrock converse API with local retry/throttling logic."""
         for attempt in range(5):  # 5 local retry attempts
             try:
                 with _bedrock_semaphore:
-                    response = bedrock_client.invoke_model(modelId=self.model, body=body)
-                    result = json.loads(response['body'].read())
-                    result_text = result["content"][0]["text"]
+                    response = bedrock_client.converse(
+                        modelId=self.model,
+                        messages=messages,
+                        system=[{"text": system_prompt}],
+                        inferenceConfig={"maxTokens": max_tokens, "temperature": temperature}
+                    )
+                    result_text = response['output']['message']['content'][0]['text']
                     
                     store_analysis_result(query, result_text, user_id, session_id)
                     return result_text
@@ -568,20 +583,17 @@ class RagPipeline:
         return "I'm sorry, I'm currently overwhelmed with requests. Please try again in a moment."
 
     def _stream_response(self, system_prompt: str, messages: list, query: str, user_id=None, session_id=None, max_tokens=1024, temperature=0.7):
-        """Streaming generator via Bedrock invoke_model_with_response_stream API with throttling protection."""
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "system": system_prompt,
-            "messages": messages
-        })
-        
+        """Streaming generator via Bedrock converse_stream API with throttling protection."""
         response = None
         for attempt in range(5):
             try:
                 with _bedrock_semaphore:
-                    response = bedrock_client.invoke_model_with_response_stream(modelId=self.model, body=body)
+                    response = bedrock_client.converse_stream(
+                        modelId=self.model,
+                        messages=messages,
+                        system=[{"text": system_prompt}],
+                        inferenceConfig={"maxTokens": max_tokens, "temperature": temperature}
+                    )
                     break # Success, start streaming
             except Exception as e:
                 err_msg = str(e)
@@ -594,16 +606,10 @@ class RagPipeline:
                     raise
 
         collected_chunks = []
-        for event in response["body"]:
+        for event in response["stream"]:
             try:
-                # The event contains a 'chunk' with bytes that represent JSON
-                chunk_str = event.get('chunk', {}).get('bytes', b'').decode('utf-8')
-                if not chunk_str:
-                    continue
-                    
-                chunk_data = json.loads(chunk_str)
-                if chunk_data.get("type") == "content_block_delta":
-                    text = chunk_data.get("delta", {}).get("text", "")
+                if "contentBlockDelta" in event:
+                    text = event["contentBlockDelta"]["delta"]["text"]
                     if text:
                         collected_chunks.append(text)
                         yield text

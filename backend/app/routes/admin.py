@@ -14,16 +14,14 @@ import json
 import logging
 import asyncio
 
-# Ensure persistent job table exists
 ensure_job_table()
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # helps for debug
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-# Concurrency Semaphore: Limits heavy background tasks (OCR/Chunking) 
-# to protect small EC2 instances (e.g. 1GB RAM micro instances).
-INGESTION_SEMAPHORE = asyncio.Semaphore(2)
+
+INGESTION_SEMAPHORE = asyncio.Semaphore(2) #only two ingestion process happens at max simultaneously
 
 # ─── Pydantic Models ───
 
@@ -38,11 +36,10 @@ class UpdateS3TagsRequest(BaseModel):
     key: str
     tags: dict
 
-# ═══════════════════════════════════════════════
 # INGESTION
-# ═══════════════════════════════════════════════
 
-async def _run_admin_ingestion(ingest_type: str, bucket: str, file_key: Optional[str], content: Optional[str], meta_dict: dict, x_socket_id: Optional[str], x_live_sid: Optional[str] = None, job_id: Optional[str] = None):
+async def _run_admin_ingestion(ingest_type: str, bucket: str, 
+file_key: Optional[str], content: Optional[str], meta_dict: dict, x_socket_id: Optional[str], x_live_sid: Optional[str] = None, job_id: Optional[str] = None):
     """Background task orchestrator for running the long document ingestion processes."""
     async with INGESTION_SEMAPHORE:
         try:

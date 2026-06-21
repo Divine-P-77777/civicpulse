@@ -1,6 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
 
-/** A single audio chunk from the backend with its encoding format. */
 type AudioChunk = { data: string; format: 'wav' | 'mp3' };
 
 interface UseLiveAudioParams {
@@ -17,6 +16,8 @@ interface UseLiveAudioParams {
   onAutoSubmitStart?: (seconds: number) => void;
   onAutoSubmitCancel?: () => void;
 }
+
+
 
 export function useLiveAudio({
   wsReadyState, sendUserText, requestGreeting, status, setStatus, setTranscript, setUserTranscript, setAiTranscript, language, audioQueueRef,

@@ -105,7 +105,7 @@ async def _ingest_image_orchestrator(bucket: str, file_key: str, metadata: Dict 
                     logger.warning(f"Textract failed ({e}), falling back to local OCR...")
                     ocr_engine = "Local (Fallback - Pytesseract)"
                     detail["engine"] = ocr_engine
-                    await emit_status(60, f"⚠️ Textract failed. Falling back to Local OCR...")
+                    await emit_status(60, f" Textract failed. Falling back to Local OCR...")
                     full_text, _ = await asyncio.to_thread(extract_text_local, local_path)
             
             # Save to ROM Checkpoint
@@ -162,7 +162,7 @@ async def _ingest_image_orchestrator(bucket: str, file_key: str, metadata: Dict 
     detail["chunks_embedded"] = total_chunks
     detail["chunks_stored"] = total_chunks
     
-    await emit_status(100, f"✅ Image ingested successfully! ({total_chunks} chunks)")
+    await emit_status(100, f" Image ingested successfully! ({total_chunks} chunks)")
     
     # Aggressively clear memory after bulk storage
     gc.collect()

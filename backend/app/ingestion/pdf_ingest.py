@@ -85,11 +85,11 @@ async def _ingest_pdf_orchestrator(bucket: str, key: str, metadata: dict = None,
         goto_chunking = False
 
     if not goto_chunking:
-        # ═════════════════════════════════════════════
+     
         # STAGE 1: EXTRACTION (0% – 40%)
-        # ═════════════════════════════════════════════
+      
         if use_local:
-            # --- Local OCR with per-page progress ---
+            # Local OCR with per-page progress 
             if sid:
                 await socket_manager.emit_progress(
                     5, f"Downloading PDF for local OCR ({ocr_engine})...",
@@ -246,9 +246,9 @@ async def _ingest_pdf_orchestrator(bucket: str, key: str, metadata: dict = None,
         )
     _sync_job(stage="chunking", progress=40, message=f"Extraction complete — {pages_processed} pages")
 
-    # ═════════════════════════════════════════════
+
     # STAGE 2: CHUNKING (40% – 50%)
-    # ═════════════════════════════════════════════
+  
     if sid:
         await socket_manager.emit_progress(
             42, "Splitting text into chunks...",
@@ -269,9 +269,9 @@ async def _ingest_pdf_orchestrator(bucket: str, key: str, metadata: dict = None,
 
     logger.info(f"Created {total_chunks} chunks.")
 
-    # ═════════════════════════════════════════════
+   
     # STAGE 3: EMBEDDING & STORING (50% – 98%)
-    # ═════════════════════════════════════════════
+ 
     if sid:
         await socket_manager.emit_progress(
             51, f"Processing {total_chunks} chunks (Parallel Cloud Mode)...",
@@ -337,9 +337,9 @@ async def _ingest_pdf_orchestrator(bucket: str, key: str, metadata: dict = None,
         )
     _sync_job(stage="storing", progress=98, message=f"All {total_chunks} chunks ingested")
 
-    # ═════════════════════════════════════════════
+  
     # STAGE 5: DONE (100%)
-    # ═════════════════════════════════════════════
+
     if sid:
         await socket_manager.emit_progress(
             100, f"✅ Ingestion complete! {total_chunks} chunks from {pages_processed} pages ({ocr_engine})",

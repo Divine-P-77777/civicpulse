@@ -473,7 +473,7 @@ async def live_voice_websocket(websocket: WebSocket, session_id: str):
             pass
     finally:
         manager.disconnect(session_id)
-        # Only delete session on explicit session_end, not on accidental disconnect
+     # Only delete session on explicit session_end, not on accidental disconnect
         # DynamoDB TTL (4 hours) acts as safety net for abandoned sessions
         logger.info(f"Session {session_id}: WebSocket disconnected. Session data preserved in DynamoDB.")
 

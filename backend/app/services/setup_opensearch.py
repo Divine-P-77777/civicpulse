@@ -17,7 +17,7 @@ client = OpenSearch(
     connection_class=RequestsHttpConnection
 )
 
-index_name = "civicpulse"
+index_name = os.getenv("OPENSEARCH_INDEX", "civicpulse_v2").strip()
 
 index_body = {
     "settings": {
@@ -30,7 +30,7 @@ index_body = {
         "properties": {
             "vector": {
                 "type": "knn_vector",
-                "dimension": 1536,
+                "dimension": 1024,
                 "method": {
                     "name": "hnsw",
                     "space_type": "l2",
@@ -55,6 +55,6 @@ try:
     
     print(f"Creating index {index_name}...")
     client.indices.create(index=index_name, body=index_body)
-    print("✅ Index created successfully!")
+    print("Index created successfully!")
 except Exception as e:
-    print(f"❌ Error creating index: {e}")
+    print(f"Error creating index: {e}")

@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import os
 
-# Load environment variables from .env file
 load_dotenv()
 
 from app.routes import upload, analyze, admin, live, drafts, user
@@ -34,10 +33,19 @@ ALLOWED_ORIGINS = [
 # Specifically allow Vercel previews and production domains
 ORIGIN_REGEX = r"https://civicpulse-pro.*\.vercel\.app"
 
-class CustomCORSMiddleware(CORSMiddleware):
+class CustomCORSMiddleware(CORSMiddleware):  #expand the builtin CORs middleware to log incoming requests and skip CORS for socket.io paths
+
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
-            headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+
+            headers = {}
+
+            for k, v in scope.get("headers", []):   # [] default value to prevent KeyError if 'headers' is missing
+                key = k.decode().lower()
+                value = v.decode()
+                headers[key] = value
+            # convert byte to string and using lower() to make the header keys case-insensitive
+            
             origin = headers.get("origin")
             if origin:
                 logger.info(f"CORS Check: Origin={origin} Path={scope['path']} Method={scope.get('method')}")
@@ -51,7 +59,7 @@ class CustomCORSMiddleware(CORSMiddleware):
 app.add_middleware(
     CustomCORSMiddleware,
     allow_origins=["*"] if os.getenv("DEBUG_CORS") == "true" else ALLOWED_ORIGINS,
-    allow_origin_regex=ORIGIN_REGEX,
+    allow_origin_regex=ORIGIN_REGEX,  # Allow any Vercel preview subdomain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,12 +74,11 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(drafts.router, prefix="/api")
 app.include_router(user.router, prefix="/api")
 
-# ─── Mount Socket.IO ───
-# We need Socket.IO exclusively for Admin panel upload progress events
+# Mount Socket.IO exclusively for Admin panel upload progress events
 from app.core.socket_manager import socket_app
 app.mount("/socket.io", socket_app)
 
-# ─── Startup Event ───
+# Startup Event 
 @app.on_event("startup")
 async def startup():
     """Ensure required DynamoDB tables exist on startup."""
@@ -95,10 +102,11 @@ async def health_check():
         "message": "Backend is running smoothly"
     }
 
-# ─── Global Exception Handler ───
+# Global Exception Handler  and this prevents the server from crashing on unhandled exceptions, and instead returns a structured JSON response with error details. It also logs the full stack trace for debugging purposes.
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    traceback.print_exc()
+    traceback.print_exc()  
     return JSONResponse(
         status_code=500,
         content={

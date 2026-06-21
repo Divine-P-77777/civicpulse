@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from app.config import AWS_REGION
 from boto3.dynamodb.conditions import Key
 
-dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
+dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)  #higher level api
 TABLE_NAME = "CivicPulseChats"
 
 def _get_table():
@@ -12,7 +12,7 @@ def _get_table():
 
 def ensure_table_exists():
     """Create the CivicPulseChats table if it doesn't exist."""
-    client = boto3.client('dynamodb', region_name=AWS_REGION)
+    client = boto3.client('dynamodb', region_name=AWS_REGION) #lower level api
     existing = client.list_tables()["TableNames"]
     
     if TABLE_NAME not in existing:
@@ -108,15 +108,43 @@ def delete_session(user_id: str, session_id: str):
     return {"deleted": True}
 
 def share_session(user_id: str, session_id: str):
-    """Mark a session as shared and return it."""
+    """Mark a session as shared and return unique share ID."""
+
     table = _get_table()
     now = datetime.now(timezone.utc).isoformat()
-    share_id = str(uuid.uuid4())[:8]
+
+    while True:
+
+        # Generate short share ID
+        share_id = str(uuid.uuid4())[:8]
+
+        # Check if share_id already exists
+        response = table.scan(
+            FilterExpression="ShareId = :sid",
+            ExpressionAttributeValues={
+                ":sid": share_id
+            }
+        )
+
+        items = response.get("Items", [])
+
+    
+        if not items:
+            break
+
+    # Save share_id into session
     table.update_item(
-        Key={"UserId": user_id, "SessionId": session_id},
+        Key={
+            "UserId": user_id,
+            "SessionId": session_id
+        },
         UpdateExpression="SET ShareId = :sid, SharedAt = :now",
-        ExpressionAttributeValues={":sid": share_id, ":now": now}
+        ExpressionAttributeValues={
+            ":sid": share_id,
+            ":now": now
+        }
     )
+
     return share_id
 
 def get_shared_session(share_id: str):
